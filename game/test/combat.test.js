@@ -27,3 +27,8 @@ test('walls and towers add 10% each, defenders count 150', () => {
   const r = powers([10, 0, 0], [0, 0, 0, 10], 2, 1);
   assert.equal(r.defense, Math.trunc((10 * 150 * (10000 + 3000)) / 10000));
 });
+
+test('trading activity adds up to 20% to each side: 5500 against 12000 (the contract test)', () => {
+  const r = powers([0, 0, 100], [100, 0, 0, 0], 0, 0, false, 1000, 2000);
+  assert.deepEqual([r.attack, r.defense, r.success], [5500, 12000, false]);
+});
