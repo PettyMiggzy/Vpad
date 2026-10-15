@@ -53,9 +53,72 @@ export async function loadLive(base = '') {
       const at = [(a.plots[0][0] + d.plots[0][0]) / 2, (a.plots[0][1] + d.plots[0][1]) / 2];
       return { a: a.name, b: d.name, at, success: r.args.success };
     }).filter(Boolean);
-    return { live: true, rpc: cfg.rpc, seed: seed.toString(), radius, terrain: makeTerrain(seed), nations, wars };
+    return { live: true, rpc: cfg.rpc, chainId: cfg.chainId, lands: cfg.lands, devKey: cfg.devKey || null, seed: seed.toString(), radius, terrain: makeTerrain(seed), nations, wars };
   } catch (e) {
     console.warn('could not read the chain, showing the preview', e);
     return null;
   }
+}
+
+// ---- writes: the only place the game sends transactions ----
+import { BrowserProvider, Wallet } from 'ethers';
+
+const ERC20_RW = ['function approve(address,uint256) returns (bool)', 'function allowance(address,address) view returns (uint256)', 'function balanceOf(address) view returns (uint256)', 'function totalSupply() view returns (uint256)'];
+
+let signerPromise = null;
+/** The player's signer: the wallet in the page (EIP-1193), or, on a local test chain only, the key deployment.json carries. */
+export function getSigner(world) {
+  if (!signerPromise) {
+    signerPromise = (async () => {
+      if (world.devKey) return new Wallet(world.devKey, new JsonRpcProvider(world.rpc, world.chainId, { staticNetwork: true }));
+      if (!window.ethereum) throw new Error('no wallet in this page');
+      const provider = new BrowserProvider(window.ethereum);
+      await provider.send('eth_requestAccounts', []);
+      return provider.getSigner();
+    })();
+  }
+  return signerPromise;
+}
+
+async function contracts(world, token) {
+  const signer = await getSigner(world);
+  return { signer, lands: new Contract(world.lands, abi, signer), coin: new Contract(token, ERC20_RW, signer) };
+}
+
+/** One tx at a time, each reported back as { hash, ok }. The coin must be approved to the game first (one extra tx, once). */
+export async function train(world, token, unit, count) {
+  const { signer, lands, coin } = await contracts(world, token);
+  const me = await signer.getAddress();
+  if ((await coin.allowance(me, world.lands)) < 10n ** 30n) await (await coin.approve(world.lands, 2n ** 255n)).wait();
+  const tx = await lands.train(token, unit, count);
+  const rc = await tx.wait();
+  return { hash: tx.hash, ok: rc.status === 1 };
+}
+
+export async function collectReady(world) {
+  const { signer, lands } = await contracts(world, world.nations[0].token);
+  const now = BigInt((await signer.provider.getBlock('latest')).timestamp); // the chain's clock, not the page's
+  const n = Number(await lands.jobCount());
+  const done = [];
+  for (let id = 0; id < n; id++) {
+    const j = await lands.jobs(id);
+    if (!j.collected && now >= j.readyAt) { try { const tx = await lands.collect(id); await tx.wait(); done.push(tx.hash); } catch (_) {} }
+  }
+  return done;
+}
+
+export async function buildDefense(world, token, wall) {
+  const { signer, lands, coin } = await contracts(world, token);
+  const me = await signer.getAddress();
+  if ((await coin.allowance(me, world.lands)) < 10n ** 30n) await (await coin.approve(world.lands, 2n ** 255n)).wait();
+  const tx = await lands.build(token, wall);
+  const rc = await tx.wait();
+  return { hash: tx.hash, ok: rc.status === 1 };
+}
+
+export async function readNation(world, token) {
+  const provider = new JsonRpcProvider(world.rpc, world.chainId, { staticNetwork: true });
+  const lands = new Contract(world.lands, abi, provider);
+  const n = await lands.nation(token);
+  return { units: n.units.map(Number), wall: Number(n.wall), tower: Number(n.tower), pool: Math.round(Number(formatUnits(n.warPool, 18))) };
 }

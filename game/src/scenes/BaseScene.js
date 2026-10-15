@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { powers, UNIT_NAMES } from '../combat.js';
+import { train, collectReady, buildDefense, readNation } from '../chain.js';
 
 const UNIT_KEYS = ['bruiser', 'sniper', 'trickster', 'defender'];
 const BUILDS = [
@@ -44,7 +45,7 @@ export class BaseScene extends Phaser.Scene {
       const s = this.add.image(x, y, key).setDisplaySize(180, 135).setInteractive({ useHandCursor: true });
       s.baseY = y; s.baseX = x;
       this.sprites.push(s);
-      this.add.text(x, y + 80, `${UNIT_NAMES[i]}  ×${n.units[i]}`, { color: '#fff', fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
+      (this.unitLabels ??= [])[i] = this.add.text(x, y + 80, `${UNIT_NAMES[i]}  ×${n.units[i]}`, { color: '#fff', fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
       this.tweens.add({ targets: s, y: y - 4, duration: 1200 + i * 150, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       s.on('pointerup', () => this.hit(s));
     });
@@ -59,6 +60,7 @@ export class BaseScene extends Phaser.Scene {
       this.sprites.slice(0, 3).forEach((s, i) => { if (send[i] > 0) this.time.delayedCall(i * 250, () => this.lunge(s)); });
       this.time.delayedCall(900, () => this.result.setText(`attack ${r.attack}  vs  defense ${r.defense}\n${r.success ? 'RAID SUCCEEDS' : 'RAID FAILS'}  (a fixed formula, no luck)`).setColor(r.success ? '#b6ff00' : '#ff6a6a'));
     });
+    if (this.registry.get('world').live && n.token) this.actions(n, W, H);
     this.add.text(20, H - 20, 'unit counters: bruiser > trickster > sniper > bruiser', { color: '#9aa', fontSize: '12px' }).setOrigin(0, 1);
   }
 
@@ -69,5 +71,32 @@ export class BaseScene extends Phaser.Scene {
   hit(s) {
     s.setTint(0xff5555);
     this.tweens.add({ targets: s, angle: { from: -4, to: 4 }, duration: 60, yoyo: true, repeat: 2, onComplete: () => { s.setAngle(0); s.clearTint(); } });
+  }
+
+  // the player's buttons: each sends one real transaction to the game's contract (the page's wallet, or the local test key)
+  actions(n, W, H) {
+    const world = this.registry.get('world');
+    const status = this.add.text(20, 82, 'ready: each button sends a transaction', { color: '#9aa', fontSize: '12px', wordWrap: { width: W * 0.5 } });
+    const run = async (label, fn) => {
+      status.setText(`${label}: waiting for the wallet and the chain…`).setColor('#ffd24a');
+      try {
+        const r = await fn();
+        const fresh = await readNation(world, n.token);
+        fresh.units.forEach((u, i) => this.unitLabels[i].setText(`${UNIT_NAMES[i]}  ×${u}`));
+        n.units = fresh.units;
+        status.setText(`${label}: done${r && r.hash ? `  tx ${r.hash.slice(0, 18)}…` : ''}`).setColor('#b6ff00');
+      } catch (e) {
+        status.setText(`${label}: ${String(e.shortMessage || e.reason || e.message).slice(0, 90)}`).setColor('#ff6a6a');
+      }
+    };
+    const btn = (x, y, label, fn) => {
+      const b = this.add.text(x, y, label, { color: '#050805', backgroundColor: '#b6ff00', fontSize: '13px', fontStyle: 'bold', padding: { x: 8, y: 5 } }).setInteractive({ useHandCursor: true });
+      b.on('pointerup', () => run(label, fn));
+      return b;
+    };
+    ['bruiser', 'sniper', 'trickster', 'defender'].forEach((u, i) => btn(20 + i * 170, 110, `Train 5 ${u}`, () => train(world, n.token, i, 5)));
+    btn(20, 144, 'Collect ready units', async () => ({ hash: (await collectReady(world))[0] }));
+    btn(210, 144, 'Build wall', () => buildDefense(world, n.token, true));
+    btn(330, 144, 'Build tower', () => buildDefense(world, n.token, false));
   }
 }
