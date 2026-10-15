@@ -1,0 +1,17 @@
+# (no trailing "/": a working copy's packages may be a link to another copy's, and a link is a file to git, which "node_modules/" misses)
+node_modules
+dist/
+.vercel/
+
+# keys and secrets never go in the repo
+.env
+.env.*
+*.key
+*keystore*
+UTC--*
+*.pem
+*.p12
+id_rsa*
+id_ed25519*
+id_ecdsa*
+secrets/

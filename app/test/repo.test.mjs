@@ -1,0 +1,130 @@
+// Checks on the repository's own files, as `git ls-files` lists them.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const ROOT = path.join(import.meta.dirname, '..');
+const files = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+const TEXT = /\.(?:[cm]?js|tsx?|json|html|css|md|ya?ml|py|sh|txt|svg)$/;
+const text = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+
+// The well-known development accounts every local test chain starts with (Hardhat's and Anvil's first five).
+const DEV_ACCOUNTS = new Set([
+  '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266',
+  '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
+  '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
+  '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
+  '0x15d34aaf54267db7d7c367839aaf71a00a2c6a65',
+]);
+/** A stand-in address: one digit repeated (0x1111…), zeros then a small number (0x00…01), or a development account */
+const standIn = (a) => /^0x(?:([0-9a-f])\1{39}|0{30,}[0-9a-f]{1,10})$/i.test(a) || DEV_ACCOUNTS.has(a.toLowerCase());
+
+test('the tests use stand-in addresses only (contracts come from the SDK, never written out)', () => {
+  const found = [];
+  for (const f of files.filter((f) => f.startsWith('test/') && TEXT.test(f))) {
+    for (const [a] of text(f).matchAll(/(?<![0-9a-fA-F])0x[0-9a-fA-F]{40}(?![0-9a-fA-F])/g)) if (!standIn(a)) found.push(`${f}: ${a}`);
+  }
+  assert.deepEqual(found, []);
+});
+
+test('no file points at paths this repository does not have (app/web/…, brand/minta/…)', () => {
+  const found = [];
+  for (const f of files.filter((f) => TEXT.test(f) && f !== 'test/repo.test.mjs')) {
+    text(f).split('\n').forEach((l, i) => { if (/\b(?:app\/web|brand\/minta)\//.test(l)) found.push(`${f}:${i + 1}`); });
+  }
+  assert.deepEqual(found, []);
+});
+
+test('the README’s brand/ line names only the tools that are there', () => {
+  const line = text('README.md').split('\n').find((l) => l.startsWith('brand/'));
+  assert.ok(line, 'the README describes brand/');
+  const tools = new Set(files.filter((f) => /^brand\/[^/]+\//.test(f)).map((f) => f.split('/')[1]));
+  for (const [word, dir] of [['logo', 'logo'], ['splash', 'splash'], ['mascots', 'memes'], ['art', 'art']]) {
+    assert.equal(new RegExp(`\\b${word}\\b`).test(line), tools.has(dir), `"${word}" in the README’s brand/ line, brand/${dir}/ ${tools.has(dir) ? 'there' : 'not there'}`);
+  }
+});
+
+test('the logo tool writes into this repository’s public/ (run up to its first write, with its picture libraries stubbed)', (t) => {
+  const py = (() => { try { execFileSync('python3', ['--version'], { stdio: 'ignore' }); return 'python3'; } catch { return null; } })();
+  if (!py) return t.skip('no python3 here');
+  // the tool's first act is to make its output folder: report that folder and stop there, so nothing is written
+  const probe = [
+    'import os, runpy, sys, types',
+    "for n in ('cv2', 'numpy', 'PIL', 'PIL.Image'): sys.modules[n] = types.ModuleType(n)",
+    "sys.modules['PIL'].Image = sys.modules['PIL.Image']",
+    'class Stop(Exception): pass',
+    'def first_folder(p, *a, **k):',
+    '    print(os.path.normpath(p))',
+    '    raise Stop()',
+    'os.makedirs = first_folder',
+    'try: runpy.run_path(sys.argv[1])',
+    'except Stop: pass',
+  ].join('\n');
+  const out = execFileSync(py, ['-c', probe, path.join(ROOT, 'brand/logo/make-assets.py')], { encoding: 'utf8' }).trim();
+  assert.equal(out, path.join(ROOT, 'public', 'brand'));
+});
+
+test('CI runs actions pinned to a full commit, and checkout keeps no token in .git/config', () => {
+  const flows = files.filter((f) => /^\.github\/workflows\/.+\.ya?ml$/.test(f));
+  assert.ok(flows.length > 0);
+  for (const f of flows) {
+    const lines = text(f).split('\n');
+    lines.forEach((l, i) => {
+      const m = /^\s*(?:-\s*)?uses:\s*(\S+)/.exec(l);
+      if (!m) return;
+      assert.match(m[1], /^[\w.-]+\/[\w.-]+(?:\/[\w./-]+)?@[0-9a-f]{40}$/, `${f}:${i + 1} pins ${m[1]} to a commit`);
+      if (/^actions\/checkout@/.test(m[1])) {
+        // its `with:` block, up to the next step
+        const rest = [];
+        for (let j = i + 1; j < lines.length && !/^\s*-\s/.test(lines[j]); j++) rest.push(lines[j]);
+        assert.ok(rest.some((r) => /^\s*persist-credentials:\s*false\s*$/.test(r)), `${f}:${i + 1} checkout with persist-credentials: false`);
+      }
+    });
+  }
+});
+
+// The network the app works on is chosen in src/lib/chain.ts (VYRE_CHAIN and ARC_CHAIN); every other file reads it from there,
+// so the launchpad's addresses, the wallet's network, the Arc side and the SDK's own clients can't point at different networks.
+// (txcheck.ts keeps the SDK's test network only as a fallback for its unit tests; the app always passes its own chain.)
+test('the network is chosen in one place: no file but src/lib/chain.ts names the SDK’s test networks', () => {
+  const found = [];
+  for (const f of files.filter((f) => /^src\/.+\.tsx?$/.test(f) && f !== 'src/lib/chain.ts')) {
+    text(f).split('\n').forEach((l, i) => {
+      if (!/\b(?:vyreTestnet|arcTestnet)\b/.test(l)) return;
+      if (f === 'src/lib/txcheck.ts' && (/^import \{[^}]*\bvyreTestnet\b[^}]*\} from '@vyrechain\/sdk';$/.test(l) || /\(o\.vyreChainId \?\? vyreTestnet\.id\)/.test(l))) return;
+      found.push(`${f}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(found, []);
+});
+
+test('.gitignore keeps a linked node_modules and key files out of `git add -A` (read in a fresh repository, so no local exclude counts)', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'minta-ignore-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // no user or system settings: only this .gitignore decides
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: '1' };
+  const git = (...a) => execFileSync('git', a, { cwd: dir, env, encoding: 'utf8' });
+  git('-c', 'init.defaultBranch=main', 'init', '-q');
+  fs.copyFileSync(path.join(ROOT, '.gitignore'), path.join(dir, '.gitignore'));
+  // packages linked from another working copy: a link is a file to git, not a folder
+  fs.symlinkSync(os.tmpdir(), path.join(dir, 'node_modules'));
+  fs.mkdirSync(path.join(dir, 'tools'));
+  fs.symlinkSync(os.tmpdir(), path.join(dir, 'tools', 'node_modules'));
+  const keys = ['.env', '.env.local', 'deploy.key', 'keystore.json', 'secrets/a.json', 'UTC--2026-01-01T00-00-00.000Z--0000000000000000000000000000000000000001',
+    'server.pem', 'cert.p12', 'id_rsa', 'id_rsa.pub', 'id_ed25519', 'id_ecdsa'];
+  for (const f of keys) {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), 'x');
+  }
+  const untracked = git('status', '--porcelain=v1', '--untracked-files=all').split('\n').filter(Boolean);
+  assert.deepEqual(untracked, ['?? .gitignore']);
+});
+
+test('.gitignore hides no file the repository tracks', () => {
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: '1' };
+  const hidden = execFileSync('git', ['ls-files', '-ci', '--exclude-per-directory=.gitignore'], { cwd: ROOT, env, encoding: 'utf8' }).split('\n').filter(Boolean);
+  assert.deepEqual(hidden, []);
+});
