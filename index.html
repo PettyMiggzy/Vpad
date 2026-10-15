@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Meme World Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Concept: a strategy world. Zoom out: a thousand launches become a few nations. Zoom in: your plot. War: customisable armies. One deep sea-blue look, dark by choice. */
+:root {
+  color-scheme: dark;
+  --sea: #0a1722; --sea-2: #0f2232; --panel: #12293b; --line: #21405a; --ink: #eaf1f6; --muted: #8ea6b9;
+  --hot: #ff5a36; --gold: #f6c453; --ok: #46d39a;
+  --f-display: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif;
+  --f-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-data: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--sea); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; padding-inline: 16px; padding-block: 12px 40px; max-width: 1240px; margin-inline: auto; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+.mock { display: flex; gap: 10px; align-items: center; background: #2a1f0a; border: 1px solid #5e4713; color: #f1d58b; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
+.mock b { font-family: var(--f-data); letter-spacing: .06em; font-size: 12px; white-space: nowrap; }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; margin-bottom: 12px; }
+header.top h1 { font-size: clamp(30px, 6vw, 50px); font-weight: 800; letter-spacing: -.02em; line-height: .95; }
+header.top p { margin: 6px 0 0; color: var(--muted); }
+.wallet { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.wallet > div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; }
+.wallet small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.wallet b { font-family: var(--f-data); font-size: 18px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.tabs button { font-family: var(--f-display); font-weight: 800; font-size: 17px; padding: 9px 18px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+.tabs button.on { background: var(--ink); color: #0a1722; border-color: var(--ink); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+@media (min-width: 940px) { .layout { grid-template-columns: minmax(0, 1.75fr) minmax(320px, 1fr); } }
+.view { display: none; min-width: 0; }
+.view.on { display: block; }
+.cwrap { position: relative; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #0b1b29; }
+canvas { display: block; width: 100%; }
+.zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.zoom button { padding: 6px 11px; background: rgba(15, 34, 50, .92); }
+.hud { position: absolute; left: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; max-width: calc(100% - 20px); pointer-events: none; }
+.hud span { background: rgba(10, 23, 34, .88); border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; font-family: var(--f-data); font-size: 12px; }
+.hud b { color: var(--gold); }
+.simbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.simbar .lbl { color: var(--muted); font-size: 13px; margin-left: 4px; }
+.simbar button.on { background: var(--ink); color: #0a1722; border-color: var(--ink); }
+.menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; margin-top: 10px; }
+.menu button { text-align: left; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.menu button .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.menu button small { color: var(--muted); font-family: var(--f-data); font-size: 11px; font-weight: 500; }
+.menu button.on { border-color: var(--gold); background: #1c3a52; }
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.card h2 { font-size: 22px; margin-bottom: 6px; }
+.card h3 { font-size: 12px; margin-bottom: 8px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; font-family: var(--f-data); }
+.card p { margin: 6px 0; }
+.muted { color: var(--muted); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.stats div { background: var(--sea-2); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.stats span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.stats b { font-family: var(--f-data); font-size: 15px; overflow-wrap: anywhere; }
+.up { color: var(--ok); } .down { color: #ff7b7b; }
+button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 10px; border: 1px solid var(--line); background: var(--sea-2); color: var(--ink); padding: 9px 13px; }
+button:hover:not(:disabled) { border-color: #4a7ba0; }
+button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.war { background: var(--hot); border-color: var(--hot); color: #1b0700; }
+button.go { background: var(--ok); border-color: var(--ok); color: #03231a; }
+button.gold { background: var(--gold); border-color: var(--gold); color: #261a00; }
+.bar { height: 10px; background: var(--sea-2); border-radius: 6px; overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; transition: width .35s; }
+.ladder { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.ladder div { background: var(--sea-2); border-radius: 8px; padding: 7px 10px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ladder b { font-family: var(--f-display); }
+.ladder span { font-family: var(--f-data); font-size: 12px; color: var(--muted); }
+.big { font-family: var(--f-data); font-weight: 700; font-size: 26px; }
+.gold-t { color: var(--gold); }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--muted); align-items: center; margin: 8px 0; }
+.flow span { background: var(--sea-2); border-radius: 6px; padding: 4px 8px; }
+.flow em { font-style: normal; color: var(--gold); }
+.result { margin-top: 10px; background: var(--sea-2); border-radius: 8px; padding: 10px 12px; }
+.log { font-family: var(--f-data); font-size: 11.5px; color: var(--muted); max-height: 110px; overflow: auto; margin-top: 8px; }
+.feed { font-family: var(--f-data); font-size: 11.5px; color: var(--muted); max-height: 190px; overflow: hidden; margin-top: 8px; display: flex; flex-direction: column; gap: 3px; }
+.feed div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed b { color: var(--ink); font-weight: 600; }
+.feed .g { color: var(--ok); } .feed .y { color: var(--gold); } .feed .r { color: #ff7b7b; }
+.row2 { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.opts button { padding: 6px 10px; font-size: 13px; }
+.opts button.on { border-color: var(--gold); background: #1c3a52; }
+.opts small { color: var(--gold); font-family: var(--f-data); font-size: 11px; margin-left: 4px; }
+.sw2 { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; border: 1px solid rgba(255,255,255,.4); }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #fff; color: #0a1722; padding: 9px 16px; border-radius: 10px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 20; max-width: 90vw; text-align: center; }
+.toast.on { opacity: 1; }
+footer { color: var(--muted); font-size: 12.5px; margin-top: 18px; max-width: 95ch; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="mock"><b>WORKING PREVIEW</b><span>The dots with a white ring are REAL launches read from the VYRE test chain right now (test money, no value). The crowd of other dots, the nations, the money and the wars are a simulation of how it could play. Food and gold are game points, not money.</span></div>
+
+<header class="top">
+  <div>
+    <h1>Meme World</h1>
+    <p>A thousand launches. A few nations. Claim land, build on it, fight for it.</p>
+  </div>
+  <div class="wallet">
+    <div><small>Your USDC</small><b id="wUsdc">$300.00</b></div>
+    <div><small>Your SPUDS</small><b id="wCoin">50,000</b></div>
+    <button id="topup" title="Mock only: refills the pretend wallet">Refill pretend wallet</button>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Views">
+  <button data-view="world" class="on">World</button>
+  <button data-view="land">My land</button>
+  <button data-view="war">War</button>
+</nav>
+
+<div class="layout">
+  <section>
+    <div class="view on" id="v-world">
+      <div class="cwrap"><canvas id="cWorld" aria-label="World map: a thousand villages and a few nations"></canvas>
+        <div class="zoom"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">&minus;</button><button id="zReset">Reset</button></div>
+      </div>
+      <div class="simbar" id="simbar">
+        <button id="sPlay">Pause</button><button data-sp="1">1x</button><button data-sp="4" class="on">4x</button><button data-sp="12">12x</button><button id="demoTog" class="on">Demo crowd: on</button>
+        <span class="lbl" id="simLbl">Live simulation: launches, climbs, claims, wars. 1 second here is about 1 minute.</span>
+      </div>
+      <p class="muted" id="worldStats" style="margin:8px 2px 0"></p>
+    </div>
+    <div class="view" id="v-land">
+      <div class="cwrap"><canvas id="cLand" aria-label="Your land: buildings, workers and soldiers"></canvas><div class="hud" id="hud"></div></div>
+      <div class="menu" id="menu"></div>
+      <div class="opts" id="roofOpts" style="margin-top:10px"></div>
+    </div>
+    <div class="view" id="v-war">
+      <div class="cwrap"><canvas id="cWar" aria-label="Battlefield between two nations"></canvas></div>
+      <div style="margin-top:10px">
+        <div class="bar" id="warBar" style="height:14px"><i style="width:50%;background:#46d39a"></i><i style="width:50%;background:#ffc145"></i></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:var(--f-data);font-size:12px"><span>SPUDS (you)</span><span>WOBBLE</span></div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="card" id="ctx"></div>
+    <div class="card" id="flowCard"></div>
+    <div class="card" id="ledger"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<footer>
+  Reading this mock: a coin claims land when its market cap reaches about $50,000 (about $9,200 of USDC bought in net, before fees, by the pool's maths), holds it for 24 hours and has enough different buyers. Building costs USDC, which VYRE keeps, plus the nation's coin, which is 60% burned and 40% added to the nation's war chest, a shared defense fund that pays no one. Wars are scored by trading activity; defenses, the chest and holders' paid reinforcements add a capped bonus, so spending cannot buy a war. A slice of the fees a war creates is its prize and buys back the winner's coin. Skins and banners are cosmetic and paid in USDC. Nobody's liquidity is touched, and nothing here pays out money or promises that a coin goes up. The wording of the buyback and the chest goes to the lawyer before anything real. Every number above is invented for this preview.
+</footer>
+
+<script src="chain.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
