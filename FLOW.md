@@ -1,4 +1,4 @@
-# Vyre Lands: game flow (draft for review)
+# Vyre Bad Lands: game flow (draft for review)
 
 All numbers are placeholders until tuned. Mock data until after mainnet.
 
