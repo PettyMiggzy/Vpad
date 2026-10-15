@@ -3,7 +3,7 @@
 All numbers are placeholders until tuned. Mock data until after mainnet.
 
 1. **Launch.** A coin launches on the pad. Anyone can trade it.
-2. **Claim.** Two ways in. (a) The coin's 24-hour average market cap reaches about $50k. (b) The project took the early deal at launch: part of its creator tax goes to the treasury for good, enforced by the launch contract, and then it can claim at any market cap with one premium plot free. (c) Later, the project raises that share to the bigger late share, for good, and gets the same. The creator picks the first plot on the map. Coast and mountain-pass plots are the good spots and cost 20 USDC; the rest are free. If the creator is gone, anyone can claim an ordinary plot for a coin that has the market cap.
+2. **Claim.** Two ways in. (a) The coin's 24-hour average market cap reaches about $50k. (b) The project took the early deal at launch: part of its creator tax goes to the treasury for good, enforced by the pad's book, and then it can claim at any market cap with one premium plot free. (c) Later, the project raises that share to the bigger late share, for good, and gets the same. The creator picks the first plot on the map. Coast and mountain-pass plots are the good spots and cost 20 USDC; the rest are free. If the creator is gone, anyone can claim an ordinary plot for a coin that has the market cap.
 2b. **The map.** A grid world fixed by a seed: lakes, mountain ranges, coast, and narrow passes between mountains. It starts small and grows as it fills. Nations can buy plots next to their own (price doubles with every plot owned, up to 16). Raids need touching plots; defending a pass is 20% stronger.
 3. **Base screen.** The nation's holders open their base. Build menu on one side, the map beside it.
 4. **Build.** Offense: barracks (bruiser, sniper, trickster), siege ram. Defense: walls, guard tower, vault. Each build burns some of the nation's coin. Units allowed depend on how much coin a holder holds. USDC only speeds a build up or buys cosmetics.
@@ -16,3 +16,6 @@ All numbers are placeholders until tuned. Mock data until after mainnet.
 
 ## Cheats to test first
 Wash trading, wallets split to dodge limits, a market-cap pump just before the 24-hour check, buying a 10M stack for a minute, creator hiding behind other wallets, front-running the buyback.
+
+
+The contracts for all of this live in the VYRE chain repo, `engine/contracts/game/` and `engine/contracts/pad/VyrePadBook.sol`.
