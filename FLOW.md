@@ -1,0 +1,16 @@
+# Game flow (draft for review)
+
+All numbers are placeholders until tuned. Mock data until after mainnet.
+
+1. **Launch.** A coin launches on the pad. Anyone can trade it.
+2. **Claim.** At about $50k market cap, held 24 hours with enough different buyers, the coin claims a plot. It becomes a nation with a fighter and a starting town hall.
+3. **Base screen.** The nation's holders open their base. Build menu on one side, the map beside it.
+4. **Build.** Offense: barracks (bruiser, sniper, trickster), siege ram. Defense: walls, guard tower, vault. Each build burns some of the nation's coin. Units allowed depend on how much coin a holder holds. USDC only speeds a build up or buys cosmetics.
+5. **Pools.** 60% of the USDC spent on speed-ups goes to the nation's own war pool (placeholder split), the rest to the platform.
+6. **War round.** Nations attack neighbors. Units counter each other: bruiser beats trickster, trickster beats sniper, sniper beats bruiser. Trading activity, defenses and units decide the round. USDC cannot buy strength.
+7. **Result.** The winner takes half of the loser's war pool, buys back its own coin and burns it. The loser keeps the plot and loses part of its vault treasury.
+8. **Dashboard.** Holders who took part (or hold 10M or more through the round) see their share. Their creator-set split decides burn versus claim. Claims stay off until the lawyer agrees. The creator and the creator's wallets never receive any of it.
+9. **Next round.** Rubble gets rebuilt, units retrain, a new round starts.
+
+## Cheats to test first
+Wash trading, wallets split to dodge limits, a market-cap pump just before the 24-hour check, buying a 10M stack for a minute, creator hiding behind other wallets, front-running the buyback.
