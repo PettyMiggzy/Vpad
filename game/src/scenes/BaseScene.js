@@ -19,13 +19,13 @@ export class BaseScene extends Phaser.Scene {
     const n = this.nation;
     const W = this.scale.width, H = this.scale.height;
     this.add.text(20, 16, `${n.name}  ·  base`, { color: '#b6ff00', fontSize: '26px', fontStyle: 'bold' });
-    this.add.text(20, 50, 'PREVIEW · made-up numbers', { color: '#ffd24a', fontSize: '12px' });
+    this.add.text(20, 50, n.holders === null ? 'LIVE · read from the contracts' : 'PREVIEW · made-up numbers', { color: n.holders === null ? '#b6ff00' : '#ffd24a', fontSize: '12px' });
     const back = this.add.text(W - 20, 20, '← back to the map', { color: '#fff', fontSize: '16px', backgroundColor: '#1d3a16', padding: { x: 10, y: 6 } }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
     back.on('pointerup', () => this.scene.start('map'));
 
     // the town hall
     this.add.image(W * 0.3, H * 0.4, 'townhall').setDisplaySize(380, 285);
-    this.add.text(W * 0.3, H * 0.4 + 160, `${n.holders.toLocaleString()} holders   ·   war pool $${n.pool}`, { color: '#cfe', fontSize: '14px' }).setOrigin(0.5);
+    this.add.text(W * 0.3, H * 0.4 + 160, `${n.holders === null ? '' : n.holders.toLocaleString() + ' holders   ·   '}war pool $${n.pool}`, { color: '#cfe', fontSize: '14px' }).setOrigin(0.5);
 
     // buildings
     BUILDS.forEach(([key, label, note], i) => {

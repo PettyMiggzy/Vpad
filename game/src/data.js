@@ -75,5 +75,5 @@ export function previewWorld() {
   }
   wars.sort((x, y) => x.d - y.d);
   wars.length = Math.min(wars.length, 3); // the three closest pairs are at war
-  return { nations, wars, owner: (x, y) => taken.get(key(x, y)) };
+  return { live: false, seed: PREVIEW_SEED, radius: RADIUS, terrain, nations, wars };
 }

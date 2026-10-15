@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { loadLive } from '../chain.js';
+import { previewWorld } from '../data.js';
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('boot'); }
@@ -12,5 +14,9 @@ export class BootScene extends Phaser.Scene {
     this.load.image('logo', 'art/logo/warheadz-logo.png');
   }
 
-  create() { this.scene.start('map'); }
+  async create() {
+    const live = await loadLive(import.meta.env.BASE_URL);
+    this.registry.set('world', live ?? previewWorld());
+    this.scene.start('map');
+  }
 }

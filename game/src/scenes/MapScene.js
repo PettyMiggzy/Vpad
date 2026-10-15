@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { terrain, previewWorld, RADIUS } from '../data.js';
 import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 
 const TILE = 44;
@@ -9,7 +8,8 @@ export class MapScene extends Phaser.Scene {
   constructor() { super('map'); }
 
   create() {
-    this.world = previewWorld();
+    this.world = this.registry.get('world');
+    const { terrain, radius: RADIUS } = this.world;
     const size = (RADIUS * 2 + 1) * TILE;
     const px = (x) => (x + RADIUS) * TILE;
     const g = this.add.graphics();
@@ -59,7 +59,7 @@ export class MapScene extends Phaser.Scene {
     const ui = this.cameras.add(0, 0, this.scale.width, this.scale.height);
     const hud = [
       this.add.text(16, 14, 'VYRE BAD LANDS', { color: '#b6ff00', fontSize: '22px', fontStyle: 'bold' }),
-      this.add.text(16, 44, 'PREVIEW · the map is real (the contract\'s own terrain); the nations and wars are made up', { color: '#ffd24a', fontSize: '12px' }),
+      this.add.text(16, 44, this.world.live ? `LIVE · read from the contracts on ${this.world.rpc} (a test chain)` : 'PREVIEW · the map is real (the contract\'s own terrain); the nations and wars are made up', { color: this.world.live ? '#b6ff00' : '#ffd24a', fontSize: '12px' }),
       this.add.text(16, 64, 'drag to move · wheel to zoom · click a nation', { color: '#9aa', fontSize: '12px' }),
       this.add.text(16, this.scale.height - 40, 'lime border: coast (premium)   gold border: mountain pass (premium)   red glow: war', { color: '#cfe', fontSize: '12px' }),
     ];
