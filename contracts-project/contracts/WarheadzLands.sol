@@ -16,8 +16,8 @@ interface IPadRegistry {
 
     function isCreatorWallet(address token, address who) external view returns (bool);
 
-    /// @dev Share (in basis points) of the creator's tax that goes to `wallet` (sum over the tax wallet split)
-    function taxShareOf(address token, address wallet) external view returns (uint16);
+    /// @dev 0: no deal; 1: early deal (taken at launch); 2: late deal (the treasury's tax share raised afterwards)
+    function dealTier(address token) external view returns (uint8);
 }
 
 /// @dev Buys `token` with USDC pulled from the caller and burns it
@@ -46,7 +46,6 @@ contract WarheadzLands is ReentrancyGuard {
     uint64 public constant COOLDOWN = 24 hours; // protection of every new land and of every land just raided
     uint64 public constant MAX_SHIELD = 72 hours; // the furthest ahead protection can be bought
     uint64 public constant TRAIN_TIME = 1 hours;
-    uint64 public constant LAPSE_GRACE = 7 days; // how long a land can sit below the market cap with no deal before it is freed
     uint256 public constant POOL_BPS = 6_000; // share of paid USDC that joins the nation's war pool
     uint256 public constant LOOT_BPS = 2_000; // share of the loser's war pool a winning raid takes
     uint256 public constant UNIT_COST_BPS = 1; // coin burned per unit: 0.01% of supply
@@ -73,7 +72,6 @@ contract WarheadzLands is ReentrancyGuard {
         address creator;
         uint64 protectedUntil;
         uint64 nextRaidAt;
-        uint64 lapsedSince;
         uint8 wall;
         uint8 tower;
         uint16 claimBps;
@@ -112,7 +110,6 @@ contract WarheadzLands is ReentrancyGuard {
     uint256 public immutable buybackStep;
     uint256 public immutable premiumPrice; // USDC for a coast or pass plot (the first of a nation; later ones double)
     uint256 public immutable plotPrice; // USDC for an ordinary extra plot (doubles with every plot owned)
-    uint16 public immutable dealBps; // share of a creator's tax that must go to the treasury to claim early
     uint256 public immutable seed; // fixes the terrain of the whole world
 
     int16 public radius = START_RADIUS;
@@ -133,8 +130,6 @@ contract WarheadzLands is ReentrancyGuard {
     event LandClaimed(address indexed token, address indexed creator);
     event PlotTaken(address indexed token, int16 x, int16 y, uint8 kind);
     event WorldGrew(int16 radius);
-    event Lapsing(address indexed token, uint64 since);
-    event Reclaimed(address indexed token, uint256 plotsFreed, uint256 forfeited);
     event Trained(address indexed token, address indexed by, uint8 unit, uint32 count, uint256 jobId, uint64 readyAt);
     event Collected(address indexed token, uint256 jobId);
     event SpedUp(address indexed token, uint256 jobId, uint64 hoursCut, uint256 usdcPaid);
@@ -162,14 +157,12 @@ contract WarheadzLands is ReentrancyGuard {
         uint256 buybackStep;
         uint256 premiumPrice;
         uint256 plotPrice;
-        uint16 dealBps;
         uint256 seed;
     }
 
     constructor(Params memory p) {
         require(p.usdc != address(0) && p.marketCap != address(0) && p.registry != address(0) && p.treasury != address(0), "zero");
         require(p.buybackStep > 0 && p.buybackThreshold >= p.buybackStep, "bad step");
-        require(p.dealBps > 0 && p.dealBps <= BPS, "bad deal");
         usdc = IERC20(p.usdc);
         marketCap = IMarketCap(p.marketCap);
         registry = IPadRegistry(p.registry);
@@ -182,25 +175,25 @@ contract WarheadzLands is ReentrancyGuard {
         buybackStep = p.buybackStep;
         premiumPrice = p.premiumPrice;
         plotPrice = p.plotPrice;
-        dealBps = p.dealBps;
         seed = p.seed;
     }
 
     // ------------------------------------------------------------------ land
 
-    /// @notice Claim the land of a launched coin and pick its first plot. Two ways in:
+    /// @notice Claim the land of a launched coin and pick its first plot. Three ways in, each costs the project something:
     /// - the coin's 24-hour average market cap is at or above the claim level (a last-minute pump does not count);
-    /// - or the creator's tax already sends at least `dealBps` of it to the treasury (the early deal), at any cap.
-    /// The creator picks the plot. Once the market cap path is open, anyone may claim an ordinary plot for the coin,
-    /// so a coin whose creator left still gets its land. A coast or pass plot costs `premiumPrice` USDC.
+    /// - the early deal, taken when it launched: part of its tax goes to the treasury for good;
+    /// - the late deal: it raised that share later, to a bigger one, for good.
+    /// A deal claim gets one coast or pass plot free. The creator picks the plot. Once the market cap path is open,
+    /// anyone may claim an ordinary plot for the coin, so a coin whose creator left still gets its land.
     function claimLand(address token, int16 x, int16 y) external nonReentrant {
         Nation storage n = nations[token];
         require(!n.claimed, "already claimed");
         address creator = registry.creatorOf(token);
         require(creator != address(0), "not a pad coin");
         bool capOk = marketCap.marketCap24h(token) >= claimMcap;
-        bool dealOk = dealActive(token);
-        require(capOk || dealOk, "needs the market cap or the early deal");
+        bool dealOk = registry.dealTier(token) > 0;
+        require(capOk || dealOk, "needs the market cap or a deal");
         uint8 kind = terrain(x, y);
         bool premium = kind == COAST || kind == PASS;
         require(msg.sender == creator || (capOk && !premium), "creator picks the plot");
@@ -208,16 +201,16 @@ contract WarheadzLands is ReentrancyGuard {
         n.creator = creator;
         n.protectedUntil = uint64(block.timestamp) + COOLDOWN;
         _takePlot(token, n, x, y, kind);
-        if (premium) _payUsdcFor(token, premiumPrice, LAND_POOL_BPS);
+        // a deal pays for its first premium plot already; a market-cap claim pays for it in USDC
+        if (premium && !dealOk) _payUsdcFor(token, premiumPrice, LAND_POOL_BPS);
         emit LandClaimed(token, creator);
     }
 
     /// @notice Buy one more plot next to the nation's land. Burns coin and costs USDC (doubling with every plot owned,
-    /// premium plots cost at least `premiumPrice`). Open while the market cap path or the early deal holds.
+    /// premium plots cost at least `premiumPrice`). Land bought later is paid for in coin and USDC.
     function expand(address token, int16 x, int16 y) external nonReentrant {
         Nation storage n = _live(token);
         require(n.plots.length < MAX_PLOTS, "nation is full");
-        require(marketCap.marketCap24h(token) >= claimMcap || dealActive(token), "needs the market cap or the early deal");
         uint256 supply = IERC20(token).totalSupply();
         require(IERC20(token).balanceOf(msg.sender) >= (supply * COMMANDER_BPS) / BPS, "not a commander");
         require(_touchesNation(n, x, y), "must touch your land");
@@ -228,41 +221,6 @@ contract WarheadzLands is ReentrancyGuard {
         _takePlot(token, n, x, y, kind);
         _payUsdcFor(token, cost, LAND_POOL_BPS);
         _addPoints(token, msg.sender, 5);
-    }
-
-    /// @notice True while the creator's tax still sends the agreed share to the treasury (the creator can change the
-    /// split any time; the early deal then stops holding)
-    function dealActive(address token) public view returns (bool) {
-        return registry.taxShareOf(token, treasury) >= dealBps;
-    }
-
-    /// @notice A land stays only while its coin keeps the market cap or the early deal holds. Anyone can mark a land
-    /// that has neither; it can be freed after LAPSE_GRACE. If it recovers, marking again clears it.
-    function markLapse(address token) external {
-        Nation storage n = _live(token);
-        bool lapsed = !dealActive(token) && marketCap.marketCap24h(token) < claimMcap;
-        if (lapsed) {
-            require(n.lapsedSince == 0, "already marked");
-            n.lapsedSince = uint64(block.timestamp);
-            emit Lapsing(token, n.lapsedSince);
-        } else {
-            n.lapsedSince = 0;
-        }
-    }
-
-    /// @notice Free the plots of a land that has stayed lapsed for the whole grace period. Whatever USDC sat in its
-    /// pools goes to the treasury, so a squatted plot is never free for the squatter and never trapped.
-    function reclaim(address token) external nonReentrant {
-        Nation storage n = _live(token);
-        require(n.lapsedSince != 0 && block.timestamp >= n.lapsedSince + LAPSE_GRACE, "grace not over");
-        require(!dealActive(token) && marketCap.marketCap24h(token) < claimMcap, "recovered");
-        uint256 freed = n.plots.length;
-        for (uint256 i = 0; i < freed; i++) plotOwner[n.plots[i]] = address(0);
-        claimedPlots -= freed;
-        uint256 forfeited = n.warPool + n.buybackPot;
-        delete nations[token];
-        if (forfeited > 0) usdc.safeTransfer(treasury, forfeited);
-        emit Reclaimed(token, freed, forfeited);
     }
 
     function _takePlot(address token, Nation storage n, int16 x, int16 y, uint8 kind) private {

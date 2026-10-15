@@ -7,7 +7,6 @@ const E = (n) => ethers.parseUnits(String(n), 18);
 const SUPPLY = E(1_000_000_000);
 const HOLD = SUPPLY / 10n; // 10% of supply each
 const LAND = 0, WATER = 1, MOUNTAIN = 2, COAST = 3, PASS = 4;
-const DEAL = 1000;
 
 let SEED, MAP, PAIR, PASSPAIR; // MAP[y][x] terrain for the chosen seed
 
@@ -15,7 +14,7 @@ async function deployLands(F, usdc, cap, reg, treasury, seed, thr = E(100)) {
   return F('WarheadzLands', {
     usdc: await usdc.getAddress(), marketCap: await cap.getAddress(), registry: await reg.getAddress(), treasury: treasury.address,
     claimMcap: E(50_000), speedUpPricePerHour: E(1), shieldPricePerHour: E(2),
-    buybackThreshold: thr, buybackStep: thr, premiumPrice: E(20), plotPrice: E(5), dealBps: DEAL, seed,
+    buybackThreshold: thr, buybackStep: thr, premiumPrice: E(20), plotPrice: E(5), seed,
   });
 }
 
@@ -104,7 +103,7 @@ describe('Bad Lands: claiming and buying land', () => {
     const { lands, cap, reg, creator, coinFor } = await setup();
     const coin = await coinFor([], 49_999);
     const a = await coin.getAddress();
-    await expect(lands.connect(creator).claimLand(a, PAIR[0][0], PAIR[0][1])).to.be.revertedWith('needs the market cap or the early deal');
+    await expect(lands.connect(creator).claimLand(a, PAIR[0][0], PAIR[0][1])).to.be.revertedWith('needs the market cap or a deal');
     await cap.set(a, E(50_000));
     const water = [...MAP.keys()].flatMap((r) => MAP[r].map((t, c) => [t, c - 12, r - 12])).find((v) => v[0] === WATER);
     const mount = [...MAP.keys()].flatMap((r) => MAP[r].map((t, c) => [t, c - 12, r - 12])).find((v) => v[0] === MOUNTAIN);
@@ -141,21 +140,26 @@ describe('Bad Lands: claiming and buying land', () => {
     expect((await lands.nation(await coin.getAddress())).claimed).to.equal(true);
   });
 
-  it('the early deal lets a coin claim below the market cap while the creator tax still sends the share to the treasury', async () => {
-    const { lands, coinFor, reg, creator, treasury } = await setup();
-    const coin = await coinFor([], 1_000);
-    const a = await coin.getAddress();
-    await expect(lands.connect(creator).claimLand(a, PAIR[0][0], PAIR[0][1])).to.be.revertedWith('needs the market cap or the early deal');
-    await reg.setShare(a, treasury.address, DEAL - 1);
-    await expect(lands.connect(creator).claimLand(a, PAIR[0][0], PAIR[0][1])).to.be.revertedWith('needs the market cap or the early deal');
-    await reg.setShare(a, treasury.address, DEAL);
-    await lands.connect(creator).claimLand(a, PAIR[0][0], PAIR[0][1]);
-    expect(await lands.dealActive(a)).to.equal(true);
-    await reg.setShare(a, treasury.address, 0); // the creator changes the split
-    expect(await lands.dealActive(a)).to.equal(false);
+  it('a deal (early or late) lets a coin claim below the market cap and gets its first premium plot free', async () => {
+    const { lands, coinFor, reg, creator, usdc, treasury } = await setup();
+    const flat = MAP.flatMap((row, r) => row.map((tt, c) => [tt, c - 12, r - 12]));
+    const coast = flat.find((v) => v[0] === COAST);
+    const pass = flat.find((v) => v[0] === PASS);
+    const early = await coinFor([], 1_000);
+    const a = await early.getAddress();
+    await expect(lands.connect(creator).claimLand(a, coast[1], coast[2])).to.be.revertedWith('needs the market cap or a deal');
+    await reg.setTier(a, 1);
+    const t0 = await usdc.balanceOf(treasury.address), c0 = await usdc.balanceOf(creator.address);
+    await lands.connect(creator).claimLand(a, coast[1], coast[2]);
+    expect(await usdc.balanceOf(creator.address)).to.equal(c0); // no premium price
+    expect(await usdc.balanceOf(treasury.address)).to.equal(t0);
+    const late = await coinFor([], 1_000);
+    await reg.setTier(await late.getAddress(), 2);
+    await lands.connect(creator).claimLand(await late.getAddress(), pass[1], pass[2]);
+    expect((await lands.nation(await late.getAddress())).claimed).to.equal(true);
   });
 
-  it('expanding needs a touching plot, doubles in price, and stops when the market cap and the deal both fail', async () => {
+  it('expanding needs a touching plot, doubles in price, and works at any market cap', async () => {
     const { lands, coinFor, creator, alice, usdc, cap } = await setup();
     const coin = await coinFor([alice]);
     const a = await coin.getAddress();
@@ -169,9 +173,13 @@ describe('Bad Lands: claiming and buying land', () => {
     await lands.connect(alice).expand(a, next[0], next[1]);
     expect(before - (await usdc.balanceOf(alice.address))).to.equal(E(5));
     expect((await lands.nation(a)).plots.length).to.equal(2);
-    await cap.set(a, E(10)); // fell below, and there is no deal
+    await cap.set(a, E(10)); // land already claimed stays, and more can be bought any time with coin and USDC
     const next2 = [next[0] + (next[0] - px), next[1] + (next[1] - py)];
-    await expect(lands.connect(alice).expand(a, next2[0], next2[1])).to.be.revertedWith('needs the market cap or the early deal');
+    if (MAP[next2[1] + 12]?.[next2[0] + 12] === LAND) {
+      const b2 = await usdc.balanceOf(alice.address);
+      await lands.connect(alice).expand(a, next2[0], next2[1]);
+      expect(b2 - (await usdc.balanceOf(alice.address))).to.equal(E(10)); // the price doubled
+    }
   });
 
   it('the world grows once enough of it is claimed', async () => {
@@ -179,48 +187,6 @@ describe('Bad Lands: claiming and buying land', () => {
     expect(await lands.radius()).to.equal(12n);
     await nation([alice]);
     expect(await lands.claimedPlots()).to.equal(1n);
-  });
-});
-
-describe('Bad Lands: abandoned land', () => {
-  it('a land that keeps neither the market cap nor the deal is freed after the grace period, and its pools go to the treasury', async () => {
-    const { lands, coinFor, reg, creator, treasury, usdc, alice, cap, F } = await setup();
-    const coin = await coinFor([alice], 1_000);
-    const a = await coin.getAddress();
-    await reg.setShare(a, treasury.address, DEAL);
-    await lands.connect(creator).claimLand(a, PAIR[0][0], PAIR[0][1]);
-    await lands.connect(alice).train(a, 0, 1);
-    await lands.connect(alice).speedUp(0, 1); // 0.6 USDC into the war pool
-    await expect(lands.markLapse(a)).to.not.emit(lands, 'Lapsing'); // the deal still holds
-    await reg.setShare(a, treasury.address, 0); // the creator pulls the deal
-    await expect(lands.reclaim(a)).to.be.revertedWith('grace not over');
-    await lands.markLapse(a);
-    await expect(lands.markLapse(a)).to.be.revertedWith('already marked');
-    await time.increase(7 * 24 * 3600 - 10);
-    await expect(lands.reclaim(a)).to.be.revertedWith('grace not over');
-    await time.increase(20);
-    const before = await usdc.balanceOf(treasury.address);
-    await expect(lands.reclaim(a)).to.emit(lands, 'Reclaimed').withArgs(a, 1, E(0.6));
-    expect((await usdc.balanceOf(treasury.address)) - before).to.equal(E(0.6));
-    expect((await lands.nation(a)).claimed).to.equal(false);
-    expect(await lands.plotOwner((PAIR[0][0] & 0xffff) * 65536 + (PAIR[0][1] & 0xffff))).to.equal(ethers.ZeroAddress);
-    // the plot can be taken again by another coin
-    const other = await coinFor([], 60_000);
-    await lands.connect(creator).claimLand(await other.getAddress(), PAIR[0][0], PAIR[0][1]);
-  });
-
-  it('a land that recovers is not freed', async () => {
-    const { lands, coinFor, creator, cap, alice } = await setup();
-    const coin = await coinFor([alice], 60_000);
-    const a = await coin.getAddress();
-    await lands.connect(creator).claimLand(a, PAIR[0][0], PAIR[0][1]);
-    await cap.set(a, E(1_000));
-    await lands.markLapse(a);
-    await cap.set(a, E(60_000));
-    await time.increase(8 * 24 * 3600);
-    await expect(lands.reclaim(a)).to.be.revertedWith('recovered');
-    await lands.markLapse(a); // clears the mark
-    expect((await lands.nation(a)).lapsedSince).to.equal(0n);
   });
 });
 
