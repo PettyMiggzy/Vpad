@@ -1,4 +1,4 @@
-# Game flow (draft for review)
+# Vyre Lands: game flow (draft for review)
 
 All numbers are placeholders until tuned. Mock data until after mainnet.
 
@@ -10,7 +10,8 @@ All numbers are placeholders until tuned. Mock data until after mainnet.
 6. **War round.** Nations attack neighbors. Units counter each other: bruiser beats trickster, trickster beats sniper, sniper beats bruiser. Trading activity, defenses and units decide the round. USDC cannot buy strength.
 7. **Result.** The winner takes half of the loser's war pool, buys back its own coin and burns it. The loser keeps the plot and loses part of its vault treasury.
 8. **Dashboard.** Holders who took part (or hold 10M or more through the round) see their share. Their creator-set split decides burn versus claim. Claims stay off until the lawyer agrees. The creator and the creator's wallets never receive any of it.
-9. **Next round.** Rubble gets rebuilt, units retrain, a new round starts.
+9. **Raids and shields.** Any land can be raided by another, depending on its defenses. A raided land gets a cooldown, and every new land starts with the same cooldown. Shields extend the protection time and never add strength. Loot is a share of the plot's vault.
+10. **Next round.** Rubble gets rebuilt, units retrain, a new round starts.
 
 ## Cheats to test first
 Wash trading, wallets split to dodge limits, a market-cap pump just before the 24-hour check, buying a 10M stack for a minute, creator hiding behind other wallets, front-running the buyback.
