@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { powers, UNIT_NAMES } from '../combat.js';
-import { train, collectReady, buildDefense, readNation } from '../chain.js';
+import { train, collectReady, buildDefense, readNation, buyShield, speedUpLatest, raidNation, expandNation } from '../chain.js';
 
 const UNIT_KEYS = ['bruiser', 'sniper', 'trickster', 'defender'];
 const BUILDS = [
@@ -25,8 +25,8 @@ export class BaseScene extends Phaser.Scene {
     back.on('pointerup', () => this.scene.start('map'));
 
     // the town hall
-    this.add.image(W * 0.3, H * 0.4, 'townhall').setDisplaySize(380, 285);
-    this.add.text(W * 0.3, H * 0.4 + 160, `${n.holders === null ? '' : n.holders.toLocaleString() + ' holders   ·   '}war pool $${n.pool}`, { color: '#cfe', fontSize: '14px' }).setOrigin(0.5);
+    this.add.image(W * 0.3, H * 0.52, "townhall").setDisplaySize(380, 285);
+    this.add.text(W * 0.3, H * 0.52 + 160, `${n.holders === null ? '' : n.holders.toLocaleString() + ' holders   ·   '}war pool $${n.pool}`, { color: '#cfe', fontSize: '14px' }).setOrigin(0.5);
 
     // buildings
     BUILDS.forEach(([key, label, note], i) => {
@@ -98,5 +98,9 @@ export class BaseScene extends Phaser.Scene {
     btn(20, 144, 'Collect ready units', async () => ({ hash: (await collectReady(world))[0] }));
     btn(210, 144, 'Build wall', () => buildDefense(world, n.token, true));
     btn(330, 144, 'Build tower', () => buildDefense(world, n.token, false));
+    btn(20, 178, 'Speed up latest job 1h', () => speedUpLatest(world, n.token, 1));
+    btn(240, 178, 'Shield 6h', () => buyShield(world, n.token, 6));
+    btn(340, 178, 'Buy next plot', () => expandNation(world, n));
+    world.nations.filter((o) => o.token !== n.token).forEach((o, i) => btn(20 + i * 140, 212, `Raid ${o.name}`, () => raidNation(world, n, o)));
   }
 }
