@@ -12,11 +12,14 @@ export class BootScene extends Phaser.Scene {
     for (const u of ['bruiser', 'sniper', 'trickster', 'defender']) this.load.image(u, `art/units/${u}.png`);
     for (const b of ['townhall', 'barracks', 'vault', 'wall', 'guardtower', 'siegeram']) this.load.image(b, `art/buildings/${b}.png`);
     this.load.image('logo', 'art/logo/warheadz-logo.png');
+    this.load.image('title', 'art/title/badlands.png');
+    const dot = this.textures.createCanvas('spark', 8, 8);
+    dot.context.fillStyle = '#ffffff'; dot.context.beginPath(); dot.context.arc(4, 4, 3, 0, 6.3); dot.context.fill(); dot.refresh();
   }
 
   async create() {
     const live = await loadLive(import.meta.env.BASE_URL);
     this.registry.set('world', live ?? previewWorld());
-    this.scene.start('map');
+    this.scene.start(new URLSearchParams(window.location.search).has('logo') ? 'logo' : 'map');
   }
 }
