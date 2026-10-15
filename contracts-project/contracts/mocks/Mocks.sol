@@ -37,6 +37,16 @@ contract MockRegistry {
     function isCreatorWallet(address t, address w) external view returns (bool) {
         return wallet[t][w];
     }
+
+    mapping(address => mapping(address => uint16)) public share;
+
+    function setShare(address t, address w, uint16 bps) external {
+        share[t][w] = bps;
+    }
+
+    function taxShareOf(address t, address w) external view returns (uint16) {
+        return share[t][w];
+    }
 }
 
 contract MockBuyback {

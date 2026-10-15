@@ -3,7 +3,8 @@
 All numbers are placeholders until tuned. Mock data until after mainnet.
 
 1. **Launch.** A coin launches on the pad. Anyone can trade it.
-2. **Claim.** At about $50k market cap, held 24 hours with enough different buyers, the coin claims a plot. It becomes a nation with a fighter and a starting town hall.
+2. **Claim.** Two ways in. (a) The coin's 24-hour average market cap reaches about $50k. (b) The project took the early deal at launch: it sends a share of its own creator tax to the treasury, and then it can claim at any market cap. The creator picks the first plot on the map. Coast and mountain-pass plots are the good spots and cost 20 USDC; the rest are free. If the creator is gone, anyone can claim an ordinary plot for a coin that has the market cap. A land stays only while the coin keeps the market cap or the deal holds; after 7 days of neither it is freed and its pools go to the treasury.
+2b. **The map.** A grid world fixed by a seed: lakes, mountain ranges, coast, and narrow passes between mountains. It starts small and grows as it fills. Nations can buy plots next to their own (price doubles with every plot owned, up to 16). Raids need touching plots; defending a pass is 20% stronger.
 3. **Base screen.** The nation's holders open their base. Build menu on one side, the map beside it.
 4. **Build.** Offense: barracks (bruiser, sniper, trickster), siege ram. Defense: walls, guard tower, vault. Each build burns some of the nation's coin. Units allowed depend on how much coin a holder holds. USDC only speeds a build up or buys cosmetics.
 5. **Pools.** 60% of the USDC spent on speed-ups goes to the nation's own war pool (placeholder split), the rest to the platform.
