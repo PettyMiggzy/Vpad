@@ -636,3 +636,5 @@ html.splash-on { overflow: hidden; }
 .splash-logo { position: absolute; left: 50%; top: 67%; width: min(76vw, 460px); transform: translate(-50%, -50%) scale(0.86); opacity: 0; pointer-events: none; filter: drop-shadow(0 0 22px rgba(182, 255, 0, 0.55)); transition: opacity 700ms ease, transform 1100ms cubic-bezier(.2, .8, .2, 1); }
 .splash-logo.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 @media (prefers-reduced-motion: reduce) { .splash-logo { transition: none; } }
+
+@media (max-height: 520px) { .splash-logo { top: 44%; width: min(38vw, 280px); } }

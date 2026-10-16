@@ -75,7 +75,7 @@ const ARTICLES: Article[] = [
     title: 'Introduction',
     sections: [
       {
-        id: 'what-is-minta', title: 'What is WARHEADZ?', label: 'Introduction', nav: 'What is WARHEADZ?', art: 'whatis',
+        id: 'what-is-warheadz', title: 'What is WARHEADZ?', label: 'Introduction', nav: 'What is WARHEADZ?', art: 'whatis',
         body: (
           <>
             <p>WARHEADZ is a launchpad on the VYRE chain. Anyone can create a token in one transaction, trade it with USDC, and earn a tax on every trade of a token they created.</p>
@@ -317,7 +317,7 @@ const GROUPS: Group[] = [
     title: 'Introduction',
     items: [
       { label: 'Introduction', icon: 'doc', article: 'introduction' },
-      { label: 'What is WARHEADZ?', icon: 'help', article: 'introduction', section: 'what-is-minta' },
+      { label: 'What is WARHEADZ?', icon: 'help', article: 'introduction', section: 'what-is-warheadz' },
       { label: 'Key features', icon: 'bolt', article: 'introduction', section: 'key-features' },
       { label: 'VYRE chain', icon: 'chain', article: 'introduction', section: 'vyre-chain' },
       { label: 'How it works', icon: 'lock', article: 'introduction', section: 'how-it-works' },

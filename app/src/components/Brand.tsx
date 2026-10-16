@@ -9,6 +9,11 @@ export function MintaMark({ size = 34 }: { size?: number }) {
   return <img className="mark" src={`${BASE}brand/warheadz-logo.png`} width={Math.round(size * LOGO_RATIO)} height={size} alt="WARHEADZ" draggable={false} />;
 }
 
+/** The warhead icon: the stand-in picture for a launch that has none of its own (round-friendly, unlike the wide logo) */
+export function WarheadMark({ size = 78 }: { size?: number }) {
+  return <img className="mark warhead" src={`${BASE}icon-192.png`} width={size} height={size} alt="" draggable={false} style={{ borderRadius: '22%' }} />;
+}
+
 /** kept for the places that name it; the logo already carries the word */
 export function MintaWordmark(_: { height?: number }) {
   return null;

@@ -12,7 +12,7 @@ import { useEmailCantTrade, useWallet } from '../lib/wallet';
 import { addresses } from '../lib/market';
 import { forgetLaunch, kept, mayTakePlace, onLaunchMemory, placeOf, recentLaunch, resolveEarlier, type Place } from '../lib/faceid';
 import { ConnectButton, EmailTradeNote } from '../components/ui';
-import { MintaMark, VyreGlyph } from '../components/Brand';
+import { WarheadMark, VyreGlyph } from '../components/Brand';
 import { LaunchFileFields, emptyLaunchFile, hasPicture, keptPicture, launchFileProblem, type LaunchFileState } from '../components/LaunchFileFields';
 import { hasContent, saveLaunchFile, withUploadedPicture } from '../lib/api';
 
@@ -412,7 +412,7 @@ function Preview({ name, symbol, meta, params, buyTax, sellTax, openPrice, check
         <span className="pv-logo">
           {img && !broken
             ? <img src={img} alt="" width={132} height={132} referrerPolicy="no-referrer" onError={() => setBroken(true)} />
-            : <MintaMark size={78} />}
+            : <WarheadMark size={78} />}
         </span>
         <div className="pv-id">
           <b className="pv-name"><bdi>{tokenText(name) || 'My Token'}</bdi></b>

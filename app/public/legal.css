@@ -15,7 +15,7 @@ a:hover { text-decoration: underline; }
 h1, h2, p { margin: 0; }
 .top { border-bottom: 1px solid var(--line); background: rgba(3,7,11,0.85); }
 .top-in { display: flex; align-items: center; gap: 14px; height: 64px; max-width: 1100px; margin: 0 auto; padding: 0 var(--gutter); }
-.brand img { height: 22px; width: auto; display: block; }
+.brand img { height: 40px; width: auto; display: block; }
 .top nav { display: flex; gap: 24px; margin-left: auto; font-size: 14px; font-weight: 500; }
 .top nav a { color: #e3f4f5; }
 .top nav a:hover { color: var(--lime); text-decoration: none; }
