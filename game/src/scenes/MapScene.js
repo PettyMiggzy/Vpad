@@ -503,7 +503,7 @@ export class MapScene extends Phaser.Scene {
     this.lastHud = 0;
     this.seenLog = this.sim.log.length;
     const p = this.sim.player;
-    if (!p) { this.time.delayedCall(300, () => openOnboarding(this)); return; }
+    if (!p) { const me = this; setTimeout(() => { if (me.scene.isActive() && !me.sim.player) openOnboarding(me); }, 200); return; }
     const c = this.cameras.main;
     c.centerOn(this.px(p.plots[0][0]) + TILE / 2, this.px(p.plots[0][1]) + TILE / 2);
     let helped = true;

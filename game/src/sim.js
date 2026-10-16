@@ -27,17 +27,23 @@ export const COLORS = [0xffc145, 0x46d39a, 0x4cc9f0, 0xff6f91, 0xa78bfa, 0xff8a4
 
 /** the one place a nation name is cleaned: the founding screen and the engine must agree, or a name can pass one and fail the other */
 export const cleanName = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/ +/g, ' ').trim().slice(0, 12).trim();
+const RULES_PRINT = JSON.stringify(R);   // a save made under other rules is dropped, never loaded into a changed game
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+const CAP = 1e12;                       // no saved quantity may exceed this: it keeps every sum inside safe-integer range
+const cap = (v) => fin(v) && v >= 0 && v <= CAP;
 const int = (v) => Number.isInteger(v);
-const validNation = (n) => !!n && typeof n.name === 'string' && n.name.length > 0 && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
-  && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0) && Array.isArray(n.jobs)
-  && n.jobs.every((j) => j && int(j.id) && int(j.unit) && j.unit >= 0 && j.unit <= 3 && int(j.count) && j.count > 0 && fin(j.readyAt) && typeof j.collected === 'boolean')
-  && [n.wall, n.tower].every((v) => int(v) && v >= 0 && v <= R.MAX_LEVEL) && [n.pool, n.pot, n.protectedUntil, n.nextRaidAt, n.coin].every(fin) && n.pool >= 0 && n.pot >= 0
-  && typeof n.isPlayer === 'boolean' && fin(n.color) && typeof n.emblem === 'string';
+const validNation = (n) => !!n && typeof n.name === 'string' && n.name.length > 0 && n.name.length <= 16 && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.length <= R.MAX_PLOTS && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
+  && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0 && u <= CAP) && Array.isArray(n.jobs) && n.jobs.length <= 500
+  && n.jobs.every((j) => j && int(j.id) && int(j.unit) && j.unit >= 0 && j.unit <= 3 && int(j.count) && j.count > 0 && j.count <= CAP && fin(j.readyAt) && typeof j.collected === 'boolean')
+  && [n.wall, n.tower].every((v) => int(v) && v >= 0 && v <= R.MAX_LEVEL) && [n.pool, n.pot, n.coin, n.usdc, n.trained, n.burned].every(cap) && [n.protectedUntil, n.nextRaidAt].every(fin)
+  && typeof n.isPlayer === 'boolean' && int(n.color) && n.color >= 0 && n.color <= 0xffffff && EMBLEMS.includes(n.emblem)
+  && (n.holders === null || n.holders === undefined || cap(n.holders)) && (n.isPlayer || (fin(n.aggression) && n.aggression >= 0 && n.aggression <= 1));
 function validSave(s) {
-  return !!s && s.v === 2 && fin(s.clock) && SPEEDS.includes(s.speed) && Array.isArray(s.log) && Array.isArray(s.nations) && s.nations.length > 0 && s.nations.every(validNation)
+  return !!s && s.v === 2 && fin(s.clock) && SPEEDS.includes(s.speed) && Array.isArray(s.log) && Array.isArray(s.nations) && s.nations.length > 0 && s.nations.length <= 40 && s.nations.every(validNation)
     && s.nations.filter((n) => n.isPlayer).length <= 1 && (s.nations.some((n) => n.isPlayer) ? s.nations.find((n) => n.isPlayer).name === s.playerName : true)
-    && (s.notes === undefined || Array.isArray(s.notes));
+    && new Set(s.nations.map((n) => n.name)).size === s.nations.length && fin(s.aiAt)
+    && (s.faucetAt === undefined || (s.faucetAt && typeof s.faucetAt === 'object' && !Array.isArray(s.faucetAt) && Object.values(s.faucetAt).every(fin)))
+    && (s.notes === undefined || Array.isArray(s.notes)) && s.rules === RULES_PRINT;
 }
 const dist = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
 const rnd = (n) => Math.floor(Math.random() * n);
@@ -50,7 +56,7 @@ export class Sim {
     this.lastReal = Date.now();
     const s = this.read();
     if (s) {
-      this.clock = s.clock; this.speed = s.speed; this.log = s.log; this.notes = s.notes || []; this.faucetAt = s.faucetAt || {};
+      this.clock = s.clock; this.speed = s.speed; this.log = s.log.filter((e) => e && typeof e === 'object' && typeof e.kind === 'string' && fin(e.t)); this.notes = Array.isArray(s.notes) ? s.notes.filter((x) => x && typeof x.text === 'string') : []; this.faucetAt = s.faucetAt || {};
       this.nations = s.nations; this.playerName = s.playerName; this.aiAt = s.aiAt || this.clock;
     } else {
       this.clock = 1000 * H; this.speed = 60; this.log = []; this.notes = []; this.faucetAt = {}; this.playerName = null; this.aiAt = this.clock;
@@ -68,15 +74,26 @@ export class Sim {
   read() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (validSave(s)) return s;
-      if (s) this.reset(); // a save that does not make sense is thrown away, never trusted
+      if (validSave(s) && this.plotsOk(s) && s.seed === this.seedPrint()) return s;
+      if (s) { try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ } }   // a save that does not make sense is thrown away, never trusted
       return null;
     } catch (_) { return null; }
+  }
+  seedPrint() { return `${this.world.seed}:${this.radius}`; }
+  // plots must be real buildable land inside the world, and no two nations may share one
+  plotsOk(s) {
+    const seen = new Set();
+    for (const n of s.nations) for (const [x, y] of n.plots) {
+      const k = `${x},${y}`;
+      if (seen.has(k) || Math.abs(x) > this.radius || Math.abs(y) > this.radius || !this.buildable(x, y)) return false;
+      seen.add(k);
+    }
+    return true;
   }
   save() {
     if (this.wiped) return;                  // a wiped game is not written back by the page-hide handlers
     try {
-      localStorage.setItem(KEY, JSON.stringify({ v: 2, clock: this.clock, speed: this.speed, log: this.log.slice(-60), notes: this.notes, faucetAt: this.faucetAt, nations: this.nations, playerName: this.playerName, aiAt: this.aiAt }));
+      localStorage.setItem(KEY, JSON.stringify({ v: 2, rules: RULES_PRINT, seed: this.seedPrint(), clock: this.clock, speed: this.speed, log: this.log.slice(-60), notes: this.notes, faucetAt: this.faucetAt, nations: this.nations, playerName: this.playerName, aiAt: this.aiAt }));
     } catch (_) { /* storage full or blocked: the game still runs */ }
   }
   reset() { this.wiped = true; try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ } }
@@ -91,12 +108,14 @@ export class Sim {
     };
   }
   get emblems() { return EMBLEMS; }
+  get rulesPrint() { return RULES_PRINT; }
   clockStart() { return 1000 * H; }
 
   // ---- the clock ----
   /** advances the game clock by the real time since the last call, scaled by the speed; runs the other nations; returns new log entries */
   tick() {
     const nowReal = Date.now();
+    if ((this.lastSave || 0) > nowReal) this.lastSave = 0;        // the computer's clock stepped back
     const dt = Math.max(0, Math.min(5000, nowReal - this.lastReal));
     this.lastReal = nowReal;
     const before = this.log.length;
@@ -250,7 +269,7 @@ export class Sim {
   faucet(what) {
     const p = this.player; this.need(p, 'no nation');
     this.need(what === 'coin' || what === 'usdc', 'unknown faucet');
-    const last = this.faucetAt[what] || 0;
+    let last = this.faucetAt[what] || 0; if (last > Date.now()) last = 0;
     this.need(Date.now() - last > R.FAUCET_WAIT, `wait ${Math.ceil((R.FAUCET_WAIT - (Date.now() - last)) / 1000)} s`);
     this.faucetAt[what] = Date.now();
     if (what === 'coin') p.coin += R.COIN_FAUCET; else p.usdc += R.USDC_FAUCET;
@@ -265,7 +284,7 @@ export class Sim {
     return best;
   }
   plan(a, d, send) {
-    this.need(Array.isArray(send) && send.length === 3 && send.every((v) => int(v) && v >= 0), 'a raid order is three whole numbers');
+    this.need(Array.isArray(send) && send.length === 3 && [0, 1, 2].every((i) => int(send[i]) && send[i] >= 0), 'a raid order is three whole numbers');
     const ap = this.approach(a, d);
     const onPass = this.kind(ap.tp[0], ap.tp[1]) === PASS;
     const r = powers(send, d.units, d.wall, d.tower, onPass);
@@ -302,10 +321,12 @@ export class Sim {
   }
   // when a nation's buyback pot reaches a step, it buys its own coin back and burns it (the real contract does this through a keeper)
   settlePot(n) {
-    let spentTotal = 0;
-    while (n.pot >= R.BUYBACK_STEP) { n.pot -= R.BUYBACK_STEP; spentTotal += R.BUYBACK_STEP; n.burned += R.BUYBACK_STEP * 1_000_000; }
-    if (spentTotal) this.logEvent({ kind: 'info', text: `${n.name}'s buyback pot spends $${spentTotal.toFixed(0)}: its coin is bought back and burned.` });
-    return spentTotal;
+    const steps = Math.floor(n.pot / R.BUYBACK_STEP);
+    if (!steps || !Number.isFinite(steps)) return 0;
+    const spent = steps * R.BUYBACK_STEP;
+    n.pot -= spent; n.burned = Math.min(CAP, n.burned + spent * 1_000_000);
+    this.logEvent({ kind: 'info', text: `${n.name}'s buyback pot spends $${spent.toFixed(0)}: its coin is bought back and burned.` });
+    return spent;
   }
 
   // ---- the other nations ----
@@ -314,7 +335,7 @@ export class Sim {
       if (n.isPlayer) continue;
       // economy: a batch of units now and then, a defense level now and then, a little war chest income
       if (Math.random() < 0.7) { const t = Math.random() < 0.4 ? ['bruiser', 'sniper', 'trickster', 'defender'].indexOf(n.emblem) : rnd(4); n.units[t] += 3 + rnd(8); }
-      if (Math.random() < 0.12) { if (Math.random() < 0.5 && n.wall < 3) n.wall++; else if (n.tower < 3) n.tower++; }
+      if (Math.random() < 0.12) { if (Math.random() < 0.5 && n.wall < 4) n.wall++; else if (n.tower < 4) n.tower++; }
       n.pool += 5 + rnd(25);
       const total = n.units[0] + n.units[1] + n.units[2] + n.units[3];
       if (total > 700) for (let i = 0; i < 4; i++) n.units[i] = Math.floor(n.units[i] * 0.9);
@@ -339,11 +360,13 @@ export class Sim {
 }
 
 const snap = (n, units) => ({ name: n.name, color: n.color, emblem: n.emblem, units: units.slice(), wall: n.wall, tower: n.tower, isPlayer: n.isPlayer });
-export const fmtLeft = (ms) => { const h = ms / H; if (h >= 1) { const m = Math.floor(ms / 60000); return `${Math.floor(m / 60)}h ${m % 60}m`; } const m = ms / 60000; return m >= 1 ? `${Math.ceil(m)}m` : `${Math.ceil(ms / 1000)}s`; };
+export const fmtLeft = (ms) => {
+  if (ms >= 60000) { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
+  return `${Math.max(1, Math.ceil(ms / 1000))}s`;
+};
 export const fmtCoin = (c) => {
-  const u = (v, d) => { const f = v.toFixed(d); return f; };
-  if (c >= 999_950_000) return `${u(c / 1e9, 2)}B`;
-  if (c >= 999_500) return `${u(c / 1e6, c >= 1e8 ? 0 : 1)}M`;
+  if (c >= 999_500_000) return `${(c / 1e9).toFixed(2)}B`;
+  if (c >= 999_500) { const m = c / 1e6; return `${m.toFixed(m >= 99.95 ? 0 : 1)}M`; }
   if (c >= 1e3) return `${Math.round(c / 1e3)}K`;
   return `${Math.round(c)}`;
 };

@@ -154,7 +154,7 @@ test('the clock only moves forward and speed only takes the listed values; fauce
 test('names are cleaned before they are checked; times and coin format sanely; rankings use the contract strength', () => {
   const { s } = fresh();
   assert.throws(() => s.claim('!!  !!', 'bruiser', 1, 0, 0), /name/);
-  assert.equal(fmtLeft(2 * H - 15 * 1000), '1h 59m');
+  assert.equal(fmtLeft(2 * H - 15 * 1000), '2h 0m');
   assert.equal(fmtCoin(999_500), '1.0M'); assert.equal(fmtCoin(999_999_999), '1.00B');
   const n = { units: [0, 0, 0, 10] }; assert.equal(s.strength(n), 1500);
 });
@@ -195,4 +195,71 @@ test('H3 every name the founding screen accepts is a name the engine accepts', (
   }
   assert.equal(cleanName('toasty !'), 'TOASTY');
   assert.equal(cleanName('a !'), 'A');
+});
+
+// ---- audit round 2, rules pass ----
+test('R2-M1 after a rejected save the new game still saves and reloads', () => {
+  const store = withStore();
+  store.set('badlands.sandbox.v2', JSON.stringify({ v: 2, clock: 1000 * H, speed: 60, log: [], notes: [], nations: [{ name: 'X' }] }));
+  const s = new Sim(previewWorld());
+  assert.ok(!store.has('badlands.sandbox.v2'), 'the bad save is dropped');
+  found(s); s.train(0, 3);
+  assert.ok(store.has('badlands.sandbox.v2'), 'the new game is saved');
+  assert.equal(new Sim(previewWorld()).player.name, 'TESTERS');
+  delete globalThis.localStorage;
+});
+
+test('R2-M2 a huge war pool cannot hang the buyback; saved numbers are capped', () => {
+  const { s } = fresh(); const p = found(s);
+  p.pot = 1e300; const t0 = Date.now(); s.settlePot(p);
+  assert.ok(Date.now() - t0 < 500 && Number.isFinite(p.pot));
+  const store = withStore();
+  const big = fresh().s; big.nations[0].pool = 1e300; big.save();
+  assert.equal(new Sim(previewWorld()).player, null);                      // the tampered save is rejected, not loaded
+  assert.ok(store.size === 0 || JSON.parse(store.get('badlands.sandbox.v2') || '{"nations":[{"pool":0}]}').nations.every((n) => n.pool < 1e13));
+  delete globalThis.localStorage;
+});
+
+test('R2-M3 a raid order with holes or odd entries is refused before anything changes', () => {
+  const { s } = fresh(); const p = found(s);
+  const d = s.nations.find((n) => !n.isPlayer); d.protectedUntil = 0; p.protectedUntil = 0; p.units = [50, 50, 50, 0];
+  p.plots = d.plots.map(([x, y]) => [x + 1, y]);
+  const sparse = [10, , 0]; assert.throws(() => s.raid(p, d, sparse));
+  assert.throws(() => s.raid(p, d, [10, undefined, 0])); assert.throws(() => s.raid(p, d, [10, '5', 0]));
+  assert.deepEqual(p.units, [50, 50, 50, 0]); assert.equal(p.nextRaidAt, 0);
+});
+
+test('R2-L1 a tampered save that passes the basic shape is still refused', () => {
+  const mk = () => { const { s } = fresh(); found(s); return JSON.parse(JSON.stringify({ v: 2, clock: s.clock, speed: s.speed, log: [], notes: [], faucetAt: {}, nations: s.nations, playerName: s.playerName, aiAt: s.aiAt, rules: s.rulesPrint, seed: s.seedPrint() })); };
+  const cases = {
+    aiAt: (x) => { x.aiAt = 'x'; }, faucetAt: (x) => { x.faucetAt = 'oops'; }, usdc: (x) => { delete x.nations.find((n) => n.isPlayer).usdc; },
+    trained: (x) => { delete x.nations.find((n) => n.isPlayer).trained; }, emblem: (x) => { x.nations[0].emblem = 'dragon'; },
+    colour: (x) => { x.nations[0].color = -5; }, offWorld: (x) => { x.nations[0].plots = [[9999, 9999]]; },
+    duplicate: (x) => { x.nations[1].plots = [x.nations[0].plots[0].slice()]; }, sameName: (x) => { x.nations[1].name = x.nations[0].name; },
+    hugeUnits: (x) => { x.nations[0].units = [1e15, 0, 0, 0]; }, rules: (x) => { x.rules = 'other'; },
+  };
+  { const store = withStore(); store.set('badlands.sandbox.v2', JSON.stringify(mk())); assert.equal(new Sim(previewWorld()).player?.name, 'TESTERS', 'the untouched save loads'); delete globalThis.localStorage; }
+  for (const [name, f] of Object.entries(cases)) {
+    const store = withStore(); const x = mk(); f(x); store.set('badlands.sandbox.v2', JSON.stringify(x));
+    const s = new Sim(previewWorld());
+    assert.equal(s.player, null, `${name}: refused`);
+    delete globalThis.localStorage;
+  }
+  const store = withStore(); const x = mk(); store.set('badlands.sandbox.v2', JSON.stringify({ ...x, log: [null, 5, { kind: 'info', text: 'ok', t: 1 }] }));
+  const s2 = new Sim(previewWorld()); assert.equal(s2.player.name, 'TESTERS'); assert.equal(s2.log.length, 1);  // junk log entries are filtered, the rest kept
+  delete globalThis.localStorage;
+});
+
+test('R2-L2 a wall clock that steps back does not stall saving or the faucet', () => {
+  const store = withStore();
+  const { s } = fresh(); const p = found(s);
+  s.lastSave = Date.now() + 3600 * 1000; s.lastReal = Date.now() - 100; s.tick();
+  assert.ok(s.lastSave <= Date.now() + 10, 'future lastSave is reset');
+  s.faucetAt.usdc = Date.now() + 3600 * 1000; assert.doesNotThrow(() => s.faucet('usdc'));
+  delete globalThis.localStorage;
+});
+
+test('R2-L4 formatting rounds before choosing the unit', () => {
+  assert.equal(fmtCoin(999_500_000), '1.00B'); assert.equal(fmtCoin(999_949_999), '1.00B'); assert.equal(fmtCoin(99_950_000), '100M');
+  assert.equal(fmtLeft(H - 1), '1h 0m'); assert.equal(fmtLeft(H - 30000), '1h 0m'); assert.equal(fmtLeft(H), '1h 0m');
 });
