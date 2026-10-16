@@ -161,13 +161,13 @@ export class MapScene extends Phaser.Scene {
       const glow = this.add.image(X, Y, 'glow').setTint(n.color).setAlpha(0.4).setScale(T * 2.2 / 128).setBlendMode(Phaser.BlendModes.ADD).setDepth(7);
       this.tweens.add({ targets: glow, alpha: 0.15, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       objs.push(glow);
-      // walls along the front (two segments, then two behind), towers at the corners: one each for what the nation has built
-      const wallAt = [[-0.42, 1.0], [0.42, 1.0], [-0.42, 0.1], [0.42, 0.1]];
-      for (let i = 0; i < Math.min(4, n.wall); i++) put('t_wall', X + wallAt[i][0] * T, Y + wallAt[i][1] * T, T * 0.78);
-      const towerAt = [[-0.88, 0.95], [0.88, 0.95], [-0.88, 0.2], [0.88, 0.2]];
-      for (let i = 0; i < Math.min(4, n.tower); i++) put('t_guardtower', X + towerAt[i][0] * T, Y + towerAt[i][1] * T, T * 0.4);
+      // the front gate with a wall either side, then towers at the corners: one piece for each wall and tower the nation has built
+      const wallAt = [[0, 1.02, 'b_gate', 0.8], [-0.78, 0.98, 'b_wall', 0.72], [0.78, 0.98, 'b_wall', 0.72]];
+      for (let i = 0; i < Math.min(3, n.wall); i++) put(wallAt[i][2], X + wallAt[i][0] * T, Y + wallAt[i][1] * T, T * wallAt[i][3]);
+      const towerAt = [[-1.0, 0.9], [1.0, 0.9], [-0.95, 0.15], [0.95, 0.15]];
+      for (let i = 0; i < Math.min(4, n.tower); i++) put('b_tower', X + towerAt[i][0] * T, Y + towerAt[i][1] * T, T * 0.36);
       // the hall
-      put('t_townhall', X, Y + T * 0.62, T * 1.35);
+      put('b_keep', X, Y + T * 0.6, T * 1.3);
       // flag on the hall's right shoulder
       const pole = this.add.graphics().setDepth(D(Y + T * 0.7));
       pole.lineStyle(2.5, 0x2a2a2a, 1).lineBetween(X + T * 0.62, Y + T * 0.05, X + T * 0.62, Y - T * 0.75);
@@ -180,9 +180,9 @@ export class MapScene extends Phaser.Scene {
       // the other plots: barracks, then the vault, then tents and a campfire
       n.plots.slice(1).forEach(([x, y], i) => {
         const bx = this.px(x) + T / 2, by = this.px(y) + T * 0.82;
-        if (i === 0) put('t_barracks', bx, by, T * 0.95);
-        else if (i === 1) put('t_vault', bx, by, T * 0.7);
-        else put(i % 2 ? 'ruin2' : 'ruin0', bx, by, T * (i % 2 ? 0.55 : 0.9));
+        if (i === 0) put('b_barracks', bx, by, T * 0.95);
+        else if (i === 1) put('b_vault', bx, by, T * 0.9);
+        else put(['c_tent', 'c_crates', 'c_tent3', 'ruin2', 'c_tent2', 'c_rack'][(i - 2) % 6], bx, by, T * 0.85);
       });
       // name tag (kept readable at any zoom in update())
       const label = this.add.text(X, Y - T * 1.0, n.name, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: '#ffffff', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);

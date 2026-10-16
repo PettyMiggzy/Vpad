@@ -35,11 +35,11 @@ export class BaseScene extends Phaser.Scene {
     this.fx = [];
     this.sprites = [];
     this.labels = [];
-    const mk = (key, extra = {}) => { const i = this.add.image(0, 0, key).setOrigin(0.5, 0.88); this.fx.push(i); return i; };
+    const mk = (key, extra = {}) => { const i = this.add.image(0, 0, key).setOrigin(0.5, 0.88); i.setOrigin(0.5, 1); this.fx.push(i); return i; };
     this.hallGlow = this.add.image(0, 0, 'glow').setTint(n.color).setAlpha(0.45).setBlendMode(Phaser.BlendModes.ADD);
     this.tweens.add({ targets: this.hallGlow, alpha: 0.18, duration: 1700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    this.hall = mk('townhall');
-    this.towerS = mk('guardtower'); this.wallS = mk('wall'); this.barracks = mk('barracks'); this.vaultS = mk('vault');
+    this.hall = mk('b_keep');
+    this.towerS = mk('b_tower'); this.wallS = mk('b_gate'); this.barracks = mk('b_barracks'); this.vaultS = mk('b_vault');
     this.flag = this.add.graphics();
     this.tweens.add({ targets: this.flag, scaleX: { from: 1, to: 0.82 }, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.units = UNIT_KEYS.map((key, i) => {
@@ -68,8 +68,8 @@ export class BaseScene extends Phaser.Scene {
     const portrait = window.innerWidth < 900;
     const cx = r.x + r.w / 2;
     const unitW = Math.min(r.w * 0.22, r.h * 0.34, 150 * d);
-    const hallW = Math.min(r.w * (portrait ? 0.5 : 0.46), r.h * 0.62);
-    const baseY = r.y + r.h * (portrait ? 0.56 : 0.54);           // where the hall's feet are
+    const hallW = Math.min(r.w * (portrait ? 0.46 : 0.4), r.h * 0.4);
+    const baseY = r.y + r.h * (portrait ? 0.6 : 0.58);           // where the hall's feet are
     this.hall.setScale(hallW / this.hall.width).setPosition(cx, baseY);
     this.hallGlow.setPosition(cx, baseY - hallW * 0.4).setScale(hallW / 80);
     const small = Math.min(r.w * 0.26, r.h * 0.3);
@@ -78,7 +78,7 @@ export class BaseScene extends Phaser.Scene {
       s.setScale(w / s.width).setPosition(x, y).setAlpha(dim ? 0.5 : 1);
       tag.setPosition(x, y + 2 * d).setText(text).setFontSize(chipPx).setVisible(!!text);
     };
-    put(this.towerS, cx - r.w * 0.38, baseY + r.h * 0.02, small * 0.85, this.towerTag, `tower ×${n.tower}`, n.tower === 0);
+    put(this.towerS, cx - r.w * 0.38, baseY + r.h * 0.12, small * 0.42, this.towerTag, `tower ×${n.tower}`, n.tower === 0);
     put(this.barracks, cx + r.w * 0.38, baseY + r.h * 0.02, small, this.barTag, '', false);
     put(this.wallS, cx - r.w * 0.2, baseY + r.h * 0.16, small * 0.85, this.wallTag, `wall ×${n.wall}`, n.wall === 0);
     put(this.vaultS, cx + r.w * 0.2, baseY + r.h * 0.16, small * 0.75, this.vaultTag, `pool $${n.pool}`, false);
@@ -139,8 +139,8 @@ export class BaseScene extends Phaser.Scene {
             <button class="btn" data-collect ${live ? '' : 'disabled'}>Collect finished units</button>
             <div class="note">Bruiser beats trickster, trickster beats sniper, sniper beats bruiser. Training costs the nation's coin, burned.</div></section>
           <section data-pane="build" hidden>
-            <div class="card"><img src="art/buildings/wall.png" alt=""/><div class="grow"><b>Wall <span class="cnt">×${n.wall}</span></b><small>+10% defense each</small></div><button class="btn small" data-wall ${live ? '' : 'disabled'}>Build</button></div>
-            <div class="card"><img src="art/buildings/guardtower.png" alt=""/><div class="grow"><b>Guard tower <span class="cnt">×${n.tower}</span></b><small>+10% defense each</small></div><button class="btn small" data-tower ${live ? '' : 'disabled'}>Build</button></div>
+            <div class="card"><img src="art/trim/b_wall.png" alt=""/><div class="grow"><b>Wall <span class="cnt">×${n.wall}</span></b><small>+10% defense each</small></div><button class="btn small" data-wall ${live ? '' : 'disabled'}>Build</button></div>
+            <div class="card"><img src="art/trim/b_tower.png" alt=""/><div class="grow"><b>Guard tower <span class="cnt">×${n.tower}</span></b><small>+10% defense each</small></div><button class="btn small" data-tower ${live ? '' : 'disabled'}>Build</button></div>
             <div class="note">Building burns the nation's coin. Walls and towers only add defense; a shield can never add strength.</div></section>
           <section data-pane="war" hidden>
             ${others.length ? `<label class="lbl">Target</label><select data-target>${others.map((o, i) => `<option value="${i}">${o.name}</option>`).join('')}</select>
