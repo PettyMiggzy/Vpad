@@ -27,7 +27,7 @@ export class BattleScene extends Phaser.Scene {
     const W = this.scale.width, H = this.scale.height, d = DPR();
     this.alive = true;
     this.run = this.token;
-    const portrait = window.innerWidth < 900;
+    const portrait = W <= H * 1.1;   // by the shape of the screen, not its width: a phone turned on its side is a wide screen
     this.portrait = portrait;
     const a = this.att, b = this.def;
     this.result = this.report ? this.report.result : powers(this.send, b.units, b.wall, b.tower, false);
@@ -154,7 +154,7 @@ export class BattleScene extends Phaser.Scene {
   addMass(side, n) {
     const W = this.scale.width, H = this.scale.height, sign = side === 'L' ? 1 : -1;
     const total = n.units.reduce((t, v) => t + v, 0);
-    const count = total <= 0 ? 0 : Phaser.Math.Clamp(Math.round(Math.sqrt(total) * 1.3), 6, 24);
+    const count = total <= 0 ? 0 : Math.min(total, Phaser.Math.Clamp(Math.round(Math.sqrt(total) * 1.3), 6, 24));
     const order = [0, 2, 3, 1], sum = order.reduce((t, k) => t + (n.units[k] || 0), 0) || 1;
     let types = [];
     for (const k of order) types.push(...Array(Math.round(count * (n.units[k] || 0) / sum)).fill(k));
@@ -245,7 +245,7 @@ export class BattleScene extends Phaser.Scene {
       this.tweens.add({ targets: m, angle: (side === 'L' ? -1 : 1) * 80, y: m.y + 6 * d, alpha: 0.35, duration: 420, ease: 'Quad.in' });
     }
     const el = document.querySelector(`[data-units="${side}"]`);
-    if (el && this.showUnits) el.textContent = `${(this.start[side] - Math.round(this.loss[side] * this.prog[side])).toLocaleString()} units`;
+    if (el && this.showUnits) { const left = this.start[side] - Math.round(this.loss[side] * this.prog[side]); el.textContent = `${left.toLocaleString()} ${left === 1 ? 'unit' : 'units'}`; }
   }
 
   hud() {
@@ -255,9 +255,9 @@ export class BattleScene extends Phaser.Scene {
       <div class="battle-top">
         <button class="back" data-back>‹ Back</button><button class="back fast" data-fast>×1</button>
         <div class="vs">
-          <div class="side l"><b style="color:${hex(a.color)}">${esc(a.name)}</b><div class="bar"><i data-hp="L" style="background:${hex(a.color)}"></i></div><small>attack ${this.result.attack.toLocaleString()}</small><small data-units="L">${this.showUnits ? this.start.L.toLocaleString() + ' units' : ''}</small></div>
+          <div class="side l"><b style="color:${hex(a.color)}">${esc(a.name)}</b><div class="bar"><i data-hp="L" style="background:${hex(a.color)}"></i></div><small>attack ${this.result.attack.toLocaleString()}</small><small data-units="L">${this.showUnits ? this.start.L.toLocaleString() + (this.start.L === 1 ? ' unit' : ' units') : ''}</small></div>
           <div class="x">VS</div>
-          <div class="side r"><b style="color:${hex(b.color)}">${esc(b.name)}</b><div class="bar"><i data-hp="R" style="background:${hex(b.color)}"></i></div><small>defense ${this.result.defense.toLocaleString()}</small><small data-units="R">${this.showUnits ? this.start.R.toLocaleString() + ' units' : ''}</small></div>
+          <div class="side r"><b style="color:${hex(b.color)}">${esc(b.name)}</b><div class="bar"><i data-hp="R" style="background:${hex(b.color)}"></i></div><small>defense ${this.result.defense.toLocaleString()}</small><small data-units="R">${this.showUnits ? this.start.R.toLocaleString() + (this.start.R === 1 ? ' unit' : ' units') : ''}</small></div>
         </div>
       </div>
       <div class="banner" data-banner></div>
@@ -335,7 +335,7 @@ export class BattleScene extends Phaser.Scene {
     const winner = success ? 'L' : 'R', loser = success ? 'R' : 'L';
     const hits = 5; // blows the loser takes
     const ratio = Math.min(0.85, Math.max(0.25, success ? this.result.defense / Math.max(1, this.result.attack) : this.result.attack / Math.max(1, this.result.defense)));
-    const per = { [loser]: 1 / (hits + 1), [winner]: ratio / hits };
+    const per = { [loser]: 1 / (hits + 1), [winner]: Math.min(0.5, ratio * 0.6) / hits };   // the winner's bar dips but never looks like a near-loss
     const power = { L: this.result.attack, R: this.result.defense };
     for (let i = 0; i < hits * 2 + 1; i++) {
       // the winner's army lands a blow, then the loser's answers (one fewer for the loser)

@@ -30,7 +30,8 @@ export class MapScene extends Phaser.Scene {
     for (const n of this.world.nations) for (const [x, y] of n.plots) this.owner.set(`${x},${y}`, n);
 
     const pad = 2200;
-    this.add.tileSprite(-pad, -pad, g.size + pad * 2, g.size + pad * 2, 'g_water').setOrigin(0).setTint(0x949494).setDepth(-2);
+    // the sea beyond the painted world: one flat dark rectangle (a texture this big would be 160 MB and fail on weaker phones)
+    this.add.rectangle(-pad, -pad, g.size + pad * 2, g.size + pad * 2, 0x121616).setOrigin(0).setDepth(-2);
     this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
     this.shimmer = this.add.image(0, 0, 'shimmer').setOrigin(0).setDepth(1).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8);
     this.tweens.add({ targets: this.shimmer, x: { from: -5, to: 5 }, y: { from: 3, to: -3 }, alpha: { from: 0.45, to: 0.95 }, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
