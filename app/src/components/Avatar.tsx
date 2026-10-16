@@ -10,7 +10,7 @@ export default function Avatar({ address, size = 28 }: { address: string; size?:
       if (parseInt(h[(y * 3 + x) % h.length], 16) % 2) { on.push([x, y]); if (x < 2) on.push([4 - x, y]); }
     }
     const hue = parseInt(h.slice(-2), 16) % 3; // three cyan shades
-    return { on, fill: ['#b6ff00', '#19c4c4', '#7ff8f9'][hue] };
+    return { on, fill: ['#b6ff00', '#6fb800', '#e0ff7a'][hue] };
   }, [address]);
   return (
     <svg className="avatar" width={size} height={size} viewBox="0 0 5 5" aria-hidden="true" shapeRendering="crispEdges">
