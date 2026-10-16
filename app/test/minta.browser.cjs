@@ -29,7 +29,7 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
   // the splash (components/Splash.tsx) covers the home page the first time; every other check starts as a visitor who saw it already
   const open = async (hash, viewport, { splash = false, ...context } = {}) => {
     const ctx = await b.newContext({ viewport, ...context });
-    if (!splash) await ctx.addInitScript(() => { try { window.localStorage.setItem('minta.splash', String(Date.now())); } catch { /* none */ } });
+    if (!splash) await ctx.addInitScript(() => { try { window.localStorage.setItem('warheadz.splash', String(Date.now())); } catch { /* none */ } });
     // nothing leaves the machine: the chain, the API and the fonts are all refused
     await ctx.route((u) => !u.href.startsWith('http://127.0.0.1'), (route) => route.abort());
     const pg = await ctx.newPage();
@@ -125,7 +125,7 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
     const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
     await ctx.route((u) => !u.href.startsWith('http://127.0.0.1'), (route) => route.abort());
     await ctx.addInitScript((who) => {
-      try { localStorage.setItem('minta.splash', String(Date.now())); localStorage.setItem('vyre.wallet', 'rdns:test.wallet'); } catch { /* none */ }
+      try { localStorage.setItem('warheadz.splash', String(Date.now())); localStorage.setItem('vyre.wallet', 'rdns:test.wallet'); } catch { /* none */ }
       let now = who;
       const heard = [];
       window.__switchTo = (a) => { now = a; for (const f of heard) f([a]); };
