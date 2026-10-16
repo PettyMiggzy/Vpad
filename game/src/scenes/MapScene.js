@@ -598,7 +598,7 @@ export class MapScene extends Phaser.Scene {
       g.fillStyle(col, afford ? 0.16 : 0.07).fillRect(X + 3, Y + 3, T - 6, T - 6);
       g.lineStyle(3, col, afford ? 0.95 : 0.4).strokeRect(X + 3, Y + 3, T - 6, T - 6);
       this.tweens.add({ targets: g, alpha: afford ? 0.45 : 0.8, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      const t = this.add.text(X + T / 2, Y + T / 2, `+ $${cost}`, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: afford ? '#ffffff' : '#9a9a8a', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5).setDepth(9400);
+      const t = this.add.text(X + T / 2, Y + T / 2, `+ $${cost.toLocaleString('en-US')}`, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: afford ? '#ffffff' : '#9a9a8a', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5).setDepth(9400);
       this.landObjs.push(g, t); this.landLabels.push(t);
     }
   }

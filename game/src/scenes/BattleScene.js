@@ -102,13 +102,14 @@ export class BattleScene extends Phaser.Scene {
   // stand an army in two columns: melee in the front column (nearer the middle), snipers behind; sprite counts follow the army's size
   placeArmy(side, n, types) {
     const W = this.scale.width, H = this.scale.height;
+    // every type the army has stands in the front line once; the biggest then double up (two sprites at 60 or more) while there is room (5 in all)
     const list = [];
-    for (const t of types) {
-      const c = n.units[t];
-      if (c <= 0) continue;
-      const k = c >= 60 && t !== 1 ? 2 : 1;
-      for (let i = 0; i < k; i++) list.push({ t, ch: CHARS[t] });
+    for (const t of types) if (n.units[t] > 0) list.push({ t, ch: CHARS[t] });
+    for (const t of [...types].sort((p1, p2) => n.units[p2] - n.units[p1])) {
+      if (list.length >= 5) break;
+      if (n.units[t] >= 60 && t !== 1) list.push({ t, ch: CHARS[t] });
     }
+    list.sort((u1, u2) => u1.t - u2.t);
     if (!list.length) list.push({ t: 0, ch: n.emblem || 'bruiser' });
     const sign = side === 'L' ? 1 : -1;
     const frontX = side === 'L' ? W * (this.portrait ? 0.4 : 0.4) : W * (this.portrait ? 0.6 : 0.6);

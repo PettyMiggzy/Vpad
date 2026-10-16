@@ -45,6 +45,11 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   const rot = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const c = s.cameras.main; c.preRender(); const n = s.world.nations[0]; const wx = s.px(n.plots[0][0]) + 28, wy = s.px(n.plots[0][1]) + 28; return { sx: (wx - c.worldView.x) * c.zoom, sy: (wy - c.worldView.y) * c.zoom, w: c.width, h: c.height }; });
   check('R5-M3 after turning the phone the nation is still on screen', rot.sx > 0 && rot.sx < rot.w && rot.sy > 0 && rot.sy < rot.h, JSON.stringify(rot));
   await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(1500);
+  // R8: a big army still shows every type in the front line (the defenders were cut off)
+  await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const [a, b] = s.world.nations; const snap = (n, u) => ({ name: n.name, color: n.color, emblem: n.emblem, units: u, wall: 1, tower: 1 }); s.scene.start('battle', { report: { estimated: true, result: { attack: 100, defense: 900, success: false }, send: [100, 100, 100], loot: 0, a: snap(a, [100, 100, 100, 0]), b: snap(b, [100, 100, 100, 100]) }, back: 'map' }); });
+  await p.waitForTimeout(2500);
+  const types = await p.evaluate(() => { const s = window.__game.scene.getScene('battle'); return { R: [...new Set(s.fighters.R.map((f) => f.ch))].sort(), n: s.fighters.R.length }; });
+  check('R8-M3 a 100-each army shows all four types in the front line', types.R.length === 4 && types.n <= 5, JSON.stringify(types));
   // R6: the fortress at its fullest (wall 3, tower 2) is entirely on screen
   await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const [a, b] = s.world.nations; const snap = (n, u, w, t) => ({ name: n.name, color: n.color, emblem: n.emblem, units: u, wall: w, tower: t }); s.scene.start('battle', { report: { estimated: true, result: { attack: 100, defense: 900, success: false }, send: [5, 5, 5], loot: 0, a: snap(a, [5, 5, 5, 0], 0, 0), b: snap(b, [20, 20, 20, 20], 3, 2) }, back: 'map' }); });
   await p.waitForTimeout(2500);
