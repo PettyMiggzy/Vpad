@@ -1,25 +1,77 @@
 import Phaser from 'phaser';
 import { loadLive } from '../chain.js';
 import { previewWorld } from '../data.js';
+import { buildGrid, paintWorld } from '../worldgen.js';
+
+export const PROPS = {
+  mount: 4, tree: 6, rock: 10, ruin: 6,
+};
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('boot'); }
 
   preload() {
-    const w = this.scale.width, h = this.scale.height;
-    const label = this.add.text(w / 2, h / 2, 'loading', { color: '#b6ff00', fontSize: '20px' }).setOrigin(0.5);
-    this.load.on('progress', (p) => label.setText(`loading ${Math.round(p * 100)}%`));
+    const bar = document.getElementById('boot');
+    this.load.on('progress', (p) => { if (bar) bar.textContent = `loading ${Math.round(p * 100)}%`; });
     for (const u of ['bruiser', 'sniper', 'trickster', 'defender']) this.load.image(u, `art/units/${u}.png`);
     for (const b of ['townhall', 'barracks', 'vault', 'wall', 'guardtower', 'siegeram']) this.load.image(b, `art/buildings/${b}.png`);
+    for (const t of ['grass', 'dirt', 'rock', 'water', 'sand']) this.load.image(`g_${t}`, `art/tiles/g_${t}.jpg`);
+    for (const [k, n] of Object.entries(PROPS)) for (let i = 0; i < n; i++) this.load.image(`${k}${i}`, `art/props/${k}${i}.png`);
     this.load.image('logo', 'art/logo/warheadz-logo.png');
     this.load.image('title', 'art/title/badlands.png');
-    const dot = this.textures.createCanvas('spark', 8, 8);
-    dot.context.fillStyle = '#ffffff'; dot.context.beginPath(); dot.context.arc(4, 4, 3, 0, 6.3); dot.context.fill(); dot.refresh();
   }
 
   async create() {
+    const bar = document.getElementById('boot');
+    this.makeSprites();
+    if (bar) bar.textContent = 'reading the chain…';
     const live = await loadLive(import.meta.env.BASE_URL);
-    this.registry.set('world', live ?? previewWorld());
-    this.scene.start(new URLSearchParams(window.location.search).has('logo') ? 'logo' : 'map');
+    const forcePreview = new URLSearchParams(window.location.search).has('preview');
+    const world = forcePreview ? previewWorld() : (live ?? previewWorld());
+    this.registry.set('world', world);
+    if (new URLSearchParams(window.location.search).has('logo')) {
+      if (bar) bar.remove();
+      this.scene.start('logo');
+      return;
+    }
+    const grid = buildGrid(world);
+    this.registry.set('grid', grid);
+    const { ground, shimmer } = await paintWorld(this, grid, (p) => { if (bar) bar.textContent = `painting the Bad Lands ${Math.round(p * 100)}%`; });
+    this.textures.addCanvas('ground', ground);
+    this.textures.addCanvas('shimmer', shimmer);
+    if (bar) bar.remove();
+    this.scene.start('map');
+  }
+
+  // small shared sprites drawn once: soft glow, cloud shadow, spark, shadow blob
+  makeSprites() {
+    const mk = (key, size, draw) => {
+      const c = this.textures.createCanvas(key, size, size);
+      draw(c.context, size);
+      c.refresh();
+    };
+    mk('glow', 128, (x, s) => {
+      const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.fillRect(0, 0, s, s);
+    });
+    mk('spark', 16, (x, s) => {
+      const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.fillRect(0, 0, s, s);
+    });
+    mk('blob', 128, (x, s) => {
+      const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.6, 'rgba(0,0,0,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.fillRect(0, 0, s, s);
+    });
+    mk('cloud', 256, (x, s) => {
+      for (let i = 0; i < 9; i++) {
+        const cx = s * (0.25 + Math.random() * 0.5), cy = s * (0.3 + Math.random() * 0.4), r = s * (0.14 + Math.random() * 0.16);
+        const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+        g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = g; x.fillRect(0, 0, s, s);
+      }
+    });
   }
 }
