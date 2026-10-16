@@ -122,7 +122,7 @@ export class BaseScene extends Phaser.Scene {
         for (const e of fresh) if (e.kind === 'raid') { const me = this.nation; if (e.b === me.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => openBattle({ report: e.report, back: 'map' }) }); }
         this.sbxPanel.strip();
         refreshPlanner();
-        const rd = this.sim.readyJobs().length;
+        const rd = this.sim.readyJobs().reduce((t, j) => t + j.count, 0);
         if (fresh.some((e) => e.kind === 'raid') || rd !== this.sbxPanel.ready) { this.sbxPanel.ready = rd; this.layout(); this.sbxPanel.render(); }
       }
     }
@@ -169,6 +169,7 @@ export class BaseScene extends Phaser.Scene {
     };
     const render = () => {
       this.layout();
+      const keep = tab === 'war' ? [0, 1, 2].map((i) => Number(body.querySelector(`[data-send="${i}"]`)?.value)) : null;   // the planner's sliders survive a re-render
       if (tab === 'army') {
         const ready = sim.readyJobs().reduce((t, j) => t + j.count, 0);
         body.innerHTML = `${unitCards()}${queue()}
@@ -183,6 +184,7 @@ export class BaseScene extends Phaser.Scene {
         if (!target || !others.includes(target)) target = others.slice().sort((a, b) => sim.approach(n, a).k - sim.approach(n, b).k)[0];
         body.innerHTML = `<label class="lbl">Target</label><select data-target>${others.map((o) => `<option value="${o.name}" ${o === target ? 'selected' : ''}>${o.name} · ${sim.approach(n, o).k} tiles away</option>`).join('')}</select><div data-plan-box>${plannerHtml(sim, n, target)}</div>
           <div class="note">The result is the contract's fixed formula, no luck. A win costs you 10% of what you sent and takes 20% of their war pool for your buyback pot; they lose 30% of their army. A failed raid costs you half of what you sent. Attacking drops your own shield and starts a 24 h cooldown.</div>`;
+        if (keep) [0, 1, 2].forEach((i) => { const el = body.querySelector(`[data-send="${i}"]`); if (el && Number.isFinite(keep[i])) el.value = Math.min(keep[i], Number(el.max)); });
         bindPlanner(body.querySelector('[data-plan-box]'), sim, n, target, (report) => openBattle({ report, back: 'base', home: n }));
         body.querySelector('[data-target]').addEventListener('change', (e) => { target = sim.byName(e.target.value); render(); });
       } else {
@@ -195,7 +197,7 @@ export class BaseScene extends Phaser.Scene {
       strip();
     };
     q('[data-back]').addEventListener('click', () => this.scene.start('map'));
-    ui.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; ui.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); }));
+    ui.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; body.scrollTop = 0; ui.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); }));
     body.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b || b.disabled) return;
       if (b.dataset.tr) { const [u, c] = b.dataset.tr.split(':').map(Number); this.hop(this.units[u]); flash(() => sim.train(u, c)); }
@@ -205,7 +207,7 @@ export class BaseScene extends Phaser.Scene {
       else if (b.dataset.sh) flash(() => sim.buyShield(Number(b.dataset.sh)));
       else if (b.dataset.fc) flash(() => sim.faucet(b.dataset.fc));
     });
-    this.sbxPanel = { strip, render, tickAcc: 0 };
+    this.sbxPanel = { strip, render, tickAcc: 0, ready: sim.readyJobs().reduce((t, j) => t + j.count, 0) };
     render();
     this.sim = sim;
   }

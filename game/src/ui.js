@@ -4,6 +4,7 @@ export function mountSheet(el) {
   const api = {
     open(html, h = {}) {
       handlers = h;
+      api.onOpen?.();
       el.innerHTML = `<div class="grab"></div>${html}`;
       requestAnimationFrame(() => el.classList.add('on'));
     },

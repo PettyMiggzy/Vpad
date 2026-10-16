@@ -3,7 +3,7 @@ import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
 import { ATTACK, impactMs, attackMs } from '../anim.js';
-import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts, refreshPlanner } from '../sandboxUi.js';
+import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts, refreshPlanner, dropPlanner } from '../sandboxUi.js';
 import { fmtLeft } from '../sim.js';
 
 const DPR = () => window.__dpr || 1;
@@ -583,6 +583,10 @@ export class MapScene extends Phaser.Scene {
     if (this.world.sandbox) {
       const sim = this.sim;
       if (this.pick) { confirmClaim(this, tx, ty); return; }
+      if (sim.player && !sim.owner(tx, ty) && sim.buildable(tx, ty) && !sim.canExpand(tx, ty) && !this.pick) {
+        this.sheet.open(`<h2>${t === 3 ? 'Coast plot' : t === 4 ? 'Mountain pass' : 'Open ground'}</h2><div class="sub">plot ${tx}, ${ty}</div><div class="note" style="margin-top:0">${sim.player.plots.length >= 16 ? 'Your nation is full (16 plots).' : 'A new plot has to touch your own land (straight up, down, left or right of a plot you hold).'}</div><div class="row"><button class="btn" data-close>Close</button></div>`, {});
+        return;
+      }
       if (sim.player && sim.canExpand(tx, ty)) {
         const cost = sim.plotCost(tx, ty);
         this.sheet.open(`<h2>Take this plot?</h2><div class="sub">next to your land · plot ${tx}, ${ty}</div><div class="note" style="margin-top:0">Costs $${cost} play USDC (half of it joins your war pool) and burns coin. Each plot costs double the last. You need a commander's coin holding.</div><div class="row"><button class="btn primary" data-go>Take it · $${cost}</button><button class="btn" data-close>Close</button></div>`, {
@@ -609,7 +613,8 @@ export class MapScene extends Phaser.Scene {
       <div class="legend-pop"><div><span class="dot" style="background:#b6ff00"></span>coast plot (premium)</div><div><span class="dot" style="background:#ffd24a"></span>mountain pass (premium)</div><div><span class="dot" style="background:#ff3030"></span>war</div><div style="color:#93a58a;font-size:12px">drag to move · pinch or wheel to zoom · tap a nation</div></div>
       <div class="sheet"></div>`;
     this.sheet = mountSheet(ui.querySelector('.sheet'));
-    this.sheet.onClose = () => this.clearMarker();
+    this.sheet.onClose = () => { this.clearMarker(); dropPlanner(); };
+    this.sheet.onOpen = () => dropPlanner();
     const cam = this.cameras.main;
     ui.querySelector('.rail').addEventListener('click', (e) => {
       const k = e.target.closest('button')?.dataset.z;

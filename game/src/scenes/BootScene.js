@@ -18,10 +18,8 @@ export class BootScene extends Phaser.Scene {
     const bar = document.getElementById('boot');
     this.load.on('progress', (p) => setBoot('loading art', p * 0.4));
     for (const u of ['bruiser', 'sniper', 'trickster', 'defender']) this.load.image(u, `art/units/${u}.png`);
-    for (const b of ['townhall', 'barracks', 'vault', 'wall', 'guardtower', 'siegeram']) this.load.image(b, `art/buildings/${b}.png`);
     for (const t of ['grass', 'dirt', 'rock', 'water', 'sand', 'lush', 'redrock', 'slate']) this.load.image(`g_${t}`, `art/tiles/g_${t}.jpg`);
     for (const [k, n] of Object.entries(PROPS)) for (let i = 0; i < n; i++) this.load.image(`${k}${i}`, `art/props/${k}${i}.png`);
-    for (const t of ['bruiser', 'sniper', 'trickster', 'defender', 'townhall', 'barracks', 'vault', 'wall', 'guardtower']) this.load.image(`t_${t}`, `art/trim/${t}.png`);
     for (const t of ['b_keep', 'b_gate', 'b_wall', 'b_barracks', 'b_vault', 'b_tower', 'c_crates', 'c_tent', 'c_ram', 'c_tent2', 'c_rack', 'c_tent3']) this.load.image(t, `art/trim/${t}.png`);
     loadAnimSheets(this);
     this.load.image('logo', 'art/logo/warheadz-logo.png');

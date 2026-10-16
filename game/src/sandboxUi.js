@@ -185,7 +185,14 @@ export function plannerHtml(sim, a, d) {
 
 let activePlanner = null;
 /** re-evaluates the open raid planner (cooldowns and protection end with the clock, not only when a slider moves) */
-export function refreshPlanner() { if (activePlanner && activePlanner.root.isConnected) activePlanner.calc(); else activePlanner = null; }
+export function refreshPlanner() {
+  const a = activePlanner;
+  if (!a) return;
+  // the planner lives in a sheet whose contents get replaced: it is gone as soon as its sliders are
+  if (!a.root.isConnected || !a.root.querySelector('[data-send="0"]') || !a.root.querySelector('[data-plan]')) { activePlanner = null; return; }
+  try { a.calc(); } catch (_) { activePlanner = null; }
+}
+export function dropPlanner() { activePlanner = null; }
 
 export function bindPlanner(root, sim, a, d, onReport) {
   const send = () => [0, 1, 2].map((i) => Number(root.querySelector(`[data-send="${i}"]`).value));
