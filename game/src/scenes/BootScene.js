@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { loadLive } from '../chain.js';
 import { previewWorld } from '../data.js';
 import { buildGrid, paintWorld } from '../worldgen.js';
+import { loadAnimSheets, makeAnims } from '../anim.js';
 
 const setBoot = (msg, pct) => { const m = document.getElementById('bootmsg'), b = document.getElementById('bootbar'); if (m) m.textContent = msg; if (b && pct != null) b.style.width = `${Math.max(4, Math.round(pct * 100))}%`; };
 
@@ -21,6 +22,7 @@ export class BootScene extends Phaser.Scene {
     for (const [k, n] of Object.entries(PROPS)) for (let i = 0; i < n; i++) this.load.image(`${k}${i}`, `art/props/${k}${i}.png`);
     for (const t of ['bruiser', 'sniper', 'trickster', 'defender', 'townhall', 'barracks', 'vault', 'wall', 'guardtower']) this.load.image(`t_${t}`, `art/trim/${t}.png`);
     for (const t of ['b_keep', 'b_gate', 'b_wall', 'b_barracks', 'b_vault', 'b_tower', 'c_crates', 'c_tent', 'c_ram', 'c_tent2', 'c_rack', 'c_tent3']) this.load.image(t, `art/trim/${t}.png`);
+    loadAnimSheets(this);
     this.load.image('logo', 'art/logo/warheadz-logo.png');
     this.load.image('title', 'art/title/badlands.png');
   }
@@ -28,6 +30,7 @@ export class BootScene extends Phaser.Scene {
   async create() {
     const bar = document.getElementById('boot');
     this.makeSprites();
+    makeAnims(this);
     setBoot('reading the chain', 0.45);
     const live = await loadLive(import.meta.env.BASE_URL);
     const forcePreview = new URLSearchParams(window.location.search).has('preview');

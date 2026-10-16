@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
+import { ATTACK, impactMs, attackMs } from '../anim.js';
 
 const DPR = () => window.__dpr || 1;
 
@@ -227,39 +228,54 @@ export class MapScene extends Phaser.Scene {
     const keys = ['bruiser', 'sniper', 'trickster', 'defender'];
     const key = i === 0 ? n.emblem : keys[(keys.indexOf(n.emblem) + i) % 4];
     const [gx, gy] = this.yardPoint(n);
-    const sw = TILE * 0.62;
-    const shadow = this.add.image(gx, gy, 'blob');
-    const spr = this.add.image(gx, gy, `t_${key}`).setOrigin(0.5, 1);
-    spr.setScale(sw / spr.width);
-    shadow.setScale(sw / 128 * 1.1, sw / 128 * 0.4).setAlpha(0.85);
-    const w = { n, spr, shadow, gx, gy, tx: gx, ty: gy, wait: Math.random() * 2, phase: Math.random() * 6, base: spr.scaleX, sh: sw / 128 };
+    const size = TILE * 1.05;                       // the animation cell; the character fills most of it
+    const shadow = this.add.image(gx, gy, 'blob').setScale(size / 128 * 0.42, size / 128 * 0.15).setAlpha(0.85);
+    const spr = this.add.sprite(gx, gy, `${key}_walk`, 0).setOrigin(0.5, 0.97);
+    spr.setScale(size / 192);
+    const w = { n, spr, key, shadow, gx, gy, tx: gx, ty: gy, wait: Math.random() * 2, walking: false };
     this.walkers.push(w);
   }
 
   buildWars() {
     this.warFx = [];
+    this.warSpots = [];
+    this.impactSparks = this.add.particles(0, 0, 'spark', { speed: { min: 40, max: 150 }, angle: { min: 200, max: 340 }, gravityY: 220, lifespan: 480, scale: { start: 1, end: 0 }, tint: [0xffe066, 0xff7a2a, 0xffffff], emitting: false, blendMode: 'ADD' }).setDepth(9000);
     for (const war of this.world.wars) {
       const a = this.world.nations.find((n) => n.name === war.a), b = this.world.nations.find((n) => n.name === war.b);
       const X = this.px(war.at[0]) + TILE / 2, Y = this.px(war.at[1]) + TILE / 2;
-      const ring = this.add.image(X, Y, 'glow').setTint(0xff2020).setScale(TILE * 2.4 / 128).setAlpha(0.5).setBlendMode(Phaser.BlendModes.ADD).setDepth(8);
+      const ring = this.add.image(X, Y + TILE * 0.2, 'glow').setTint(0xff2020).setScale(TILE * 2.6 / 128).setAlpha(0.55).setBlendMode(Phaser.BlendModes.ADD).setDepth(1990);
       this.tweens.add({ targets: ring, alpha: 0.12, scale: TILE * 3.2 / 128, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       const fighters = [];
       [[a, -1], [b, 1]].forEach(([n, side]) => {
         if (!n) return;
-        const sh = this.add.image(X + side * 17, Y + 19, 'blob').setScale(0.4, 0.15);
-        const s = this.add.image(X + side * 17, Y + 20, `t_${n.emblem}`).setOrigin(0.5, 1).setFlipX(side < 0);
-        s.setScale((TILE * 0.7) / s.width).setDepth(2000 + Y + 18);
-        sh.setDepth(2000 + Y + 10);
-        fighters.push({ s, sh, side, x: X + side * 17, y: Y + 16 });
-        this.tweens.add({ targets: s, x: X + side * 6, duration: 170, yoyo: true, repeat: -1, repeatDelay: 450 + (side > 0 ? 260 : 0), delay: side > 0 ? 340 : 0, ease: 'Quad.out' });
+        const fx = X + side * TILE * 0.34, fy = Y + TILE * 0.5;
+        const sh = this.add.image(fx, fy, 'blob').setScale(0.45, 0.17).setDepth(2000 + fy - 1);
+        const s = this.add.sprite(fx, fy, `${n.emblem}_attack`, 0).setOrigin(0.5, 0.97).setFlipX(side > 0);
+        s.setScale((TILE * 1.2) / 192).setDepth(2000 + fy);
+        fighters.push({ s, sh, side, n });
       });
-      const sparks = this.add.particles(X, Y + 2, 'spark', { speed: { min: 40, max: 130 }, angle: { min: 200, max: 340 }, gravityY: 180, lifespan: 480, scale: { start: 0.9, end: 0 }, tint: [0xffe066, 0xff7a2a, 0xffffff], frequency: 360, quantity: 5, blendMode: 'ADD' }).setDepth(9000);
+      // they trade blows for ever: one swings, the blow lands, the other answers
+      const fx = { fighters, X, Y };
+      const swing = (i) => {
+        const f = fighters[i % fighters.length];
+        if (!f) return;
+        f.s.play(`${f.n.emblem}_attack`);
+        this.time.delayedCall(impactMs(f.n.emblem), () => {
+          const foe = fighters[(i + 1) % fighters.length];
+          if (foe && foe !== f) { foe.s.setTintFill(0xffffff); this.time.delayedCall(70, () => foe.s.clearTint()); }
+          this.impactSparks.emitParticleAt(X + (f.side > 0 ? 1 : -1) * -TILE * 0.05, Y + TILE * 0.1, 8);
+        });
+        this.time.delayedCall(attackMs(f.n.emblem) + 250, () => swing(i + 1));
+      };
+      this.time.delayedCall(Math.random() * 800, () => swing(0));
+      const sparks = null;
       const lbl = this.add.text(X, Y - TILE * 0.7, `${war.a}  vs  ${war.b}`, { fontFamily: 'system-ui', fontSize: '12px', fontStyle: '800', color: '#ffb0b0', stroke: '#000', strokeThickness: 3, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
       lbl.isWar = true;
       lbl.chip = this.add.rectangle(X, Y - TILE * 0.7, 0, 0, 0xff4040, 1).setDepth(9499);
       lbl.n = { color: 0xff4040 };
       this.labels.push(lbl);
-      this.warFx.push({ ring, fighters, sparks, lbl });
+      this.warFx.push({ ring, fighters, lbl });
+      this.warSpots.push({ x: X, y: Y, war, a, b });
     }
   }
 
@@ -356,6 +372,8 @@ export class MapScene extends Phaser.Scene {
     const R = this.grid.R, M = MARGIN;
     const tx = Math.floor(w.x / TILE) - R - M, ty = Math.floor(w.y / TILE) - R - M;
     if (Math.abs(tx) > R || Math.abs(ty) > R) { this.sheet.close(); return; }
+    const spot = (this.warSpots || []).find((s) => Math.hypot(s.x - w.x, s.y - w.y) < TILE * 1.1);
+    if (spot) { this.showWar(spot); return; }
     this.select(tx, ty);
   }
 
@@ -385,6 +403,22 @@ export class MapScene extends Phaser.Scene {
       </div>
       <div class="row"><button class="btn primary" data-go>Enter base</button><button class="btn" data-close>Close</button></div>`, {
       go: () => this.scene.start('base', { nation: n }),
+    });
+  }
+
+  showWar(spot) {
+    const { war, a, b } = spot;
+    this.marker?.destroy();
+    if (!a || !b) { this.sheet.close(); return; }
+    this.sheet.open(`
+      <h2><span class="tag war" style="margin:0">WAR</span>${a.name} vs ${b.name}</h2>
+      <div class="sub">${war.success === undefined ? 'a raid is under way' : war.success ? `${a.name} broke through` : `${b.name} held`}</div>
+      <div class="stats" style="grid-template-columns:repeat(2,1fr)">
+        <div class="stat"><b>${a.units.reduce((x, y) => x + y, 0)}</b><span>${a.name} units</span></div>
+        <div class="stat"><b>${b.units.reduce((x, y) => x + y, 0)}</b><span>${b.name} units</span></div>
+      </div>
+      <div class="row"><button class="btn danger" data-go>Watch the battle</button><button class="btn" data-close>Close</button></div>`, {
+      go: () => this.scene.start('battle', { a, b, back: 'map' }),
     });
   }
 
@@ -442,21 +476,19 @@ export class MapScene extends Phaser.Scene {
       let walking = false;
       if (d > 2) {
         walking = true;
-        const sp = 22 * dt;
+        const sp = 26 * dt;
         w.gx += (dx / d) * sp; w.gy += (dy / d) * sp;
         if (Math.abs(dx) > 1) w.spr.setFlipX(dx < 0);
       } else if (w.wait <= 0) {
         [w.tx, w.ty] = this.yardPoint(w.n);
         w.wait = 1.5 + Math.random() * 3;
       }
-      w.phase += dt * (walking ? 9 : 2.2);
-      const step = Math.sin(w.phase);
-      const hop = walking ? Math.abs(step) * 4 : 0;
-      const landing = walking ? Math.max(0, -Math.cos(w.phase * 2)) : 0;           // squash as each foot lands
-      const squash = walking ? 1 - landing * 0.07 + (hop / 4) * 0.05 : 1 + Math.sin(w.phase) * 0.025;
-      w.spr.setPosition(w.gx, w.gy - hop).setScale(w.base * (2 - squash), w.base * squash).setAngle(walking ? step * 4 : 0).setDepth(2000 + w.gy);
-      w.shadow.setPosition(w.gx, w.gy - 1).setScale(w.sh * 1.1 * (1 - hop / 40), w.sh * 0.4 * (1 - hop / 40)).setDepth(2000 + w.gy - 1);
+      if (walking !== w.walking) {
+        w.walking = walking;
+        if (walking) w.spr.play(`${w.key}_walk`); else { w.spr.stop(); w.spr.setFrame(0); }
+      }
+      w.spr.setPosition(w.gx, w.gy).setDepth(2000 + w.gy);
+      w.shadow.setPosition(w.gx, w.gy - 1).setDepth(2000 + w.gy - 1);
     }
-    for (const wf of this.warFx) for (const f of wf.fighters) { f.sh.x = f.s.x; }
   }
 }

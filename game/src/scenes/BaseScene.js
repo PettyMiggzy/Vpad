@@ -144,8 +144,8 @@ export class BaseScene extends Phaser.Scene {
             <div class="note">Building burns the nation's coin. Walls and towers only add defense; a shield can never add strength.</div></section>
           <section data-pane="war" hidden>
             ${others.length ? `<label class="lbl">Target</label><select data-target>${others.map((o, i) => `<option value="${i}">${o.name}</option>`).join('')}</select>
-            <div class="fight" data-fight>pick a target and preview the fight</div>
-            <div class="row"><button class="btn" data-preview>Preview fight</button><button class="btn danger" data-raid ${live ? '' : 'disabled'}>Raid</button></div>` : '<div class="note">No other nation to fight yet.</div>'}
+            <div class="fight" data-fight>pick a target and watch the fight</div>
+            <div class="row"><button class="btn" data-preview>Watch the fight</button><button class="btn danger" data-raid ${live ? '' : 'disabled'}>Raid</button></div>` : '<div class="note">No other nation to fight yet.</div>'}
             <div class="note">The fight is a fixed formula, no luck. The preview uses the same numbers as the contract.</div></section>
           <section data-pane="shop" hidden>
             <div class="grid2"><button class="btn" data-shield ${live ? '' : 'disabled'}>Shield 6h</button><button class="btn" data-speed ${live ? '' : 'disabled'}>Speed up 1h</button>
@@ -196,7 +196,7 @@ export class BaseScene extends Phaser.Scene {
       sel.addEventListener('change', calc);
       ui.querySelector('[data-preview]').addEventListener('click', () => {
         calc();
-        this.units.slice(0, 3).forEach((s, i) => { if (n.units[i] > 0) this.time.delayedCall(i * 220, () => this.lunge(s, 1)); });
+        this.scene.start('battle', { a: n, b: others[Number(sel.value)], back: 'base' });
       });
       ui.querySelector('[data-raid]').addEventListener('click', () => { const o = others[Number(sel.value)]; this.units.slice(0, 3).forEach((s, i) => this.time.delayedCall(i * 220, () => this.lunge(s, 1))); run(`Raid ${o.name}`, () => raidNation(this.world, n, o)); });
       calc();
