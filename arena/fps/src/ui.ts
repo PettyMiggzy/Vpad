@@ -3,6 +3,7 @@
 import { CATALOG, SLOTS } from './sim/items.js';
 import { buy, equip, type Profile } from './profile.js';
 import { SEATS, DEFAULT_SEATS } from './config.js';
+import { HELD, HELD_SIZE } from './art.js';
 
 type Item = { slot: string; name: string; cost: number; blurb: string };
 const items = CATALOG as unknown as Record<string, Item>;
@@ -38,6 +39,10 @@ const CSS = `
 #vy-hitm.on { opacity: 1; transition: none; }
 #vy-hurt { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(255,40,20,0) 50%, rgba(255,40,20,.6) 100%); opacity: 0; transition: opacity .35s; }
 #vy-hurt.on { opacity: 1; transition: none; }
+#vy-held { position: absolute; right: calc(-1vw); bottom: -3vh; width: min(58vw, 78vh); transform-origin: 80% 100%; will-change: transform; }
+#vy-held img { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 10px rgba(0,0,0,.55)); }
+#vy-held i { position: absolute; top: 0; width: 17%; aspect-ratio: 1; transform: translate(-50%, -45%); border-radius: 50%; background: radial-gradient(circle, #fff 0 18%, #ffe27a 34%, rgba(255,150,40,.0) 70%); opacity: 0; }
+#vy-held i.on { opacity: 1; }
 #vy-me { position: absolute; left: calc(14px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); width: min(260px, 46vw); }
 #vy-me .hp { height: 14px; border-radius: 7px; background: rgba(0,0,0,.6); border: 1px solid var(--line); overflow: hidden; } #vy-me .hp i { display: block; height: 100%; width: 100%; background: var(--lime); transition: width .12s; }
 #vy-me b { font-size: 26px; text-shadow: 0 2px 8px #000; } #vy-me small { color: var(--muted); font-size: 11px; display: block; }
@@ -88,6 +93,7 @@ export class Ui {
   <div id="vy-hurt"></div>
   <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span>${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span>${b}</span><div class="pips" data-pips="1"></div></div></div>
   <div id="vy-feed"></div><div id="vy-banner"></div>
+  <div id="vy-held" hidden><img alt=""><i></i></div>
   <div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><span data-gun></span><small data-coins></small></div>
@@ -155,6 +161,20 @@ export class Ui {
   showMenu(on: boolean): void { this.el['vy-menu'].hidden = !on; this.el.hud.hidden = on; if (on) this.renderShop(); }
   showPause(on: boolean): void { this.el['vy-pause'].hidden = !on; }
   menuOpen(): boolean { return !this.el['vy-menu'].hidden; }
+
+  // ---- the gun in your hands ----
+  setHeld(key: string | null): void {
+    const w = this.q('#vy-held');
+    if (!key || !HELD[`vm_${key}`]) { w.hidden = true; return; }
+    const img = w.querySelector('img') as HTMLImageElement, tip = w.querySelector('i') as HTMLElement;
+    img.src = HELD[`vm_${key}`]; tip.style.left = `${HELD_SIZE[`vm_${key}`][2] * 100}%`;
+    w.hidden = false;
+  }
+  poseHeld(x: number, y: number, rotDeg: number, flash: boolean): void {
+    const w = this.q('#vy-held');
+    w.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${rotDeg.toFixed(2)}deg)`;
+    (w.querySelector('i') as HTMLElement).classList.toggle('on', flash);
+  }
 
   // ---- in-match readouts ----
   private q<T extends HTMLElement = HTMLElement>(s: string): T { return this.el.hud.querySelector(s) as T; }

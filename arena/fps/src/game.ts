@@ -5,7 +5,9 @@ import { GAME_OPTIONS, PX_PER_M, EYE_H, FOV, SIM_STEP, FPS_LOOK_TOUCH, TEAM_COLO
 import { Match, MAP, type Player, type SimEvent } from './sim/index.js';
 import { WEAPONS, REWARD } from './sim/items.js';
 import { freshProfile, sanitize, award, teamNames, type Profile } from './profile.js';
-import { buildArena, makeSoldier, destroySoldier, makeViewmodel, weaponName, type Soldier } from './arena.js';
+import { buildArena, makeSoldier, destroySoldier, weaponName, SOLDIER_H, type Soldier } from './arena.js';
+import { UNIT } from './art.js';
+const TEAM_ART = ['lime', 'pink'] as const;
 import * as sfx from './audio.js';
 import { Ui, type PlayChoice } from './ui.js';
 
@@ -27,6 +29,8 @@ const world = await game.world3d({
 });
 try { world.sky({ time: dbg.match(/t(\d+)/)?.[1] ? Number(dbg.match(/t(\d+)/)![1]) : 18 }); world.setAmbient(0.9, '#d6cbff', '#6f6280'); } catch { /* the sky is decoration */ }
 buildArena(world, TEAM_COLORS);
+const frames: Record<string, number> = {};
+for (const [k, url] of Object.entries(UNIT)) frames[k] = await game.assets.loadFrames(url);
 // The look rig is ours (the WebGL2 fallback world has no built-in one): yaw turns right as it grows, pitch grows as the view turns down.
 const look = {
   yaw: 0, pitch: 0,
@@ -48,10 +52,10 @@ let me: Player | null = null;                       // the player's seat in the 
 let playing = false, locked = false, lockFailed = false;
 let fire = false, wasAlive = false;
 const keys = new Set<string>();
-const soldiers = new Map<string, Soldier & { key: string }>();
+const soldiers = new Map<string, Soldier>();
 const tracers: { box: ReturnType<typeof world.box>; life: number }[] = [];
 const sparks: { box: ReturnType<typeof world.box>; life: number }[] = [];
-let vm = makeViewmodel(world, 'pistol', 'woodland'), vmKey = 'pistol|woodland';
+let heldKey = '', camYaw = 0;
 let recoil = 0, flashT = 0, walkPhase = 0, spectate: string | null = null, hudT = 0;
 
 function newMatch(perSide: number) {
@@ -162,29 +166,35 @@ function tracer(e: SimEvent) {
 
 // ---- soldiers ----
 function syncSoldiers(dt: number) {
-  if (dbg.includes('nosold')) return;
   const live = new Set<string>();
+  const cr = right(camYaw);
   for (const p of match.players.values()) {
     live.add(p.id);
-    const key = `${p.team}|${p.camo}|${p.weapon}`;
+    const key = `${p.team}|${p.weapon}`;
     let s = soldiers.get(p.id);
     if (s && s.key !== key) { destroySoldier(s); soldiers.delete(p.id); s = undefined; }
-    if (!s) { s = Object.assign(makeSoldier(world, TEAM_COLORS[p.team], p.camo, p.weapon), { key }); soldiers.set(p.id, s); }
+    if (!s) { s = Object.assign(makeSoldier(world, frames, p.team, p.weapon), { key }); soldiers.set(p.id, s); }
     const gx = p.x / PX_PER_M, gz = p.y / PX_PER_M;
-    if (p === me) { s.group.y = -100; s.lx = gx; s.lz = gz; continue; }
+    if (p === me) { s.bb.y = -100; s.ring.y = -100; s.lx = gx; s.lz = gz; continue; }
+    // the painted character always faces you; it turns to show the side its gun points to
+    s.bb.flipX = Math.cos(p.aim) * cr.x + Math.sin(p.aim) * cr.z < 0;
+    s.bb.x = gx; s.bb.z = gz; s.ring.x = gx; s.ring.z = gz;
     if (p.alive) {
       s.deadFor = -1;
       const speed = Math.hypot(gx - s.lx, gz - s.lz) / Math.max(dt, 1e-3);
-      s.phase += Math.min(speed, 6) * dt * 2.4;
-      const amp = Math.min(1, speed / 2) * 0.75;
-      s.legL.pitch = Math.sin(s.phase) * amp; s.legR.pitch = -Math.sin(s.phase) * amp;
-      s.group.pitch = 0; s.group.x = gx; s.group.y = 0; s.group.z = gz; s.group.yaw = p.aim - Math.PI / 2;
+      s.phase += Math.min(speed, 6) * dt * 2.6;
+      const bob = Math.min(1, speed / 2);
+      s.bb.y = Math.abs(Math.sin(s.phase)) * 0.07 * bob;
+      s.bb.h = SOLDIER_H * (1 + Math.sin(s.phase * 2) * 0.012 * bob); s.bb.w = s.bb.h * s.aspect;
+      s.ring.y = 0.02; s.bb.tint = undefined;
     } else {
       if (s.deadFor < 0) s.deadFor = 0;
       s.deadFor += dt;
-      const f = Math.min(1, s.deadFor / 0.3);
-      s.group.pitch = f * (Math.PI / 2); s.group.x = gx; s.group.z = gz; s.group.y = 0.2 * f; s.group.yaw = p.aim - Math.PI / 2;
-      if (s.deadFor > 6) s.group.y = -100;
+      // a fallen soldier squashes flat and darkens, then goes
+      const f = Math.min(1, s.deadFor / 0.25);
+      s.bb.h = SOLDIER_H * (1 - 0.82 * f); s.bb.w = SOLDIER_H * s.aspect * (1 + 0.5 * f); s.bb.y = 0; s.bb.tint = '#6a4a4a';
+      s.ring.y = s.deadFor > 4 ? -100 : 0.02;
+      if (s.deadFor > 5) s.bb.y = -100;
     }
     s.lx = gx; s.lz = gz;
   }
@@ -217,7 +227,6 @@ game.run((_d, rawDt, t) => {
   wasAlive = alive;
 
   syncSoldiers(dt);
-  if (dbg.includes('nocam')) return;
 
   // camera
   let eyeX = 0, eyeY = EYE_H, eyeZ = 0, camMode: 'self' | 'spec' | 'orbit' = 'orbit', specYaw = 0;
@@ -243,18 +252,16 @@ game.run((_d, rawDt, t) => {
     cam.lookAt(W / 2, 1, H / 2);
   }
 
-  // the gun in your hands
-  if (playing && alive && !dbg.includes('novm')) {
-    const key = `${meP.weapon}|${meP.camo}`;
-    if (key !== vmKey) { vm.dispose(); vm = makeViewmodel(world, meP.weapon, meP.camo); vmKey = key; }
+  camYaw = Math.atan2(-(cam.tx - cam.x), cam.tz - cam.z);
+
+  // the gun in your hands: a painted overlay that bobs and kicks (the page draws it, not the 3D world)
+  if (playing && alive) {
+    const key = `${meP.weapon}_${TEAM_ART[meP.team]}`;
+    if (key !== heldKey) { ui.setHeld(key); heldKey = key; }
     recoil = Math.max(0, recoil - dt * 9); flashT = Math.max(0, flashT - dt);
     const moving = Math.hypot(meP.input?.dx ?? 0, meP.input?.dy ?? 0) > 0.1;
-    vm.root.x = eyeX; vm.root.y = eyeY; vm.root.z = eyeZ;
-    vm.root.lookAt(cam.tx, cam.ty, cam.tz);
-    vm.kick.z = -recoil * 0.07; vm.kick.y = moving ? Math.sin(walkPhase * 2) * 0.01 : 0; vm.kick.x = moving ? Math.cos(walkPhase) * 0.012 : 0;
-    const f = flashT > 0 ? 0.16 : 0;
-    vm.flash.w = f; vm.flash.h = f; vm.flash.d = f;
-  } else vm.root.y = -100;
+    ui.poseHeld(moving ? Math.sin(walkPhase) * 9 : 0, (moving ? Math.abs(Math.cos(walkPhase)) * 7 : 0) + recoil * 22, -recoil * 3, flashT > 0);
+  } else { ui.setHeld(null); heldKey = ''; }
 
   // short-lived effects
   for (const list of [tracers, sparks]) for (let i = list.length - 1; i >= 0; i--) { list[i].life -= dt; if (list[i].life <= 0) { list[i].box.kill(); list.splice(i, 1); } }

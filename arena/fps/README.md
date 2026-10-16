@@ -5,6 +5,7 @@ https://phaser.io/agent/local/w8cwV2Uewgi, private to the owner's Phaser account
 folder that the workspace provides is not copied.
 
 - `src/sim/` is the match server's own rules (`arena/server/game.js` and `items.js`) copied unchanged (typed face in `sim/index.ts`). Keep them in step: change the server file, copy it here.
-- `src/arena.ts` map and soldiers from boxes, `src/game.ts` the loop, `src/ui.ts` menu, shop, HUD and touch controls, `src/profile.ts` the shop's rules (play coins in the browser for now).
+- `src/art.ts` is generated (`tools/`: `gen.py` and `genvm.py` make the pictures with the image service, `pack.py` cuts them out and embeds them; the key comes from `VENICE_API_KEY`). Soldiers are painted sprites that face the camera; the held gun is a painted overlay.
+- `src/arena.ts` map and soldier sprites, `src/game.ts` the loop, `src/ui.ts` menu, shop, HUD and touch controls, `src/profile.ts` the shop's rules (play coins in the browser for now).
 - Teams come from the address: `?a=NAME&b=NAME`. `?dbg=nolock` skips the pointer lock (needed for headless screenshots).
 - Not done: talking to the match server (needs the server hosted), WebGPU path untested here (screenshots were taken on the WebGL2 fallback).
