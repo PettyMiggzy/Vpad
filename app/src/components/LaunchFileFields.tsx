@@ -1,6 +1,6 @@
 // The picture, description and links of a launch, as form fields; or, for those who host their own file, its link.
 // The picture is chosen from the device (nobody should have to find an image link): it is made ready here and uploaded when the
-// launch is sent (lib/api.ts withUploadedPicture). A picture link to another site isn't taken: MINTA's pages draw only pictures
+// launch is sent (lib/api.ts withUploadedPicture). A picture link to another site isn't taken: WARHEADZ's pages draw only pictures
 // the picture service keeps (lib/picture.ts shownPicture), so one would never show. A launch file that already has one (from
 // before, or the creator's own) shows it in the field as a link that isn't drawn; saving the fields leaves it out of the new file
 // (lib/api.ts storable), and the field says so first.
@@ -15,9 +15,9 @@ export interface LaunchFileState {
   /** A picture chosen from the device, ready to upload; sent when the launch is, and replacing file.image */
   picture?: Picture | null;
 }
-/** A launch file's picture link when MINTA draws it (one the picture service keeps), else '' */
+/** A launch file's picture link when WARHEADZ draws it (one the picture service keeps), else '' */
 export const keptPicture = (u?: string) => shownPicture(u?.trim(), API_URL) || '';
-/** Whether the launch has a picture of its own that MINTA shows: one chosen here, or one the picture service already keeps */
+/** Whether the launch has a picture of its own that WARHEADZ shows: one chosen here, or one the picture service already keeps */
 export const hasPicture = (s: LaunchFileState) => !!(s.picture || keptPicture(s.file.image));
 
 export const emptyLaunchFile = (): LaunchFileState => ({ file: { links: {} }, own: '', useOwn: false });
@@ -88,7 +88,7 @@ export function LaunchFileFields({ value, onChange, part = 'all' }: { value: Lau
         <label className="field"><span>Your own file’s link</span>
           <input value={value.own} onChange={(e) => onChange({ ...value, own: e.target.value.trim() })} placeholder="https://… or ipfs://… (a JSON file)" />
           <small className="muted">{'{"image": "https://…", "description": "…", "links": {"website": "https://…"}}'}</small>
-          <small className="muted">MINTA shows only pictures uploaded through it: a picture link to another site in your file isn’t shown (the token’s mascot is).</small>
+          <small className="muted">WARHEADZ shows only pictures uploaded through it: a picture link to another site in your file isn’t shown (the token’s mascot is).</small>
         </label>
       )}
       {own && (
@@ -138,7 +138,7 @@ function PictureField({ value, onChange }: { value: LaunchFileState; onChange: (
         </div>
         <input ref={input} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/*" hidden onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
-      {outside && <small className="muted pic-outside">This launch’s picture is a link to another site, which MINTA doesn’t show: its pages show only pictures uploaded through it, so they show the token’s mascot. Saving here keeps only uploaded pictures, so that link is left out of the new file. Choose the picture from your device to keep a picture.</small>}
+      {outside && <small className="muted pic-outside">This launch’s picture is a link to another site, which WARHEADZ doesn’t show: its pages show only pictures uploaded through it, so they show the token’s mascot. Saving here keeps only uploaded pictures, so that link is left out of the new file. Choose the picture from your device to keep a picture.</small>}
       {err && <small className="err" role="alert">{err}</small>}
     </div>
   );

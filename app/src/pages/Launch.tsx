@@ -237,7 +237,7 @@ export default function Launch() {
         <div className="create-main">
           <p className="eyebrow accent">Create a launch</p>
           <h1 className="display">Bring your idea<br />to <em>VYRE.</em></h1>
-          <p className="lede">Launch your token on MINTA in a few steps.<br />One transaction, live at once, with locked liquidity.</p>
+          <p className="lede">Launch your token on WARHEADZ in a few steps.<br />One transaction, live at once, with locked liquidity.</p>
         <form className="wz" onSubmit={submit} noValidate>
           <ol className="wz-steps" aria-label="Steps">
             {STEP_LABELS.map(([title, sub], i) => (
@@ -289,7 +289,7 @@ export default function Launch() {
                 <legend className="h3">Launch settings <span className="muted small">How your launch works.</span></legend>
                 <dl className="setting-cards">
                   <div><dt>Launch type</dt><dd>Instant</dd><small>One transaction; trading opens at once, with no approval or waiting.</small></div>
-                  <div><dt>Opening market cap</dt><dd>{usd(Number(OPENING_MARKET_CAP / E18))}</dd><small>The same for every launch on MINTA.</small></div>
+                  <div><dt>Opening market cap</dt><dd>{usd(Number(OPENING_MARKET_CAP / E18))}</dd><small>The same for every launch on WARHEADZ.</small></div>
                   <div><dt>Liquidity</dt><dd>Locked</dd><small>The whole supply goes into the pool, and its liquidity can’t be removed.</small></div>
                 </dl>
                 <label className="field"><span>Dev buy <span className="muted">(optional, USDC)</span></span>
@@ -427,7 +427,7 @@ function Preview({ name, symbol, meta, params, buyTax, sellTax, openPrice, check
       </div>
       <dl className="pv-stats">
         <div><dt>Total supply</dt><dd title={params ? exact(params.totalSupply) : undefined}>{params ? compact(params.totalSupply) : '—'}</dd><small>{tokenText(symbol) || 'MYT'}</small></div>
-        <div><dt>Launch type</dt><dd>Instant</dd><small>MINTA</small></div>
+        <div><dt>Launch type</dt><dd>Instant</dd><small>WARHEADZ</small></div>
         <div><dt>Chain</dt><dd className="pv-chain"><VyreGlyph size={22} />VYRE</dd></div>
       </dl>
       <div className="pv-box">

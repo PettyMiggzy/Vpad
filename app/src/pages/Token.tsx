@@ -123,7 +123,7 @@ export default function Token({ token }: { token: Address }) {
       ? <div className="empty"><p>{readErr}</p><button className="btn btn-line btn-sm" type="button" onClick={() => refresh(true)}>Try again</button></div>
       : <Loading what="Reading the launch" />;
   }
-  if (launch === null) return <div className="empty"><p>No token at this address on MINTA. Check the full link and address. Just launched it? Check the transaction in your wallet: a missing page doesn’t mean the launch failed.</p><a href={href({ page: 'explore' })}>Back to all tokens</a></div>;
+  if (launch === null) return <div className="empty"><p>No token at this address on WARHEADZ. Check the full link and address. Just launched it? Check the transaction in your wallet: a missing page doesn’t mean the launch failed.</p><a href={href({ page: 'explore' })}>Back to all tokens</a></div>;
 
   const after = () => { refresh(true); refreshBalances().catch(() => {}); };
   const sym = tokenText(launch.symbol);

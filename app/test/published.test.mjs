@@ -1,4 +1,4 @@
-// The SDK package MINTA's in-app docs tell builders to install (`SDK_FILE` in src/pages/Docs.tsx) is the release vendored here,
+// The SDK package WARHEADZ's in-app docs tell builders to install (`SDK_FILE` in src/pages/Docs.tsx) is the release vendored here,
 // and `npm run check:published` (scripts/check-published.mjs) holds a publish while that address doesn't serve it byte for byte:
 // the vendored copy can be a release vyrechain.com doesn't serve yet, and a build published then would show an install line that
 // fails. These tests run the check against stand-in answers (no network).

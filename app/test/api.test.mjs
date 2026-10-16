@@ -1,6 +1,6 @@
 // Saving a launch file (src/lib/api.ts): the service that keeps launch files stores only pictures it keeps itself (an address
 // under its /i/, as its picture upload answers) and refuses a link to a picture anywhere else. An older launch's file can hold
-// such a link, which MINTA never drew; when its creator edits the file, the link is left out of what is saved, so the save
+// such a link, which WARHEADZ never drew; when its creator edits the file, the link is left out of what is saved, so the save
 // works instead of being refused.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,7 +26,7 @@ function api(fetchStub, { env = {}, sdkStub = sdk } = {}) {
 }
 
 // The app API's address follows the SDK's record of the test network (the SDK's check before signing is that API's /txcheck), so
-// a new SDK release that moves the test network's services to other host names moves MINTA's pictures, launch files, card checkout,
+// a new SDK release that moves the test network's services to other host names moves WARHEADZ's pictures, launch files, card checkout,
 // email sign-in and check before signing with it; a build setting still wins.
 test('the app API’s address is the SDK’s test-network API unless the build sets one', () => {
   const none = async () => { throw new Error('no network'); };

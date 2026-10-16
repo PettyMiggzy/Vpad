@@ -1,5 +1,5 @@
 // The pre-sign check's dialog (src/lib/txcheck.ts): opens over the page, before the wallet's own prompt, only when the check
-// found something. It lists what it found in MINTA's own words and has two buttons. It never calls a transaction safe: with
+// found something. It lists what it found in WARHEADZ's own words and has two buttons. It never calls a transaction safe: with
 // nothing found, nothing is shown at all.
 import { useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';

@@ -94,7 +94,7 @@ export function ConnectButton({ compact = false, header = false }: { compact?: b
             {available.length === 0 && !FACE_ID_OFFERED && (
               <div className="small" role="status">
                 <p><b>No wallet found in this browser.</b></p>
-                <p className="muted">MINTA works with a browser wallet such as MetaMask, Rabby or Coinbase Wallet. On a phone, open this page in your wallet app’s own browser.</p>
+                <p className="muted">WARHEADZ works with a browser wallet such as MetaMask, Rabby or Coinbase Wallet. On a phone, open this page in your wallet app’s own browser.</p>
                 <p><a href="https://vyrechain.com/docs/network/" target="_blank" rel="noopener noreferrer">How to add VYRE Testnet to your wallet</a></p>
               </div>
             )}

@@ -1,9 +1,9 @@
-// Face ID wallets on MINTA: a passkey (Face ID, a fingerprint or the computer's own lock) owns a smart wallet on
+// Face ID wallets on WARHEADZ: a passkey (Face ID, a fingerprint or the computer's own lock) owns a smart wallet on
 // VYRE, with no app and no seed phrase. This device keeps only the passkey's ID and public key (in localStorage), so
 // coming back needs no prompt; the key that signs never leaves the device's secure chip, and the wallet's address is
 // worked out here from the public key. On a new phone the person signs in with the passkey their Apple or Google
 // account synced there, and the wallet is found from the signature itself (the SDK's signInWithPasskey), with nothing
-// asked of VYRE's servers. Before each Face ID prompt MINTA shows the most the operation can cost and waits for a tap
+// asked of VYRE's servers. Before each Face ID prompt WARHEADZ shows the most the operation can cost and waits for a tap
 // on "Confirm with Face ID" (the prompt then comes straight from that tap, as phones' browsers want). Operations are
 // signed here and sent to VYRE's bundler (api.vyrechain.com/bundler); the wallet pays their gas in USDC.
 import { useSyncExternalStore } from 'react';
@@ -26,8 +26,8 @@ export interface FaceIdSession {
 
 export const FACEID_KEY = 'vyre.faceid';
 /**
- * Face ID wallets are on the roadmap, not in MINTA, for now: a card purchase can't be delivered to a smart
- * wallet, so MINTA uses plain EVM wallets (a browser wallet) like other chains until the card top-up is sorted out. All the code
+ * Face ID wallets are on the roadmap, not in WARHEADZ, for now: a card purchase can't be delivered to a smart
+ * wallet, so WARHEADZ uses plain EVM wallets (a browser wallet) like other chains until the card top-up is sorted out. All the code
  * stays; turning this on again brings back "Create a wallet with Face ID", "Sign in with Face ID" and the confirm dialog, and
  * a session kept in this browser is restored. (The SDK, the bundler and the contracts are untouched.)
  */
@@ -311,7 +311,7 @@ export async function checkEarlier(sender: Address): Promise<bigint | undefined>
 
 function supported() {
   if (typeof window === 'undefined' || !window.PublicKeyCredential || !navigator.credentials) {
-    throw new Error('This browser can’t use passkeys. Open MINTA in Safari or Chrome on your phone, or in an up-to-date browser.');
+    throw new Error('This browser can’t use passkeys. Open WARHEADZ in Safari or Chrome on your phone, or in an up-to-date browser.');
   }
 }
 const plain = (e: unknown) => { const t = faceIdReason(e); return t ? new Error(t) : e instanceof Error ? e : new Error(String(e)); };

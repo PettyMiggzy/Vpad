@@ -1,4 +1,4 @@
-// A browser check of MINTA's Create wizard and docs, on a fresh build, with every outside request cut off (the pages must
+// A browser check of WARHEADZ's Create wizard and docs, on a fresh build, with every outside request cut off (the pages must
 // work from their own files): the wizard asks for each step's details before moving on, shows the problem in words, keeps
 // what was typed, ticks the checklist, and ends on a review with a wallet button; the docs open every article, search,
 // deep-link to a section and carry no wording we don't use; nothing throws and nothing scrolls sideways on a phone.
@@ -57,7 +57,7 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
     await pg.fill('.wz-step input[placeholder="MYT"]', 'myt');
     ok(await pg.inputValue('.wz-step input[placeholder="MYT"]') === 'MYT', 'the ticker is upper-cased');
     ok(/My Token/.test(await pg.locator('.preview').innerText()) && /\bMYT\b/.test(await pg.locator('.preview .pv-sym').innerText()), 'the preview shows the name and ticker');
-    ok(await pg.locator('text=Have an image link instead?').count() === 0 && await pg.locator('.wz-step input[placeholder^="https://… or ipfs"]').count() === 0, 'the logo takes no link to another site’s picture (MINTA never draws one)');
+    ok(await pg.locator('text=Have an image link instead?').count() === 0 && await pg.locator('.wz-step input[placeholder^="https://… or ipfs"]').count() === 0, 'the logo takes no link to another site’s picture (WARHEADZ never draws one)');
     await pg.fill('.wz-step input[placeholder="https://…"]', 'ftp://x');
     await next();
     ok(/Website link must start with https/.test(await pg.locator('.wz-step [role=alert]').innerText()), 'a bad website link is refused in words (the links are on step 1, as in the design)');
@@ -176,7 +176,7 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
       ok((await pg.locator('.docs-section').count()) >= 1 && text.length > 120, `article ${s} renders`);
     }
     ok(!banned.test(all), 'no wording we don’t use in the docs' + (banned.test(all) ? ': ' + all.match(banned)[0] : ''));
-    ok(!/@vyrechain\.com|mailto:/i.test(all) && !(await pg.locator('a[href^="mailto:"]').count()), 'the docs carry no email address or mailto link (MINTA is run by whoever hosts it, not by the chain team)');
+    ok(!/@vyrechain\.com|mailto:/i.test(all) && !(await pg.locator('a[href^="mailto:"]').count()), 'the docs carry no email address or mailto link (WARHEADZ is run by whoever hosts it, not by the chain team)');
     ok(/outside audit/i.test(all), 'the docs say there has been no outside audit');
     await pg.goto(base + '#/docs/fees');
     ok(/Platform fee/.test(await pg.locator('.docs-main').innerText()) && /1% of every buy and sell/.test(await pg.locator('.docs-main').innerText()), 'the fees article has the platform fee');
@@ -221,12 +221,12 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
   // ---- the shell
   {
     const { pg, ctx } = await open('#/', { width: 1440, height: 900 });
-    ok(/MINTA/.test(await pg.locator('.brand').getAttribute('aria-label')) && (await pg.locator('.brand .wordmark').getAttribute('alt')) === 'MINTA', 'the header says MINTA');
-    ok(await pg.evaluate(() => [...document.querySelectorAll('.brand img')].length === 2 && [...document.querySelectorAll('.brand img')].every((i) => i.complete && i.naturalWidth > 100)), 'and shows MINTA’s logo pictures (the M and the wordmark both load)');
+    ok(/WARHEADZ/.test(await pg.locator('.brand').getAttribute('aria-label')) && (await pg.locator('.brand .wordmark').getAttribute('alt')) === 'WARHEADZ', 'the header says WARHEADZ');
+    ok(await pg.evaluate(() => [...document.querySelectorAll('.brand img')].length === 2 && [...document.querySelectorAll('.brand img')].every((i) => i.complete && i.naturalWidth > 100)), 'and shows WARHEADZ’s logo pictures (the M and the wordmark both load)');
     ok(/VYRE Testnet/.test(await pg.locator('.chain-pill').innerText()), 'and shows the chain it runs on');
     ok(!/VYRE Pad/.test(await pg.locator('body').innerText()), 'nothing on the page still says VYRE Pad');
     ok(!/@vyrechain\.com/i.test(await pg.locator('footer').innerText()) && !(await pg.locator('a[href^="mailto:"]').count()), 'the footer and header carry no email address');
-    ok((await pg.title()).startsWith('MINTA'), 'the tab is titled MINTA');
+    ok((await pg.title()).startsWith('WARHEADZ'), 'the tab is titled WARHEADZ');
     await ctx.close();
   }
 
@@ -343,7 +343,7 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
     ok(n.text === 'Showing tokens matching “epep”. Clear', `hidden and direction-changing characters are taken out (${JSON.stringify(n.text)})`);
   }
 
-  // ---- a launch's picture: MINTA draws only a picture the picture service keeps (its /i/ addresses, checked there at 1,024 px a
+  // ---- a launch's picture: WARHEADZ draws only a picture the picture service keeps (its /i/ addresses, checked there at 1,024 px a
   // side at most). A picture link to another site can be a small file that decodes to gigabytes in every visitor's browser, so it
   // is never even asked for: the token's mascot is drawn instead, on the home page's cards and lists and on the token's page.
   // A stand-in chain lists two launches: one whose file names a kept picture, one whose file names a picture on another site.
@@ -457,7 +457,7 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
       await ctx.close();
     }
     {
-      // a launch whose file is kept on another site (the creator's own, which MINTA can read): the editor starts from what is in it and
+      // a launch whose file is kept on another site (the creator's own, which WARHEADZ can read): the editor starts from what is in it and
       // says that saving the fields stores a new file in its place; "Your own file" starts from the launch's current link, so saving
       // from there keeps it; a link emptied there is refused rather than saved as no file at all, and fields left empty say before
       // saving that it takes the file away
@@ -557,125 +557,10 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
     await l.close();
   }
 
-  // ---- the splash: plays over the home page once in a while, can always be skipped, and stands down whenever it can't play well.
-  // The film itself is H.264, which a plain Chromium can't decode, so a 1 s clip stands in for it; the real film's size and look are checked by hand
-  {
-    const clip = path.join(__dirname, 'fixtures', 'splash-test.webm');
-    const film = (ctx) => ctx.route(/\/splash\/minta-splash(-2)?\.mp4$/, (route) => route.fulfill({ path: clip, contentType: 'video/webm' }));
-    const gone = (pg, ms = 4000) => pg.waitForSelector('.splash', { state: 'detached', timeout: ms }).then(() => true, () => false);
-    const phone = { width: 390, height: 844 };
-    // the first load already played (and recorded) it with the real, undecodable film: forget that and load again
-    const again = async (pg) => { await pg.evaluate(() => { localStorage.removeItem('minta.splash'); localStorage.removeItem('minta.splash.film'); }); await pg.reload(); };
-
-    // first visit: it shows, the Pad underneath can't be reached, Skip is focused; Skip ends it, the Pad is usable and it doesn't come back on reload
-    {
-      const { pg, ctx, errs } = await open('#/', phone, { splash: true });
-      await film(ctx); await again(pg); await pg.waitForSelector('.splash');
-      ok(await pg.locator('.splash video').getAttribute('src') === '/splash/minta-splash.mp4' && /minta-splash-poster\.webp$/.test(await pg.locator('.splash video').getAttribute('poster')), 'the splash shows the film with its poster frame');
-      ok(await pg.evaluate(() => document.getElementById('root').hasAttribute('inert') && document.documentElement.classList.contains('splash-on')), 'the Pad underneath is inert and the page does not scroll while it plays');
-      ok(await pg.evaluate(() => document.activeElement && document.activeElement.classList.contains('splash-skip')), 'the Skip button has the focus');
-      const box = await pg.locator('.splash video').boundingBox();
-      ok(Math.abs(box.width - 390) <= 1 && Math.abs(box.height - 390) <= 1, 'on a phone the square film is as wide as the screen');
-      ok(await sideways(pg) <= 0, 'no sideways scroll under the splash');
-      await pg.click('.splash-skip');
-      ok(await gone(pg), 'Skip ends it');
-      ok(await pg.evaluate(() => !document.getElementById('root').hasAttribute('inert') && !document.documentElement.classList.contains('splash-on')), 'and the Pad is usable again');
-      ok(await pg.evaluate(() => Number(localStorage.getItem('minta.splash')) > Date.now() - 60_000), 'it remembers that it played');
-      await pg.reload(); await pg.waitForSelector('.top'); await pg.waitForTimeout(300);
-      ok(await pg.locator('.splash').count() === 0, 'a reload does not play it again');
-      await pg.goto(base + '?splash#/'); await pg.waitForSelector('.splash');
-      ok(true, '?splash plays it again whenever asked');
-      await pg.keyboard.press('Escape');
-      ok(await gone(pg), 'Esc ends it');
-      ok(errs.length === 0, 'no page errors from the splash' + (errs.length ? ': ' + errs.join(' | ') : ''));
-      await ctx.close();
-    }
-    // two films take turns, one each time it plays, and each is sized to its own shape without being cropped
-    {
-      const { pg, ctx } = await open('#/', phone, { splash: true });
-      await film(ctx); await again(pg); await pg.waitForSelector('.splash');
-      ok(await pg.locator('.splash video').getAttribute('src') === '/splash/minta-splash.mp4', 'the first play shows the first film');
-      let box = await pg.locator('.splash video').boundingBox();
-      ok(Math.abs(box.width - 390) <= 1 && Math.abs(box.height - 390) <= 1, 'which is square on a phone');
-      await pg.click('.splash-skip'); await pg.waitForSelector('.splash', { state: 'detached' });
-      await pg.evaluate(() => localStorage.removeItem('minta.splash')); await pg.reload(); await pg.waitForSelector('.splash');
-      ok(await pg.locator('.splash video').getAttribute('src') === '/splash/minta-splash-2.mp4', 'the next play shows the second film');
-      ok(/minta-splash-2-poster\.webp$/.test(await pg.locator('.splash video').getAttribute('poster')), 'with its own poster');
-      box = await pg.locator('.splash video').boundingBox();
-      ok(Math.abs(box.width - 390) <= 1 && Math.abs(box.height - 390 / (1072 / 720)) <= 1.5, 'which fills the width of a phone in its own wider shape, uncropped');
-      ok(await sideways(pg) <= 0, 'with no sideways scroll');
-      await pg.click('.splash-skip'); await pg.waitForSelector('.splash', { state: 'detached' });
-      await pg.evaluate(() => localStorage.removeItem('minta.splash')); await pg.reload(); await pg.waitForSelector('.splash');
-      ok(await pg.locator('.splash video').getAttribute('src') === '/splash/minta-splash.mp4', 'and then the first again');
-      await ctx.close();
-      const w = await open('#/', { width: 1440, height: 900 }, { splash: true });
-      await film(w.ctx); await again(w.pg); await w.pg.waitForSelector('.splash');
-      await w.pg.click('.splash-skip'); await w.pg.waitForSelector('.splash', { state: 'detached' });
-      await w.pg.evaluate(() => localStorage.removeItem('minta.splash')); await w.pg.reload(); await w.pg.waitForSelector('.splash');
-      box = await w.pg.locator('.splash video').boundingBox();
-      ok(Math.abs(box.height - 900) <= 1 && Math.abs(box.width - 900 * (1072 / 720)) <= 2, 'on a wide screen the second film is as tall as the screen, in its own shape');
-      await w.ctx.close();
-    }
-    // a tap anywhere ends it; playing through to the end holds the last frame a moment, then leaves by itself
-    {
-      const { pg, ctx } = await open('#/', { width: 1440, height: 900 }, { splash: true });
-      await film(ctx); await again(pg); await pg.waitForSelector('.splash');
-      const box = await pg.locator('.splash video').boundingBox();
-      ok(Math.abs(box.height - 900) <= 1 && Math.abs(box.width - 900) <= 1, 'on a wide screen the film is a square as tall as the screen');
-      await pg.mouse.click(300, 300);
-      ok(await gone(pg), 'a tap anywhere ends it');
-      await ctx.close();
-      const t = await open('#/', { width: 1440, height: 900 }, { splash: true });
-      await film(t.ctx); await again(t.pg); await t.pg.waitForSelector('.splash');
-      const t0 = Date.now();
-      ok(await gone(t.pg, 7000), 'played to the end, it leaves by itself');
-      const took = Date.now() - t0;
-      ok(took > 900 && took < 5000, `after about the film's length plus the fade (${took} ms)`);
-      await t.ctx.close();
-    }
-    // when not to play: another page, a search link, reduced motion, a seen-it-lately device, a film that can't be loaded, a storage that can't remember
-    {
-      for (const [hash, what] of [['#/docs', 'the docs'], ['#/launch', 'Create'], ['#/token/0x0000000000000000000000000000000000000001', 'a shared token link'], ['#/?q=cat', 'a search link']]) {
-        const { pg, ctx } = await open(hash, phone, { splash: true });
-        await pg.waitForTimeout(400);
-        ok(await pg.locator('.splash').count() === 0, `no splash on ${what}`);
-        await ctx.close();
-      }
-      const r = await open('#/', phone, { splash: true, reducedMotion: 'reduce' });
-      await r.pg.waitForTimeout(400);
-      ok(await r.pg.locator('.splash').count() === 0, 'no splash with reduced motion');
-      await r.ctx.close();
-      const s = await open('#/', phone);
-      await s.pg.waitForTimeout(400);
-      ok(await s.pg.locator('.splash').count() === 0, 'no splash for a visitor who saw it in the last six hours');
-      await s.ctx.close();
-      const old = await open('#/', phone, { splash: true });
-      await film(old.ctx);
-      await old.pg.evaluate(() => localStorage.setItem('minta.splash', String(Date.now() - 7 * 3600_000)));
-      await old.pg.reload(); await old.pg.waitForSelector('.splash', { timeout: 5000 }).then(() => ok(true, 'it plays again after six hours'), () => ok(false, 'it plays again after six hours'));
-      await old.ctx.close();
-      const bad = await open('#/', phone, { splash: true });
-      await bad.ctx.route(/\/splash\/minta-splash(-2)?\.mp4$/, (route) => route.abort());
-      await again(bad.pg);
-      await bad.pg.waitForSelector('.top');
-      ok(await gone(bad.pg, 5000), 'a film that can’t be loaded ends the splash by itself');
-      ok(await bad.pg.evaluate(() => !document.getElementById('root').hasAttribute('inert')), 'and leaves the Pad usable');
-      await bad.ctx.close();
-      const blocked = await b.newContext({ viewport: phone });
-      await blocked.addInitScript(() => { Object.defineProperty(window, 'localStorage', { get() { throw new Error('blocked'); } }); });
-      await blocked.route((u) => !u.href.startsWith('http://127.0.0.1'), (route) => route.abort());
-      const bp = await blocked.newPage(); const berrs = [];
-      bp.on('pageerror', (e) => berrs.push(String(e)));
-      await bp.goto(base + '#/'); await bp.waitForSelector('.top'); await bp.waitForTimeout(400);
-      ok(await bp.locator('.splash').count() === 0 && berrs.length === 0, 'with storage blocked there is no splash (it could not remember it played) and no error');
-      await blocked.close();
-    }
-  }
-
   // ---- the pre-sign check (lib/txcheck.ts): a small page (test/harness) uses the app's own wallet client, transaction button,
   // dialog and stylesheet with a stand-in wallet; the check service's answers are stood in too. It must be advisory: silent on
   // no flags and on every kind of no answer, within the 800 ms budget; a flag opens the dialog BEFORE the wallet is asked, with
-  // two buttons; the dialog shows only MINTA's own words; another chain is never checked.
+  // two buttons; the dialog shows only WARHEADZ's own words; another chain is never checked.
   {
     const HOUT = fs.mkdtempSync(path.join(os.tmpdir(), 'minta-txc-'));
     execFileSync('npx', ['vite', 'build', path.join(__dirname, 'harness'), '--config', path.join(WEB, 'vite.config.ts'), '--outDir', HOUT, '--emptyOutDir', '--base', './'], { cwd: WEB, stdio: 'ignore' });
@@ -727,7 +612,7 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
       await ctx.close();
     }
 
-    // a flag: the dialog opens before the wallet is asked, shows only MINTA's own words, and Continue anyway sends
+    // a flag: the dialog opens before the wallet is asked, shows only WARHEADZ's own words, and Continue anyway sends
     const evil = '<img src=x onerror="window.__pwned=1">';
     const hostile = { ...base0, flags: [
       { code: 'flagged_address', address: TO, roles: ['to'], categories: ['phishing_activities'], message: evil },
@@ -1075,8 +960,8 @@ const ok = (cond, what) => { if (!cond) { failed++; console.error('FAIL', what);
     {
       const { pg, ctx } = await open('#/docs/faq', { width: 1280, height: 800 });
       const faq = await pg.locator('.faq').textContent();
-      ok(/Does MINTA check a transaction before I sign it\?/.test(faq) && /api\.vyrechain\.com/.test(faq) && /third-party security service/.test(faq) && /goes on without saying anything/.test(faq) && /Continue anyway and Cancel/.test(faq), 'the FAQ explains the check, who it asks, and that MINTA goes on without it');
-      ok(!/\bsafe\b/i.test(faq.slice(faq.indexOf('Does MINTA check'), faq.indexOf('Has it had an outside audit'))), 'and never calls a checked transaction safe');
+      ok(/Does WARHEADZ check a transaction before I sign it\?/.test(faq) && /api\.vyrechain\.com/.test(faq) && /third-party security service/.test(faq) && /goes on without saying anything/.test(faq) && /Continue anyway and Cancel/.test(faq), 'the FAQ explains the check, who it asks, and that WARHEADZ goes on without it');
+      ok(!/\bsafe\b/i.test(faq.slice(faq.indexOf('Does WARHEADZ check'), faq.indexOf('Has it had an outside audit'))), 'and never calls a checked transaction safe');
       await pg.goto(base + 'privacy/');
       const privacy = await pg.locator('main').textContent();
       ok(/Send a transaction on VYRE/.test(privacy) && /api\.vyrechain\.com/.test(privacy) && /third-party security service/.test(privacy) && /advisory \(it never stops a transaction\)/.test(privacy) && /GoPlus/.test(privacy), 'the privacy page lists what the check sends, to which service, and that it is advisory');

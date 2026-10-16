@@ -5,7 +5,7 @@ import { shownPicture } from './picture';
 
 // the app API's address: the test network's, as the SDK records it (the SDK's check before signing is that API's /txcheck), so an
 // SDK release that moves the test network's services to other host names moves this with them; built with VITE_API_URL it can
-// point anywhere (a service of MINTA's own, say, or another network's API: docs/HANDOFF.md, section 4)
+// point anywhere (a service of WARHEADZ's own, say, or another network's API: docs/HANDOFF.md, section 4)
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || new URL('.', TXCHECK_URL).href.replace(/\/$/, '');
 
 export interface LaunchFile {
@@ -35,7 +35,7 @@ export async function withUploadedPicture(file: LaunchFile, picture?: { blob: Bl
 /**
  * The file as the service keeps it: its picture only when it is one the service stores (`API_URL`/i/<hash>.<ext>). The
  * service refuses a picture link to anywhere else, so an older file's outside link is left out when the file is saved again
- * (MINTA never drew it; the editor says so before saving).
+ * (WARHEADZ never drew it; the editor says so before saving).
  */
 export function storable(file: LaunchFile): LaunchFile {
   return { ...file, image: shownPicture(file.image?.trim(), API_URL) || '' };

@@ -1,4 +1,4 @@
-// What MINTA's pages, docs and notes say, read from the files themselves: claims that match the contracts and each other,
+// What WARHEADZ's pages, docs and notes say, read from the files themselves: claims that match the contracts and each other,
 // nothing announced that isn't built, a privacy page that names every service a visitor's browser calls, and no notes about
 // how other projects' services are configured or why something was decided.
 import { test } from 'node:test';
@@ -17,10 +17,10 @@ const wallet = read('src/pages/Wallet.tsx');
 const handoff = read('docs/HANDOFF.md');
 
 test('the terms and the docs say the same thing about who stands behind the contracts', () => {
-  assert.doesNotMatch(terms, /independent/i, 'the terms call MINTA independent');
-  assert.doesNotMatch(terms, /operator doesn[’']t control|operated by others|vyrechain\.com\. MINTA doesn[’']t control/i, 'the terms say MINTA’s operator has nothing to do with the contracts or the network’s services');
+  assert.doesNotMatch(terms, /independent/i, 'the terms call WARHEADZ independent');
+  assert.doesNotMatch(terms, /operator doesn[’']t control|operated by others|vyrechain\.com\. WARHEADZ doesn[’']t control/i, 'the terms say WARHEADZ’s operator has nothing to do with the contracts or the network’s services');
   assert.match(terms, /deployed by the network[’']s operator, which also holds the owner role/, 'the terms say who deployed and owns the contracts');
-  assert.doesNotMatch(docs, /our own (tests|review)/i, 'the docs present MINTA as the contracts’ own team');
+  assert.doesNotMatch(docs, /our own (tests|review)/i, 'the docs present WARHEADZ as the contracts’ own team');
   assert.match(docs, /review rounds by the network[’']s operator/, 'the docs say whose review rounds they were');
 });
 
@@ -48,7 +48,7 @@ test('the privacy page names the explorer, which every page calls from the visit
   assert.match(privacy, /the network’s explorer \(explorer\.vyrechain\.com\)[^.]*receives the tokens shown and your IP address/);
 });
 
-test('no settings of other services, internal paths, dated decisions or business suggestions in MINTA’s files', () => {
+test('no settings of other services, internal paths, dated decisions or business suggestions in WARHEADZ’s files', () => {
   const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n')
     .filter((f) => f && /\.(tsx?|mjs|cjs|js|md|html|css|json)$/.test(f) && !/package-lock\.json$/.test(f));
   const bad = [
@@ -148,7 +148,7 @@ test('no page names a service host of the network outside src/lib/chain.ts and s
   assert.deepEqual(found, []);
 });
 
-// If the network's services move to other host names while MINTA stays on the test network, the handover notes say what follows the
+// If the network's services move to other host names while WARHEADZ stays on the test network, the handover notes say what follows the
 // SDK and what must be changed by hand, before the old names go to anything else.
 test('the handover notes say what to do when the network’s services move to other host names', () => {
   const s2 = section(handoff, 2);

@@ -20,7 +20,7 @@ import { API_URL } from './api';
 import { guardProvider, wasCancelledByCheck } from './txcheck';
 
 /** The network the app works on, and the network USDC is moved to and from. The only place either is chosen: every other file
- * reads them from here (moving MINTA to another network: docs/HANDOFF.md, section 4). */
+ * reads them from here (moving WARHEADZ to another network: docs/HANDOFF.md, section 4). */
 export const VYRE_CHAIN = vyreTestnet;
 export const ARC_CHAIN = arcTestnet;
 

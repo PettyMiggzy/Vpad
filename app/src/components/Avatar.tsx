@@ -1,4 +1,4 @@
-// A wallet's avatar: a 5×5 mirrored pattern drawn from its address, in MINTA's cyan on a dark tile, so the same wallet
+// A wallet's avatar: a 5×5 mirrored pattern drawn from its address, in WARHEADZ's cyan on a dark tile, so the same wallet
 // always looks the same. Decoration only: the address itself is what identifies a wallet.
 import { useMemo } from 'react';
 

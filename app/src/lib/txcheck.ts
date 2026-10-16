@@ -1,6 +1,6 @@
 // An advisory check before a wallet is asked to sign a transaction on VYRE. The check service (api.vyrechain.com, through
 // the SDK's `checkTransaction`) runs the transaction without sending it and looks up the addresses in it with a security
-// service. MINTA wraps the browser wallet's `eth_sendTransaction` (and `wallet_sendTransaction`, which viem falls back to),
+// service. WARHEADZ wraps the browser wallet's `eth_sendTransaction` (and `wallet_sendTransaction`, which viem falls back to),
 // so every send on VYRE (launch, buy, sell, approve, the Wallet page's sends) goes through here without each page doing anything.
 //
 // The rules, which the tests (test/txcheck.test.mjs) hold in place:
@@ -10,7 +10,7 @@
 //    the service is never shown to anyone as a warning.
 //  - Only when the answer carries a flag (or says the transaction would fail) does a dialog open, BEFORE the wallet's own
 //    prompt, with Continue anyway and Cancel. No flag: nothing is shown, and nothing is said about the transaction at all.
-//  - What the dialog says is MINTA's own wording for each kind of flag. The service's own sentences are never shown, and
+//  - What the dialog says is WARHEADZ's own wording for each kind of flag. The service's own sentences are never shown, and
 //    the only thing taken from its answer into the text is an address that passed an address check, so a hostile answer
 //    can't put words or markup in front of someone.
 //  - Only VYRE's chain is ever checked; a wallet client for another chain is passed through untouched.
@@ -87,7 +87,7 @@ export function concernsOf(answer: TxCheck | unknown): Concern[] {
   }
 }
 
-/** The words for one concern: MINTA's own, in plain language (the address, when there is one, is shown beside it) */
+/** The words for one concern: WARHEADZ's own, in plain language (the address, when there is one, is shown beside it) */
 export function describe(c: Concern): { text: string; address?: Address; where?: string } {
   switch (c.code) {
     case 'reverts':
@@ -184,7 +184,7 @@ export interface GuardOptions {
   vyreChainId?: number;
   /** The check service's address (default: the SDK's for the testnet) */
   url?: string;
-  /** Opens the dialog (default: MINTA's own); resolves true to go on */
+  /** Opens the dialog (default: WARHEADZ's own); resolves true to go on */
   ask?: (concerns: Concern[]) => Promise<boolean>;
   /** The time budget in milliseconds (default CHECK_BUDGET_MS) */
   budgetMs?: number;

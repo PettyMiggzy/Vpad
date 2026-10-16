@@ -67,15 +67,15 @@ export default function App() {
       <FaceIdConfirm />
       <TxCheckDialog />
       <footer className="foot">
-        <p>MINTA on the VYRE testnet: test USDC, no real money. Trading is risky and launch tokens can go to zero; nothing here is advice.
-          USDC is issued by Circle, which isn’t affiliated with MINTA or VYRE. <a href={href({ page: 'docs' })}>Docs</a> · <a href="/terms/">Terms</a> · <a href="/privacy/">Privacy</a> · <a href={EXPLORER} target="_blank" rel="noopener noreferrer">Explorer</a></p>
+        <p>WARHEADZ on the VYRE testnet: test USDC, no real money. Trading is risky and launch tokens can go to zero; nothing here is advice.
+          USDC is issued by Circle, which isn’t affiliated with WARHEADZ or VYRE. <a href={href({ page: 'docs' })}>Docs</a> · <a href="/terms/">Terms</a> · <a href="/privacy/">Privacy</a> · <a href={EXPLORER} target="_blank" rel="noopener noreferrer">Explorer</a></p>
       </footer>
       {searching && <SearchPanel initial={route.page === 'explore' ? route.q : ''} onClose={() => setSearching(false)} />}
     </>
   );
 }
 
-/** The chain MINTA runs on: its name, and where to read about it (it is the one chain, so this is a menu, not a switch) */
+/** The chain WARHEADZ runs on: its name, and where to read about it (it is the one chain, so this is a menu, not a switch) */
 function ChainSelect() {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -95,7 +95,7 @@ function ChainSelect() {
       </button>
       {open && (
         <div className="menu chain-menu" role="menu" onClick={() => setOpen(false)}>
-          <p className="muted small">MINTA runs on</p>
+          <p className="muted small">WARHEADZ runs on</p>
           <p className="chain-current"><VyreGlyph size={18} /><b>VYRE Testnet</b><span className="muted small">chain 7357</span></p>
           <a role="menuitem" href="https://vyrechain.com" target="_blank" rel="noopener noreferrer">About VYRE</a>
           <a role="menuitem" href={EXPLORER} target="_blank" rel="noopener noreferrer">Explorer</a>

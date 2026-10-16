@@ -1,5 +1,5 @@
 // A search carried in a link (#/?q=...): the route keeps it free of hidden and direction-changing characters, and the token
-// list shows it back only when it reads as a plain search, so a shared link can't put its own sentence on MINTA's page.
+// list shows it back only when it reads as a plain search, so a shared link can't put its own sentence on WARHEADZ's page.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,7 +24,7 @@ test('a plain search is shown back as typed', () => {
   for (const q of ['pepe', '$PEPE', 'Pepe Coin', 'my_token-2', '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', 'ДОГЕ', 'ドージ']) assert.equal(searchTerm(q), q);
 });
 
-test('a search that could pass for MINTA’s own words is not shown back', () => {
+test('a search that could pass for WARHEADZ’s own words is not shown back', () => {
   for (const q of [
     'x”. Official airdrop: send USDC to 0x1234',
     'x". Claim now at example.com',

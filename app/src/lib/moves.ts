@@ -1,4 +1,4 @@
-// The Arc addresses a Face ID wallet moved USDC to, kept in this browser (newest first) so MINTA can follow each move,
+// The Arc addresses a Face ID wallet moved USDC to, kept in this browser (newest first) so WARHEADZ can follow each move,
 // with the VYRE block each was started at so a later look starts there and not at the beginning of the chain. Only
 // addresses and block numbers: nothing secret. Everything read back is checked; anything else is dropped.
 // (No relative imports here: test/moves.test.mjs runs this file with Node as it is.)

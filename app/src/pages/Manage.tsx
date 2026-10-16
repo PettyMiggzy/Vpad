@@ -212,7 +212,7 @@ function Metadata({ launch, run }: { launch: Launch; run: Runner }) {
     const fromFile = (m: Meta) => {
       const links: LaunchFile['links'] = {};
       for (const l of m.links) links[l.key] = l.url;
-      // the picture link as written: one to another site shows as a link MINTA doesn't draw, and a save of the fields leaves it out
+      // the picture link as written: one to another site shows as a link WARHEADZ doesn't draw, and a save of the fields leaves it out
       // of the new file (lib/api.ts storable; the picture field says so). A file kept on another site is the creator's own, so
       // "Your own file" starts from its link and saving from there keeps it
       return { file: { description: m.description, image: m.imageLink, links }, own: ours ? '' : uri, useOwn: false };

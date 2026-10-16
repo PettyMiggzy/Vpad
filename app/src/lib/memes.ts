@@ -1,4 +1,4 @@
-// The meme mascots MINTA shows for a token that has no picture of its own: public/memes/m01.webp ... (50 original cartoon
+// The meme mascots WARHEADZ shows for a token that has no picture of its own: public/memes/m01.webp ... (50 original cartoon
 // characters). A token's address picks one, so the same token always gets the same mascot. Decoration only: the creator's own
 // picture replaces it as soon as there is one.
 export const MEME_COUNT = 50;

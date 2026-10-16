@@ -1,4 +1,4 @@
-// MINTA's docs: what it is, how a launch works, the fees, and the contracts and SDK for builders. Everything here
+// WARHEADZ's docs: what it is, how a launch works, the fees, and the contracts and SDK for builders. Everything here
 // describes what the contracts do today on the testnet; nothing is promised that isn't built.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { href } from '../lib/router';
@@ -75,22 +75,22 @@ const ARTICLES: Article[] = [
     title: 'Introduction',
     sections: [
       {
-        id: 'what-is-minta', title: 'What is MINTA?', label: 'Introduction', nav: 'What is MINTA?', art: 'whatis',
+        id: 'what-is-minta', title: 'What is WARHEADZ?', label: 'Introduction', nav: 'What is WARHEADZ?', art: 'whatis',
         body: (
           <>
-            <p>MINTA is a launchpad on the VYRE chain. Anyone can create a token in one transaction, trade it with USDC, and earn a tax on every trade of a token they created.</p>
+            <p>WARHEADZ is a launchpad on the VYRE chain. Anyone can create a token in one transaction, trade it with USDC, and earn a tax on every trade of a token they created.</p>
             <p>Each token’s whole supply goes into its own pool from the first block, and that pool’s liquidity is locked for good. There is no approval step, no schedule and no waiting list: you launch when you like, and the token is trading in the same moment.</p>
           </>
         ),
       },
       {
-        id: 'key-features', title: 'Why MINTA?', label: 'Key features', nav: 'Key features',
+        id: 'key-features', title: 'Why WARHEADZ?', label: 'Key features', nav: 'Key features',
         body: (
           <div className="feat-grid">
             <div><Icon name="bolt" /><b>Easy token creation</b><p>Name it, set the supply and the tax, press Create. One transaction.</p></div>
             <div><Icon name="lock" /><b>Locked liquidity</b><p>The pool’s liquidity can’t be removed, by anyone, ever. Only the launchpad adds to it.</p></div>
             <div><Icon name="coin" /><b>Paid in USDC</b><p>Creators keep a tax of up to 10% on every trade, paid in USDC. They can lower it later, never raise it.</p></div>
-            <div><Icon name="users" /><b>Your own wallet</b><p>Connect MetaMask, Rabby, Coinbase Wallet or any browser wallet. You keep your keys; MINTA never holds them.</p></div>
+            <div><Icon name="users" /><b>Your own wallet</b><p>Connect MetaMask, Rabby, Coinbase Wallet or any browser wallet. You keep your keys; WARHEADZ never holds them.</p></div>
           </div>
         ),
       },
@@ -98,7 +98,7 @@ const ARTICLES: Article[] = [
         id: 'vyre-chain', title: 'Built on VYRE', label: 'The VYRE chain', nav: 'The VYRE chain',
         body: (
           <>
-            <p>MINTA runs on <Ext to="https://vyrechain.com">VYRE</Ext>, an EVM chain where gas is paid in USDC, so there’s no other token to buy first. Blocks are made as soon as a trade arrives (about a quarter of a second), and on the testnet a buy has cost about six millionths of a dollar in gas: <Ext to="https://vyrechain.com/gas">see the measurements and the transactions behind them</Ext>.</p>
+            <p>WARHEADZ runs on <Ext to="https://vyrechain.com">VYRE</Ext>, an EVM chain where gas is paid in USDC, so there’s no other token to buy first. Blocks are made as soon as a trade arrives (about a quarter of a second), and on the testnet a buy has cost about six millionths of a dollar in gas: <Ext to="https://vyrechain.com/gas">see the measurements and the transactions behind them</Ext>.</p>
             <p>This is a <b>testnet</b>: the USDC is test USDC with no value. Get some from the <Ext to="https://vyrechain.com/faucet/">faucet</Ext>.</p>
           </>
         ),
@@ -140,11 +140,11 @@ const ARTICLES: Article[] = [
       },
       {
         id: 'opening-price', title: 'The opening price',
-        body: <p>Every launch opens at the same market cap, <b>$3,000</b>. It isn’t a setting. The mainnet contract enforces it; the testnet’s contract was deployed before that rule and still accepts other values from a script, so on the testnet it is MINTA and the SDK that hold it. You choose the supply, which sets the price of one token.</p>,
+        body: <p>Every launch opens at the same market cap, <b>$3,000</b>. It isn’t a setting. The mainnet contract enforces it; the testnet’s contract was deployed before that rule and still accepts other values from a script, so on the testnet it is WARHEADZ and the SDK that hold it. You choose the supply, which sets the price of one token.</p>,
       },
       {
         id: 'steps', title: 'Review, confirm, wait, ready',
-        body: <p>Before anything is sent, the Review shows every setting. Then you confirm in your wallet, the transaction is made, and MINTA opens the token’s page when it’s live. If the connection drops, the page checks the launch rather than sending it twice.</p>,
+        body: <p>Before anything is sent, the Review shows every setting. Then you confirm in your wallet, the transaction is made, and WARHEADZ opens the token’s page when it’s live. If the connection drops, the page checks the launch rather than sending it twice.</p>,
       },
     ],
   },
@@ -211,7 +211,7 @@ const ARTICLES: Article[] = [
       },
       {
         id: 'promoters', title: 'Promoters',
-        body: <p>A wallet can name the promoter who brought it, once. When it trades through MINTA (or any app using the app router), that promoter is paid 30% of the platform fee in the same transaction, in USDC. Promoters are paid only after signing up and being approved (<Ext to="https://vyrechain.com/promote/">sign up here</Ext>), and the program isn’t available in the UK, the EU, Australia or Singapore. On the testnet it all runs on test USDC.</p>,
+        body: <p>A wallet can name the promoter who brought it, once. When it trades through WARHEADZ (or any app using the app router), that promoter is paid 30% of the platform fee in the same transaction, in USDC. Promoters are paid only after signing up and being approved (<Ext to="https://vyrechain.com/promote/">sign up here</Ext>), and the program isn’t available in the UK, the EU, Australia or Singapore. On the testnet it all runs on test USDC.</p>,
       },
     ],
   },
@@ -295,7 +295,7 @@ const { token, pool, bought, hash } = await launch(wallet, client, {
             <details><summary>Can the liquidity be pulled?</summary><p>No. Each pool’s liquidity is locked in the contract and only the launchpad can add to it; nobody can remove it.</p></details>
             <details><summary>Can a creator raise the tax?</summary><p>No. A creator can lower either tax at any time and can never raise it.</p></details>
             <details><summary>What does a trade cost in gas?</summary><p>On the testnet, a buy has cost about six millionths of a dollar. <Ext to="https://vyrechain.com/gas">Every number links to a real transaction.</Ext></p></details>
-            <details><summary>Does MINTA check a transaction before I sign it?</summary><p>Yes, as a hint, for the transactions you send on VYRE from a browser wallet. Just before your wallet asks you to confirm, MINTA asks a check service ({API_HOST}) to run the transaction without sending it, and the service looks up the addresses in it with a third-party security service. If it finds something (the transaction would fail, it would let a contract spend an unlimited amount of a token, it would give permission to a contract that isn’t one of the launchpad’s own, or a security service has flagged an address in it), MINTA shows it first, with Continue anyway and Cancel. MINTA’s own approvals are always for the exact amount, so you shouldn’t see this in normal use. It waits less than a second, and if the check is slow or unavailable MINTA goes on without saying anything. It can miss things, so read what your wallet shows before you confirm. (A sale’s exact-amount permission is signed as part of the sale itself, before this check sees the transaction that carries it.) What is sent is listed in the <a href="/privacy/">privacy policy</a>.</p></details>
+            <details><summary>Does WARHEADZ check a transaction before I sign it?</summary><p>Yes, as a hint, for the transactions you send on VYRE from a browser wallet. Just before your wallet asks you to confirm, WARHEADZ asks a check service ({API_HOST}) to run the transaction without sending it, and the service looks up the addresses in it with a third-party security service. If it finds something (the transaction would fail, it would let a contract spend an unlimited amount of a token, it would give permission to a contract that isn’t one of the launchpad’s own, or a security service has flagged an address in it), WARHEADZ shows it first, with Continue anyway and Cancel. WARHEADZ’s own approvals are always for the exact amount, so you shouldn’t see this in normal use. It waits less than a second, and if the check is slow or unavailable WARHEADZ goes on without saying anything. It can miss things, so read what your wallet shows before you confirm. (A sale’s exact-amount permission is signed as part of the sale itself, before this check sees the transaction that carries it.) What is sent is listed in the <a href="/privacy/">privacy policy</a>.</p></details>
             <details><summary>Has it had an outside audit?</summary><p>Not yet. The contracts have been through tests and review rounds by the network’s operator, who deployed them, and this is a testnet.</p></details>
             <details><summary>Can I lose money?</summary><p>On the testnet there is no real money. On any chain, launch tokens can go to zero and nothing here is financial advice.</p></details>
           </div>
@@ -307,7 +307,7 @@ const { token, pool, bought, hash } = await launch(wallet, client, {
     slug: 'support',
     title: 'Support',
     sections: [
-      { id: 'contact', title: 'Getting help', body: <p>Start with the <a href={href({ page: 'docs', article: 'faq' })}>FAQ</a>. When you report a problem to whoever runs the MINTA site you are using, include the transaction link from the explorer if there is one: it shows exactly what happened.</p> },
+      { id: 'contact', title: 'Getting help', body: <p>Start with the <a href={href({ page: 'docs', article: 'faq' })}>FAQ</a>. When you report a problem to whoever runs the WARHEADZ site you are using, include the transaction link from the explorer if there is one: it shows exactly what happened.</p> },
     ],
   },
 ];
@@ -317,7 +317,7 @@ const GROUPS: Group[] = [
     title: 'Introduction',
     items: [
       { label: 'Introduction', icon: 'doc', article: 'introduction' },
-      { label: 'What is MINTA?', icon: 'help', article: 'introduction', section: 'what-is-minta' },
+      { label: 'What is WARHEADZ?', icon: 'help', article: 'introduction', section: 'what-is-minta' },
       { label: 'Key features', icon: 'bolt', article: 'introduction', section: 'key-features' },
       { label: 'VYRE chain', icon: 'chain', article: 'introduction', section: 'vyre-chain' },
       { label: 'How it works', icon: 'lock', article: 'introduction', section: 'how-it-works' },
@@ -403,10 +403,10 @@ export default function Docs({ article, section }: { article?: string; section?:
     <div className="docs">
       <aside className="docs-nav" aria-label="Documentation">
         <button type="button" className="docs-nav-toggle" aria-expanded={navOpen} onClick={() => setNavOpen(!navOpen)}>
-          <span className="eyebrow">MINTA docs</span><span className="muted small">{art.title} {navOpen ? '▴' : '▾'}</span>
+          <span className="eyebrow">WARHEADZ docs</span><span className="muted small">{art.title} {navOpen ? '▴' : '▾'}</span>
         </button>
         <div className={`docs-nav-body${navOpen ? ' open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).closest('a')) setNavOpen(false); }}>
-        <p className="eyebrow docs-nav-label">MINTA docs</p>
+        <p className="eyebrow docs-nav-label">WARHEADZ docs</p>
         <label className="docs-search">
           <svg className="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search documentation…" aria-label="Search documentation" />
@@ -441,7 +441,7 @@ export default function Docs({ article, section }: { article?: string; section?:
         {intro && (
           <header className="docs-hero" style={{ backgroundImage: `url(${ART}hero.webp)` }}>
             <div className="hero-copy">
-              <p className="eyebrow">Welcome to MINTA</p>
+              <p className="eyebrow">Welcome to WARHEADZ</p>
               <h1 className="display">Build.<br /><em>Launch.</em> Grow.</h1>
               <p className="lede">The launchpad on the VYRE chain.<br />Instant launches. Locked liquidity. Paid in USDC.</p>
               <div className="row">
@@ -486,7 +486,7 @@ export default function Docs({ article, section }: { article?: string; section?:
         </div>
         <div className="rail-card rail-chain" style={{ backgroundImage: `url(${ART}chain-card.webp)` }}>
           <div className="rail-chain-head"><VyreGlyph size={44} /><span className="rule" aria-hidden="true" /><p className="eyebrow">VYRE chain</p></div>
-          <p className="small">MINTA runs on VYRE, an EVM chain where gas is USDC.</p>
+          <p className="small">WARHEADZ runs on VYRE, an EVM chain where gas is USDC.</p>
           <a className="btn btn-line btn-sm" href="https://vyrechain.com" target="_blank" rel="noopener noreferrer">Learn about VYRE <Arrow /></a>
         </div>
         <div className="rail-card rail-help">
@@ -497,7 +497,7 @@ export default function Docs({ article, section }: { article?: string; section?:
         </div>
         <div className="rail-card rail-cta">
           <img src={`${ART}coins.webp`} alt="" width={254} height={88} loading="lazy" />
-          <p className="rail-cta-title">Create a launch<br />on MINTA</p>
+          <p className="rail-cta-title">Create a launch<br />on WARHEADZ</p>
           <p className="small">Turn your idea into a token on VYRE.</p>
           <a className="btn btn-accent" href={href({ page: 'launch' })}>Start Now <Arrow /></a>
         </div>

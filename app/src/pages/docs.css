@@ -1,4 +1,4 @@
-/* MINTA docs, laid out as in the mockup: the sidebar flush with the left edge, the article, and a rail (on this page, the chain,
+/* WARHEADZ docs, laid out as in the mockup: the sidebar flush with the left edge, the article, and a rail (on this page, the chain,
    help, a call to action) */
 .main.flush { max-width: none; padding: 0; }
 .docs { display: grid; grid-template-columns: 315px minmax(0, 1fr) 257px; align-items: start; }

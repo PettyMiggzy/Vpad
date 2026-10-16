@@ -1,8 +1,8 @@
-// A line across the very top of MINTA that moves: the latest buys and sales, new launches and a few totals, each a link to
+// A line across the very top of WARHEADZ that moves: the latest buys and sales, new launches and a few totals, each a link to
 // its token (the same tokens are all on the launchpad, so the links aren't tab stops: the Pause button is). It scrolls on its own,
 // stops while the pointer is on it, has a Pause button, and doesn't move at all for anyone who asks their device for less motion
 // (they get the same items in a line they can scroll). Real trades only (see
-// lib/feed.ts); on a failure or with nothing to show it says what MINTA is rather than showing nothing.
+// lib/feed.ts); on a failure or with nothing to show it says what WARHEADZ is rather than showing nothing.
 import { useEffect, useRef, useState } from 'react';
 import { feedItems, loadFeed, type FeedItem, type FeedState } from '../lib/feed';
 import { ago, tokenText, usd } from '../lib/format';
@@ -64,7 +64,7 @@ export default function Ticker() {
 
   const dur = Math.max(30, items.length * SECONDS_PER_ITEM);
   return (
-    <div className={`ticker${paused ? ' paused' : ''}`} role="region" aria-label="Latest activity on MINTA">
+    <div className={`ticker${paused ? ' paused' : ''}`} role="region" aria-label="Latest activity on WARHEADZ">
       <span className="tk-live" title="Real trades on the VYRE testnet, made with test USDC"><span className="tk-pulse" aria-hidden="true" />Live<span className="tk-testnet"> · testnet</span></span>
       <div className="tk-view">
         {items.length === 0 ? (

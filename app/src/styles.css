@@ -1,4 +1,4 @@
-/* MINTA (the launchpad app on VYRE): cyan on black, laid out for phones first */
+/* WARHEADZ (the launchpad app on VYRE): cyan on black, laid out for phones first */
 :root {
   --bg: #050805; --panel: #0a110a; --panel-2: #0d160d; --line: #1b2a0e; --line-2: #27391a;
   --text: #f7f9f4; --soft: #dbe1d3; --muted: #abb69b; --dim: #8d997c;
@@ -128,7 +128,7 @@ table.tokens td.down { color: var(--sell); font-weight: 700; }
 .spark.down path { stroke: var(--sell); }
 .spark .flat { stroke: var(--dim); }
 
-/* MINTA's header: the mark and wordmark on their plate, the nav, the chain it runs on, and the wallet */
+/* WARHEADZ's header: the mark and wordmark on their plate, the nav, the chain it runs on, and the wallet */
 .brand { position: relative; align-self: stretch; display: inline-flex; align-items: center; flex: none; width: 345px; padding-left: 92px; color: var(--text); text-decoration: none !important;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='345' height='72' viewBox='0 0 345 72'%3E%3Cpath d='M72 0H308L343 72H72Z' fill='%23000' fill-opacity='.45'/%3E%3Cpath d='M52 0 72 36 52 72' fill='none' stroke='%2326f0f2' stroke-opacity='.3'/%3E%3Cpath d='M308 0 343 72' fill='none' stroke='%2326f0f2' stroke-opacity='.3'/%3E%3C/svg%3E") no-repeat left top / 345px 72px; }
 .logo { display: inline-flex; align-items: center; gap: 16px; }
@@ -619,15 +619,3 @@ a.tk-item:hover b { color: var(--accent); }
 @media (max-width: 480px) { .ticker { height: 34px; font-size: 12.5px; } .tk-live { padding-left: var(--gutter); } .tk-testnet { display: none; } .tk-item { padding: 0 16px; } }
 .picture-field .linkish { justify-self: start; }
 
-/* The splash (components/Splash.tsx): the film sits in a box of its own shape (--r, width over height) as large as the screen allows
-   without cropping it, its edges fading into the black, so it works on a phone held upright and on a wide screen alike */
-html.splash-on { overflow: hidden; }
-.splash { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: hidden; background: #050805; cursor: pointer; opacity: 1; transition: opacity 600ms ease; }
-.splash.out { opacity: 0; pointer-events: none; }
-.splash video { display: block; width: min(100vw, calc(100dvh * var(--r, 1))); aspect-ratio: var(--r, 1); height: auto; object-fit: cover; background: #050805;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(180deg, transparent, #000 9%, #000 91%, transparent);
-  -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent), linear-gradient(180deg, transparent, #000 9%, #000 91%, transparent); mask-composite: intersect; }
-.splash-skip { position: absolute; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 4px; padding: 9px 18px 9px 20px; border: 1px solid rgba(182, 255, 0, 0.4); border-radius: 999px; background: rgba(7, 12, 3, 0.62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; }
-.splash-skip:hover { border-color: var(--accent); color: var(--accent); }
-.splash-skip .ic { width: 15px; height: 15px; }
-@media (prefers-reduced-motion: reduce) { .splash { transition: none; } }

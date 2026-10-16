@@ -3,7 +3,7 @@
 //  - it is advisory and fails open: a slow, busy, broken, hostile or absent service costs at most the 800 ms budget and never
 //    shows anyone anything; only an answer with flags (or "would fail") opens the dialog, and Cancel sends nothing;
 //  - it checks VYRE only;
-//  - the dialog's words are MINTA's own: nothing the service sends is shown but an address that passed an address check;
+//  - the dialog's words are WARHEADZ's own: nothing the service sends is shown but an address that passed an address check;
 //  - the app's own calls (a launch, a buy, a sell with a permit, an exact approval) raise no flag by the service's rules, which
 //    the stand-in applies to the real calls the SDK builds when the app's own trade functions run against a stand-in chain.
 // `npm test` here.
@@ -141,7 +141,7 @@ test('a hostile answer is read safely: unknown codes dropped, bad addresses drop
   assert.deepEqual(concernsOf(new Proxy({}, { get() { throw new Error('no'); } })), []);
 });
 
-test('the words are MINTA’s own: the service’s sentences never reach them, and they never call anything safe', () => {
+test('the words are WARHEADZ’s own: the service’s sentences never reach them, and they never call anything safe', () => {
   const evil = '<img src=x onerror="window.pwned=1"><script>alert(1)</script>';
   const all = ['reverts', 'unlimited_approval', 'approval_to_unknown_spender', 'flagged_address'].flatMap((code) => ['to', 'spender', 'counterparty', undefined].map((role) => describe({ code, address: FLAGGED, role })));
   for (const d of all) {

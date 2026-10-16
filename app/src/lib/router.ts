@@ -1,4 +1,4 @@
-// Routes after the # (https://<MINTA's address>/#/token/0x...), so the static site needs no rewrite rules.
+// Routes after the # (https://<WARHEADZ's address>/#/token/0x...), so the static site needs no rewrite rules.
 // A promoter's link carries ?ref=0x... (before or after the #); the app remembers it on this device until the visitor
 // names a promoter on chain (once, for good) or clears it.
 import { useEffect, useState } from 'react';

@@ -1,4 +1,4 @@
-// What the top ticker shows: the latest buys and sales on MINTA's pools, the newest launches, and a few totals, read in the
+// What the top ticker shows: the latest buys and sales on WARHEADZ's pools, the newest launches, and a few totals, read in the
 // visitor's browser from the public RPC (one scan of the launches and of the day's swaps, then a small one every poll). Real
 // trades only: whatever the pools' swap events say, test trades included (it's a testnet, and the bar says so). No wallet is
 // named: a trade is shown by its token and its size. Dust (under $0.01) is left out of the line and of the volume, and a token shows once, so a few cheap trades can't fill

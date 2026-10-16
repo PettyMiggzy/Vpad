@@ -1,4 +1,4 @@
-// WARHEADZ's logo and the glyph for the VYRE chain (the component names still say Minta: this front end is MINTA's, reskinned).
+// WARHEADZ's logo and the glyph for the VYRE chain (the component names still say Minta: this front end is WARHEADZ's, reskinned).
 import { useId } from 'react';
 
 const BASE = import.meta.env.BASE_URL;

@@ -1,5 +1,5 @@
 // A launch's picture-and-links file (src/lib/market.ts metaOf), read as the app reads it, with its own imports stood in and the
-// file served by a stand-in fetch. What it must get right: a picture is drawn on MINTA's shared pages only when it is one the
+// file served by a stand-in fetch. What it must get right: a picture is drawn on WARHEADZ's shared pages only when it is one the
 // picture service keeps (an address under its /i/, named by the hash of a file that service checked at 1,024 px a side at most).
 // Any other picture link (any https site, IPFS) is a file of any size, which every visitor's browser would decode at full size:
 // one that declares 20,000 x 20,000 pixels takes gigabytes, so such links are never drawn (the mascot is shown instead). The

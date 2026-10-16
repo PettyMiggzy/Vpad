@@ -27,7 +27,7 @@ const CARD_TOPUP = cardTopupOffered(import.meta.env.VITE_CARD_TOPUP, vyre.chain?
 
 // the SDK refuses a deposit from an address with code on Arc (VYRE would credit it to an aliased address); the app
 // says so plainly and never offers the SDK's override
-const CONTRACT_WALLET = 'This wallet is a contract on VYRE, which may not own the same address on Arc, so MINTA won’t move its USDC there. Move it with a plain wallet, or with the SDK’s withdrawToArc and a destination you control.';
+const CONTRACT_WALLET = 'This wallet is a contract on VYRE, which may not own the same address on Arc, so WARHEADZ won’t move its USDC there. Move it with a plain wallet, or with the SDK’s withdrawToArc and a destination you control.';
 const SMART_ACCOUNT = 'This wallet is a smart account on Arc; deposits from it would arrive at a different address on VYRE. Move USDC from a plain wallet instead.';
 
 const ENTRY_POINT = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789';
@@ -255,7 +255,7 @@ function FromChain({ account, provider, email, onLanded, onMove }: {
         throw new Error('Circle’s fees just went up. The new fees are shown above: check them and press again (an approval already made is kept for it).');
       }
       if (/is a contract on Arc/.test(m)) throw new Error('Your address is a contract on Arc, so USDC minted to it could be stuck there. Use a plain wallet.');
-      if (/may not be yours/.test(m)) throw new Error(`This is a smart-contract wallet on ${from.name}; the same address on Arc may not be yours, so MINTA won’t send there. Use a plain wallet.`);
+      if (/may not be yours/.test(m)) throw new Error(`This is a smart-contract wallet on ${from.name}; the same address on Arc may not be yours, so WARHEADZ won’t send there. Use a plain wallet.`);
       if (/has no ETH on/.test(m)) throw new Error(`You need a little Sepolia ETH on ${from.name} to pay for gas.`);
       throw e;
     }
@@ -361,7 +361,7 @@ function Transfer({ t, account, provider, onLanded, onMove, onForget }: {
   const canFinish = !!provider && !!account && !!signed?.message && !!signed.attestation && (end?.kind === 'failed' || (late && st?.stage === 'attested'));
   const stop = () => {
     const why = end?.kind === 'failed'
-      ? `Stop following this transfer here? Circle’s delivery failed, and once it’s gone from this list MINTA can’t finish it on Arc for you. Keep its hash (${t.hash}) to ask Circle’s support.`
+      ? `Stop following this transfer here? Circle’s delivery failed, and once it’s gone from this list WARHEADZ can’t finish it on Arc for you. Keep its hash (${t.hash}) to ask Circle’s support.`
       : 'Stop following this transfer here? It doesn’t cancel it: Circle still delivers it to its address on Arc.';
     if (window.confirm(why)) onForget();
   };
@@ -459,7 +459,7 @@ function FaceIdWalletCard({ account }: { account: Address }) {
       <p className="small mono break">{account}</p>
       <p className="small"><b>This address is on VYRE only.</b> Don’t send USDC to it on Arc or any other chain: there’s no wallet there to spend it.</p>
       {held !== null && held > 0n && <p className="small muted">Also {amount(held, 6)} USDC set aside for network fees, used by your next transaction.</p>}
-      <p className="small"><b>A new or lost phone:</b> the passkey is saved in your Apple or Google account’s passwords, so it comes back on any phone signed in to that account. Open MINTA there and tap <b>Sign in with Face ID</b>. On a computer, sign in with the phone (your browser shows a code to scan).</p>
+      <p className="small"><b>A new or lost phone:</b> the passkey is saved in your Apple or Google account’s passwords, so it comes back on any phone signed in to that account. Open WARHEADZ there and tap <b>Sign in with Face ID</b>. On a computer, sign in with the phone (your browser shows a code to scan).</p>
       <p className="small muted">Each transaction asks for Face ID once and pays its own gas, a fraction of a cent, in USDC. Card top-ups come to Face ID wallets later; to take USDC out, send it on VYRE or move it to an Arc address (below).</p>
     </div>
   );
@@ -527,7 +527,7 @@ function Promoter({ account }: { account: Address }) {
   return (
     <div className="card">
       <h2 className="h3">Your promoter link</h2>
-      <p className="small">People who arrive by your link can name you as their promoter. Once you’ve signed up and been approved, you’re paid 30% of the 1% platform fee on their trades on MINTA, in USDC, in the same transaction. On the testnet that’s test USDC; the paid program opens on mainnet. Not available in the UK, the EU, Australia or Singapore.</p>
+      <p className="small">People who arrive by your link can name you as their promoter. Once you’ve signed up and been approved, you’re paid 30% of the 1% platform fee on their trades on WARHEADZ, in USDC, in the same transaction. On the testnet that’s test USDC; the paid program opens on mainnet. Not available in the UK, the EU, Australia or Singapore.</p>
       <div className="copy-row">
         <input readOnly value={link} aria-label="Your link" onFocus={(e) => e.target.select()} />
         <button type="button" className="btn btn-line btn-sm" onClick={() => { navigator.clipboard?.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>{copied ? 'Copied' : 'Copy'}</button>
@@ -650,7 +650,7 @@ function SendUsdc({ account, held, faceId, onDone }: { account: Address; held: b
   return (
     <div className="card">
       <h2 className="h3">Send USDC on VYRE</h2>
-      <p className="small">To another address on VYRE: a friend’s MINTA wallet, say. It arrives in about a second. <b>Only to a VYRE address:</b> exchanges don’t take USDC on VYRE; to take it off VYRE, move it to Arc (below).</p>
+      <p className="small">To another address on VYRE: a friend’s WARHEADZ wallet, say. It arrives in about a second. <b>Only to a VYRE address:</b> exchanges don’t take USDC on VYRE; to take it off VYRE, move it to Arc (below).</p>
       <label className="field"><span>To (a VYRE address)</span><input value={to} onChange={(e) => setTo(e.target.value)} placeholder="0x…" spellCheck={false} autoComplete="off" aria-invalid={!!addressProblem(to, account)} /></label>
       <label className="field"><span>Amount (USDC)</span><input inputMode="decimal" value={amountIn} onChange={(e) => setAmountIn(e.target.value)} placeholder="1" aria-invalid={!!amountProblem(amountIn)} /></label>
       {problem && <p className="err small" role="alert">{problem}</p>}
@@ -672,7 +672,7 @@ function SendUsdc({ account, held, faceId, onDone }: { account: Address; held: b
 const CLAIMED_FOR_YOU = 10n ** 18n;
 /** Solady's ERC-1967 proxy: a VYRE Face ID wallet's code on VYRE (as the claimer and the bundler check it) */
 const FACE_ID_PROXY = '0x363d3d373d3d363d7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc545af43d6000803e6038573d6000fd5b3d6000f3';
-/** After this long confirmed and not paid out, MINTA says to claim it yourself */
+/** After this long confirmed and not paid out, WARHEADZ says to claim it yourself */
 const CLAIM_YOURSELF_AFTER = 24 * 3600;
 /** A browser wallet in this browser (MetaMask, Rabby…), if there is one: to claim a move on Arc yourself */
 const injected = () => (typeof window !== 'undefined' ? (window as unknown as { ethereum?: EIP1193Provider }).ethereum : undefined);

@@ -1,12 +1,12 @@
 {
-  "name": "MINTA",
-  "short_name": "MINTA",
+  "name": "WARHEADZ",
+  "short_name": "WARHEADZ",
   "description": "Launch, trade and explore on VYRE, with USDC (testnet).",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#03070b",
-  "theme_color": "#03070b",
+  "background_color": "#050805",
+  "theme_color": "#050805",
   "icons": [
     {
       "src": "/icon-192.png",
