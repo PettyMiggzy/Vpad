@@ -7,6 +7,7 @@ import { WEAPONS, REWARD } from './sim/items.js';
 import { freshProfile, sanitize, award, teamNames, type Profile } from './profile.js';
 import { buildArena, makeSoldier, destroySoldier, weaponName, SOLDIER_H, type Soldier } from './arena.js';
 import { UNIT } from './art.js';
+import { TEX, SKYLINE } from './art2.js';
 const TEAM_ART = ['lime', 'pink'] as const;
 import * as sfx from './audio.js';
 import { Ui, type PlayChoice } from './ui.js';
@@ -28,9 +29,11 @@ const world = await game.world3d({
   ...(dbg.includes('deflight') ? {} : { light: { x: -0.5, y: -1, z: -0.35, ambient: 0.7, sky: '#e4ecff', ground: '#8a9a78' } }),
 });
 try { world.sky({ time: dbg.match(/t(\d+)/)?.[1] ? Number(dbg.match(/t(\d+)/)![1]) : 18 }); world.setAmbient(0.9, '#d6cbff', '#6f6280'); } catch { /* the sky is decoration */ }
-buildArena(world, TEAM_COLORS);
-const frames: Record<string, number> = {};
+const frames: Record<string, number> = {}, tex: Record<string, number> = {};
 for (const [k, url] of Object.entries(UNIT)) frames[k] = await game.assets.loadFrames(url);
+for (const [k, url] of Object.entries(TEX)) tex[k] = await game.assets.loadFrames(url);
+buildArena(world, TEAM_COLORS, tex, await game.assets.loadFrames(SKYLINE));
+try { game.post.add('bloom'); } catch { /* glow is decoration */ }
 // The look rig is ours (the WebGL2 fallback world has no built-in one): yaw turns right as it grows, pitch grows as the view turns down.
 const look = {
   yaw: 0, pitch: 0,
