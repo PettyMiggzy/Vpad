@@ -236,7 +236,7 @@ export class BattleScene extends Phaser.Scene {
   /** `share` of the side's whole loss lands now: soldiers in the formation fall and the unit count drops to match */
   hurt(side, share) {
     this.prog[side] = Math.min(1, this.prog[side] + share);
-    const arr = this.mass[side], want = Math.round(arr.length * this.lossFrac[side] * this.prog[side]);
+    const arr = this.mass[side], want = Math.round(arr.length * (this.start[side] ? this.loss[side] / this.start[side] : 0) * this.prog[side]);   // soldiers fall in step with the real unit losses (none lost, none fall)
     let dead = arr.filter((m) => m.dead).length;
     const d = DPR();
     while (dead < want) {
@@ -434,7 +434,7 @@ export class BattleScene extends Phaser.Scene {
     const el = document.querySelector('[data-result]');
     if (!el) return;
     const lossA = this.loss.L, lossB = this.loss.R;
-    const extra = (this.report && !this.report.estimated) ? `<p class="small">${esc(a.name)} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${esc(b.name)} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toLocaleString(undefined, { maximumFractionDigits: 1 })} from ${esc(b.name)}'s war pool goes to ${esc(a.name)}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${esc(a.name)}'s coin is bought back and burned` : ''}.</p>` : '';
+    const extra = (this.report && !this.report.estimated) ? `<p class="small">${esc(a.name)} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${esc(b.name)} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toLocaleString(undefined, { maximumFractionDigits: 1 })} from ${esc(b.name)}'s war pool goes to ${esc(a.name)}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${Math.round(this.report.buyback).toLocaleString()}: ${esc(a.name)}'s coin is bought back and burned` : ''}.</p>` : '';
     el.innerHTML = `<h3 style="color:${hex(winner === 'L' ? a.color : b.color)}">${esc(wName)} wins</h3>
       <p>${r.success ? `${esc(a.name)} breaks ${esc(b.name)}'s defense` : `${esc(b.name)} holds the line against ${esc(a.name)}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>${extra}
       <div class="row"><button class="btn primary" data-replay>Watch again</button><button class="btn" data-back2>${this.back === 'base' ? 'Back to base' : 'Back to the map'}</button></div>`;

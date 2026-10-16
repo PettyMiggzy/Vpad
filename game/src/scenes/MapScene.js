@@ -21,7 +21,7 @@ export class MapScene extends Phaser.Scene {
 
   create() {
     this.world = this.registry.get('world');
-    this.sim = null; this.sbx = null; this.pick = null; this.pickGfx = null;
+    this.sim = null; this.sbx = null; this.pick = null; this.pickGfx = null; this.impactSparks = null;
     this.world.wars = tidyWars(this.world.sim ? this.world.sim.currentWars() : this.world.wars);
     this.grid = this.registry.get('grid');
     const g = this.grid;
@@ -344,7 +344,8 @@ export class MapScene extends Phaser.Scene {
   buildWars() {
     this.warFx = [];
     this.warSpots = [];
-    this.impactSparks = this.add.particles(0, 0, 'spark', { speed: { min: 40, max: 150 }, angle: { min: 200, max: 340 }, gravityY: 220, lifespan: 480, scale: { start: 1, end: 0 }, tint: [0xffe066, 0xff7a2a, 0xffffff], emitting: false, blendMode: 'ADD' }).setDepth(9000);
+    this.warSig = this.warSignature(this.world.wars);
+    if (!this.impactSparks) this.impactSparks = this.add.particles(0, 0, 'spark', { speed: { min: 40, max: 150 }, angle: { min: 200, max: 340 }, gravityY: 220, lifespan: 480, scale: { start: 1, end: 0 }, tint: [0xffe066, 0xff7a2a, 0xffffff], emitting: false, blendMode: 'ADD' }).setDepth(9000);
     for (const war of this.world.wars) {
       const a = this.world.nations.find((n) => n.name === war.a), b = this.world.nations.find((n) => n.name === war.b);
       const at = this.fields.get(war) || war.at;
@@ -356,6 +357,7 @@ export class MapScene extends Phaser.Scene {
       const ring = this.add.image(X, Y + TILE * 0.2, 'glow').setTint(0xff2020).setScale(TILE * 2.6 / 128).setAlpha(0.55).setBlendMode(Phaser.BlendModes.ADD).setDepth(1990);
       this.tweens.add({ targets: ring, alpha: 0.12, scale: TILE * 3.2 / 128, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       const fighters = [];
+      const kill = { dead: false };
       [[a, -1], [b, 1]].forEach(([n, side]) => {
         if (!n) return;
         const fx = X + side * TILE * 0.34, fy = Y + TILE * 0.5;
@@ -367,10 +369,12 @@ export class MapScene extends Phaser.Scene {
       // they trade blows for ever: one swings, the blow lands, the other answers
       const fx = { fighters, X, Y };
       const swing = (i) => {
+        if (kill.dead) return;
         const f = fighters[i % fighters.length];
         if (!f) return;
         f.s.play(`${f.n.emblem}_attack`);
         this.time.delayedCall(impactMs(f.n.emblem), () => {
+          if (kill.dead) return;
           const foe = fighters[(i + 1) % fighters.length];
           if (foe && foe !== f) { foe.s.setTintFill(0xffffff); this.time.delayedCall(70, () => foe.s.clearTint()); }
           this.impactSparks.emitParticleAt(X + (f.side > 0 ? 1 : -1) * -TILE * 0.05, Y + TILE * 0.1, 8);
@@ -384,9 +388,30 @@ export class MapScene extends Phaser.Scene {
       lbl.chip = this.add.rectangle(X, Y - TILE * 0.7, 0, 0, 0xff4040, 1).setDepth(9499);
       lbl.n = { color: 0xff4040 };
       this.labels.push(lbl);
-      this.warFx.push({ ring, fighters, lbl });
+      this.warFx.push({ ring, fighters, lbl, field, kill });
       this.warSpots.push({ x: X, y: Y, war, a, b, lbl });
     }
+  }
+
+  warSignature(wars) { return (wars || []).map((w) => `${w.a}|${w.b}|${w.success}|${w.report?.result?.attack ?? ''}`).join(';'); }
+
+  /** the sandbox's wars come and go while the map is open (computer nations raid, old fights end): the markers follow them */
+  refreshWars() {
+    if (!this.sim) return;
+    const next = tidyWars(this.sim.currentWars());
+    if (this.warSignature(next) === this.warSig) return;
+    for (const fx of this.warFx || []) {
+      fx.kill.dead = true;
+      this.tweens.killTweensOf(fx.ring);
+      for (const f of fx.fighters) { f.s.destroy(); f.sh.destroy(); }
+      fx.ring.destroy(); fx.field.destroy(); fx.lbl.chip?.destroy(); fx.lbl.destroy();
+      this.labels = this.labels.filter((l) => l !== fx.lbl);
+    }
+    this.world.wars = next;
+    this.findBattlefields();
+    this.buildWars();
+    const span = document.querySelector('.top .brand span');
+    if (span) span.textContent = `${this.world.nations.length} nations · ${this.world.wars.length} wars`;
   }
 
   premiumMarks() {
@@ -646,6 +671,7 @@ export class MapScene extends Phaser.Scene {
     }
     this.sbx?.refresh();
     refreshPlanner();
+    this.refreshWars();
   }
 
   showNationSandbox(n) {

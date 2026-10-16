@@ -383,7 +383,7 @@ export class Sim {
       const send = [n.units[0], n.units[1], n.units[2]];
       if (send[0] + send[1] + send[2] < 5) continue;
       const pl = this.plan(n, d, send);
-      if (pl.attack < pl.defense * (d === p ? 1 : 0.6)) continue;   // against the player a computer nation only strikes when it would win: a failed raid still costs the defender units              // only attack when it looks winnable
+      if (d === p ? pl.attack <= pl.defense : pl.attack < pl.defense * 0.6) continue;   // against the player a computer nation only strikes when it would win: a failed raid still costs the defender units              // only attack when it looks winnable
       const why = pl.why.filter((w) => !/command a raid/.test(w));
       if (why.length) continue;
       this.raid(n, d, send);

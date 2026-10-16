@@ -85,6 +85,13 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await p.waitForFunction(() => document.querySelector('[data-send="0"]')?.max === '12', null, { timeout: 30000 }).catch(() => {});
   const pl = await p.evaluate(() => { const r = document.querySelector('[data-send="0"]'); return { max: r?.max, val: r?.value, label: document.querySelector('[data-m="0"]')?.textContent, shield: /ends your own shield/.test(document.querySelector('.sheet')?.textContent || '') }; });
   check('R4-L4 the map planner follows an army that shrinks while it is open', pl.max === '12' && pl.val === '12' && pl.label === '12', JSON.stringify(pl));
+  // R9-M1: a raid that happens while the map is open shows up as a war on it (and goes when the fight is old)
+  const w0 = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const [a, b] = s.sim.nations.filter((n) => !n.isPlayer); s.sim.logEvent({ kind: 'raid', a: a.name, b: b.name, success: true, text: 'test raid' }); window.__testWar = [a.name, b.name]; return s.warSpots.length; });
+  await p.waitForFunction((n) => window.__game.scene.getScene('map').warSpots.length > n, w0, { timeout: 60000 }).then(() => check('R9-M1 a new raid appears as a war on the open map', true), () => check('R9-M1 a new raid appears as a war on the open map', false, `still ${w0}`));
+  const hdr = await p.evaluate(() => document.querySelector('.top .brand span')?.textContent);
+  check('R9-M1 and the header counts it', /[1-9] wars?/.test(hdr || ''), hdr);
+  await p.evaluate(() => { const s = window.__game.scene.getScene('map'); s.sim.clock += 13 * 3600_000; });
+  await p.waitForFunction(() => { const [x, y] = window.__testWar; return window.__game.scene.getScene('map').warSpots.every((sp) => !(sp.war.a === x && sp.war.b === y)); }, null, { timeout: 60000 }).then(() => check('R9-M1 an old fight leaves the map', true), () => check('R9-M1 an old fight leaves the map', false, 'still shown'));
   // R8-M2: on a phone turned on its side every rail button is on screen
   await p.setViewportSize({ width: 844, height: 390 }); await p.waitForTimeout(2500);
   const rail = await p.evaluate(() => [...document.querySelectorAll('.sbx-rail button')].map((b) => Math.round(b.getBoundingClientRect().bottom)));
