@@ -142,7 +142,7 @@ export class MapScene extends Phaser.Scene {
       const [cx, cy] = n.plots[0];
       const X = this.px(cx) + TILE / 2, Y = this.px(cy) + TILE / 2;
       const hall = this.add.image(X, Y + TILE * 0.42, 'townhall').setOrigin(0.5, 0.88).setDepth(2000 + Y + 40);
-      hall.setScale((TILE * 2.5) / hall.width);
+      hall.setScale((TILE * 2.2) / hall.width);
       // capital glow so it reads from far away
       const glow = this.add.image(X, Y, 'glow').setTint(n.color).setAlpha(0.5).setScale(TILE / 36).setBlendMode(Phaser.BlendModes.ADD).setDepth(7);
       this.tweens.add({ targets: glow, alpha: 0.2, scale: TILE / 28, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
@@ -159,8 +159,8 @@ export class MapScene extends Phaser.Scene {
       n.plots.slice(1).forEach(([x, y], i) => {
         const bx = this.px(x) + TILE / 2, by = this.px(y) + TILE / 2;
         const k = bkeys[(i + (n.wall + n.tower)) % bkeys.length];
-        const b = this.add.image(bx, by + TILE * 0.3, k).setOrigin(0.5, 0.85).setDepth(2000 + by + 40);
-        b.setScale((TILE * 1.45) / b.width);
+        const b = this.add.image(bx + TILE * 0.18, by + TILE * 0.18, k).setOrigin(0.5, 0.85).setDepth(2000 + by + 40);
+        b.setScale((TILE * 1.05) / b.width);
         objs.push(b);
       });
       // name tag (kept readable at any zoom in update())
@@ -184,9 +184,9 @@ export class MapScene extends Phaser.Scene {
     const key = i === 0 ? n.emblem : keys[(keys.indexOf(n.emblem) + i) % 4];
     const [px, py] = n.plots[i % n.plots.length];
     const gx = this.px(px) + TILE * (0.25 + Math.random() * 0.5), gy = this.px(py) + TILE * (0.4 + Math.random() * 0.5);
-    const shadow = this.add.image(gx, gy, 'blob').setScale(0.42, 0.18).setAlpha(0.8);
+    const shadow = this.add.image(gx, gy, 'blob').setScale(0.85, 0.34).setAlpha(0.85);
     const spr = this.add.image(gx, gy, key).setOrigin(0.5, 0.85);
-    spr.setScale((TILE * 0.95) / spr.width);
+    spr.setScale((TILE * 1.9) / spr.width);
     const w = { n, spr, shadow, gx, gy, tx: gx, ty: gy, wait: Math.random() * 2, phase: Math.random() * 6, base: spr.scaleX };
     this.walkers.push(w);
   }
@@ -354,7 +354,7 @@ export class MapScene extends Phaser.Scene {
     const ui = document.getElementById('ui');
     ui.innerHTML = `
       <div class="top"><div class="brand"><b>VYRE BAD LANDS</b><span>${this.world.nations.length} nations · ${this.world.wars.length} wars</span></div>
-        <div class="pill ${live ? '' : 'preview'}">${live ? 'LIVE · TEST CHAIN' : 'PREVIEW DATA'}</div></div>
+        <div class="pill ${live ? '' : 'preview'}">${live ? 'LIVE · TEST CHAIN' : this.world.empty ? 'DEMO WORLD' : 'PREVIEW DATA'}</div></div>
       <div class="rail"><button data-z="+" aria-label="zoom in">+</button><button data-z="-" aria-label="zoom out">−</button><button data-z="c" aria-label="centre">◎</button></div>
       <button class="fab legend" aria-label="legend">?</button>
       <div class="legend-pop"><div><span class="dot" style="background:#b6ff00"></span>coast plot (premium)</div><div><span class="dot" style="background:#ffd24a"></span>mountain pass (premium)</div><div><span class="dot" style="background:#ff3030"></span>war</div><div style="color:#93a58a;font-size:12px">drag to move · pinch or wheel to zoom · tap a nation</div></div>
@@ -395,7 +395,7 @@ export class MapScene extends Phaser.Scene {
       let walking = false;
       if (d > 2) {
         walking = true;
-        const sp = 24 * dt;
+        const sp = 30 * dt;
         w.gx += (dx / d) * sp; w.gy += (dy / d) * sp;
         if (Math.abs(dx) > 1) w.spr.setFlipX(dx < 0);
       } else if (w.wait <= 0) {
@@ -403,11 +403,13 @@ export class MapScene extends Phaser.Scene {
         w.tx = this.px(px) + TILE * (0.15 + Math.random() * 0.7); w.ty = this.px(py) + TILE * (0.35 + Math.random() * 0.55);
         w.wait = 1.5 + Math.random() * 3;
       }
-      w.phase += dt * (walking ? 11 : 2.2);
-      const hop = walking ? Math.abs(Math.sin(w.phase)) * 5 : 0;
-      const squash = walking ? 1 + Math.sin(w.phase * 2) * 0.05 : 1 + Math.sin(w.phase) * 0.025;
-      w.spr.setPosition(w.gx, w.gy - hop).setScale(w.base * (2 - squash), w.base * squash).setDepth(2000 + w.gy);
-      w.shadow.setPosition(w.gx, w.gy + 1).setScale(0.42 * (1 - hop / 22), 0.18 * (1 - hop / 22)).setDepth(2000 + w.gy - 1);
+      w.phase += dt * (walking ? 9 : 2.2);
+      const step = Math.sin(w.phase);
+      const hop = walking ? Math.abs(step) * 9 : 0;
+      const landing = walking ? Math.max(0, -Math.cos(w.phase * 2)) : 0;           // squash as each foot lands
+      const squash = walking ? 1 - landing * 0.07 + (hop / 9) * 0.05 : 1 + Math.sin(w.phase) * 0.025;
+      w.spr.setPosition(w.gx, w.gy - hop).setScale(w.base * (2 - squash), w.base * squash).setAngle(walking ? step * 5 : 0).setDepth(2000 + w.gy);
+      w.shadow.setPosition(w.gx, w.gy + 1).setScale(0.85 * (1 - hop / 40), 0.34 * (1 - hop / 40)).setDepth(2000 + w.gy - 1);
     }
     for (const wf of this.warFx) for (const f of wf.fighters) { f.sh.x = f.s.x; }
   }

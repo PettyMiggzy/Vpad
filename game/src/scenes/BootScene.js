@@ -27,7 +27,12 @@ export class BootScene extends Phaser.Scene {
     if (bar) bar.textContent = 'reading the chain…';
     const live = await loadLive(import.meta.env.BASE_URL);
     const forcePreview = new URLSearchParams(window.location.search).has('preview');
-    const world = forcePreview ? previewWorld() : (live ?? previewWorld());
+    let world = forcePreview ? previewWorld() : (live && live.nations.length ? live : null);
+    if (!world) {
+      // nothing claimed on the test chain yet: show the made-up demo world (its own map and nations), labelled as a demo
+      world = previewWorld();
+      if (live && !forcePreview) world.empty = true;
+    }
     this.registry.set('world', world);
     if (new URLSearchParams(window.location.search).has('logo')) {
       if (bar) bar.remove();
