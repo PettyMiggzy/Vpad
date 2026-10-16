@@ -3,7 +3,7 @@ import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
 import { ATTACK, impactMs, attackMs } from '../anim.js';
-import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts, refreshPlanner, dropPlanner } from '../sandboxUi.js';
+import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts, refreshPlanner, dropPlanner, checkStale } from '../sandboxUi.js';
 import { fmtLeft } from '../sim.js';
 import { tidyWars } from '../wars.js';
 
@@ -53,6 +53,13 @@ export class MapScene extends Phaser.Scene {
     const put = (key, x, y, size, byWidth = false, depth = null) => {
       const s = this.add.image(x, y, key).setOrigin(0.5, 0.92);
       s.setScale(size / (byWidth ? s.width : s.height)).setDepth(depth ?? 10 + y);
+      // the wastes are scorched: greenery is dulled to dead olive, the red mesas to burnt brown
+      if (/^(tree|lush|flora)/.test(key)) s.setTint(0x66705a); else if (/^mesa/.test(key)) s.setTint(0xa2806c);
+      // some ranges are volcanoes: a lava glow at the crest, pulsing
+      if (/^mount/.test(key) && Math.abs(Math.floor(x * 7 + y * 13)) % 4 === 0) {
+        const g = this.add.image(x, y - s.displayHeight * 0.66, 'glow').setTint(0xff5a14).setAlpha(0.6).setScale(Math.max(0.5, s.displayWidth / 300)).setBlendMode(Phaser.BlendModes.ADD).setDepth((depth ?? 10 + y) + 1);
+        this.tweens.add({ targets: g, alpha: 0.28, duration: 900 + (Math.abs(x) % 700), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
       return s;
     };
     const pick = (arr, r) => arr[Math.floor(r * arr.length) % arr.length];
@@ -212,6 +219,15 @@ export class MapScene extends Phaser.Scene {
       flag.setPosition(X + T * 0.62 + 1.2, Y - T * 0.75);
       this.tweens.add({ targets: flag, scaleX: { from: 1, to: 0.78 }, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       objs.push(pole, flag);
+      // two tall banners in the nation's colour hang either side of the gate
+      for (const sd of [-1, 1]) {
+        const bn = this.add.graphics().setDepth(D(Y + T * 0.6) + 1);
+        const bx = X + sd * T * (sd < 0 ? 0.72 : 0.84), by = Y - T * 0.15, bw = T * 0.16, bh = T * 0.5;
+        bn.fillStyle(0x0b0d0a, 1).fillRect(bx - bw / 2 - 1.5, by - 2, bw + 3, bh + 5);
+        bn.fillStyle(n.color, 1).fillRect(bx - bw / 2, by, bw, bh - bw * 0.5).fillTriangle(bx - bw / 2, by + bh - bw * 0.5, bx + bw / 2, by + bh - bw * 0.5, bx, by + bh);
+        bn.lineStyle(1.6, 0x0b0d0a, 0.85).lineBetween(bx - bw * 0.3, by + bh * 0.25, bx, by + bh * 0.42).lineBetween(bx, by + bh * 0.42, bx + bw * 0.3, by + bh * 0.25);
+        objs.push(bn);
+      }
       // the other plots: barracks, then the vault, then tents and a campfire
       n.plots.slice(1).forEach(([x, y], i) => {
         const bx = this.px(x) + T / 2, by = this.px(y) + T * 0.82;
@@ -387,14 +403,14 @@ export class MapScene extends Phaser.Scene {
     const size = this.grid.size;
     this.clouds = [];
     for (let i = 0; i < 7; i++) {
-      const c = this.add.image(Math.random() * size, Math.random() * size, 'cloud').setScale(3 + Math.random() * 3).setAlpha(0.28).setDepth(9800).setAngle(Math.random() * 360);
+      const c = this.add.image(Math.random() * size, Math.random() * size, 'cloud').setScale(3 + Math.random() * 3).setAlpha(0.34).setTint(0x4a4038).setDepth(9800).setAngle(Math.random() * 360);
       c.vx = 6 + Math.random() * 8;
       this.clouds.push(c);
     }
     // drifting embers over the wastes
     this.add.particles(0, 0, 'spark', {
       x: { min: 0, max: size }, y: { min: 0, max: size }, speedY: { min: -14, max: -4 }, speedX: { min: 6, max: 18 },
-      scale: { start: 0.35, end: 0 }, alpha: { start: 0.7, end: 0 }, lifespan: 5200, frequency: 70, tint: [0xb6ff00, 0xffe066], blendMode: 'ADD',
+      scale: { start: 0.35, end: 0 }, alpha: { start: 0.7, end: 0 }, lifespan: 5200, frequency: 70, tint: [0xff7a1a, 0xffb347, 0xb6ff00], blendMode: 'ADD',
     }).setDepth(9900);
   }
 
@@ -404,7 +420,7 @@ export class MapScene extends Phaser.Scene {
     const size = this.grid.size;
     this.input.addPointer(2);
     cam.setBounds(-2200, -2200, size + 4400, size + 4400);
-    cam.setBackgroundColor(0x07262d);
+    cam.setBackgroundColor(0x05100f);
     this.minZoom = () => Math.max(this.scale.width, this.scale.height) / (size + 4400);
     const startZoom = Math.max(this.minZoom(), Math.min(this.scale.width, this.scale.height) / (TILE * 11), 1.1 * DPR());
     cam.setZoom(startZoom);
@@ -569,6 +585,7 @@ export class MapScene extends Phaser.Scene {
     this.lastHud = (this.lastHud || 0) + delta;
     if (this.lastHud < 700) return;
     this.lastHud = 0;
+    checkStale(sim);
     const fresh = sim.tick();
     for (const e of fresh) {
       if (e.kind !== 'raid') continue;

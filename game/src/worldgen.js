@@ -206,13 +206,13 @@ export async function paintWorld(scene, grid, onProgress, world) {
           r = WA[ti] * sh; g = WA[ti + 1] * sh; b = WA[ti + 2] * sh;
           // shallows: warm turquoise by the shore fading into the deep blue
           const shallow = 1 - smooth(0, 0.42, depth);
-          r += (70 - r) * shallow * 0.5; g += (190 - g) * shallow * 0.5; b += (170 - b) * shallow * 0.45;
+          r += (38 - r) * shallow * 0.5; g += (92 - g) * shallow * 0.5; b += (78 - b) * shallow * 0.45;
           const foam = 1 - smooth(0.5, 0.58, fw);
           const fn = foam * (0.5 + 0.5 * n(px / 7, py / 7));
-          r += (232 - r) * fn; g += (244 - g) * fn; b += (238 - b) * fn;
+          r += (150 - r) * fn * 0.8; g += (162 - g) * fn * 0.8; b += (150 - b) * fn * 0.8;
           const lum = (WA[ti2] + WA[ti2 + 1] + WA[ti2 + 2]) / 3;
           const a = Math.max(0, Math.min(1, (lum - 105) / 65)) * (0.75 - 0.4 * depth);
-          od[o] = 200; od[o + 1] = 248; od[o + 2] = 240; od[o + 3] = a * 160;
+          od[o] = 120; od[o + 1] = 210; od[o + 2] = 150; od[o + 3] = a * 160;
         } else {
           const lush = Math.min(1, smooth(0.42, 0.62, n(px / 260 + 7, py / 260 + 3)) + smooth(0.55, 0.0, fw) * 0.35);
           // grass: two samples at different scales so the texture never visibly repeats; lush mixes toward green
