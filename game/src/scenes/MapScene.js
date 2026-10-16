@@ -254,8 +254,10 @@ export class MapScene extends Phaser.Scene {
         this.tweens.add({ targets: s, x: X + side * 6, duration: 170, yoyo: true, repeat: -1, repeatDelay: 450 + (side > 0 ? 260 : 0), delay: side > 0 ? 340 : 0, ease: 'Quad.out' });
       });
       const sparks = this.add.particles(X, Y + 2, 'spark', { speed: { min: 40, max: 130 }, angle: { min: 200, max: 340 }, gravityY: 180, lifespan: 480, scale: { start: 0.9, end: 0 }, tint: [0xffe066, 0xff7a2a, 0xffffff], frequency: 360, quantity: 5, blendMode: 'ADD' }).setDepth(9000);
-      const lbl = this.add.text(X, Y - TILE * 0.7, `${war.a}  vs  ${war.b}`, { fontFamily: 'system-ui', fontSize: '12px', fontStyle: '800', color: '#ff9a9a', stroke: '#000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
+      const lbl = this.add.text(X, Y - TILE * 0.7, `${war.a}  vs  ${war.b}`, { fontFamily: 'system-ui', fontSize: '12px', fontStyle: '800', color: '#ffb0b0', stroke: '#000', strokeThickness: 3, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
       lbl.isWar = true;
+      lbl.chip = this.add.rectangle(X, Y - TILE * 0.7, 0, 0, 0xff4040, 1).setDepth(9499);
+      lbl.n = { color: 0xff4040 };
       this.labels.push(lbl);
       this.warFx.push({ ring, fighters, sparks, lbl });
     }

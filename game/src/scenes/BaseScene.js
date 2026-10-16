@@ -78,16 +78,16 @@ export class BaseScene extends Phaser.Scene {
       s.setScale(w / s.width).setPosition(x, y).setAlpha(dim ? 0.5 : 1);
       tag.setPosition(x, y + 2 * d).setText(text).setFontSize(chipPx).setVisible(!!text);
     };
-    put(this.towerS, cx - r.w * 0.38, baseY + r.h * 0.12, small * 0.42, this.towerTag, `tower ×${n.tower}`, n.tower === 0);
-    put(this.barracks, cx + r.w * 0.38, baseY + r.h * 0.02, small, this.barTag, '', false);
-    put(this.wallS, cx - r.w * 0.2, baseY + r.h * 0.16, small * 0.85, this.wallTag, `wall ×${n.wall}`, n.wall === 0);
-    put(this.vaultS, cx + r.w * 0.2, baseY + r.h * 0.16, small * 0.75, this.vaultTag, `pool $${n.pool}`, false);
+    put(this.towerS, cx - r.w * 0.38, baseY + r.h * 0.06, small * 0.42, this.towerTag, `tower ×${n.tower}`, n.tower === 0);
+    put(this.barracks, cx + r.w * 0.38, baseY - r.h * 0.02, small, this.barTag, '', false);
+    put(this.wallS, cx - r.w * 0.2, baseY + r.h * 0.1, small * 0.85, this.wallTag, `wall ×${n.wall}`, n.wall === 0);
+    put(this.vaultS, cx + r.w * 0.2, baseY + r.h * 0.1, small * 0.75, this.vaultTag, `pool $${n.pool}`, false);
     this.flag.clear();
     this.flag.fillStyle(0x222222, 1).fillRect(-1.5 * d, 0, 3 * d, 50 * d);
     this.flag.fillStyle(n.color, 1).fillTriangle(1.5 * d, 0, 1.5 * d, 18 * d, 30 * d, 9 * d);
     this.flag.setPosition(cx + hallW * 0.5, baseY - hallW * 0.62);
     // the army, standing in a row in front
-    const rowY = r.y + r.h - (portrait ? 26 : 40) * d;
+    const rowY = r.y + r.h - (portrait ? 22 : 40) * d;
     this.units.forEach((s, i) => {
       const x = r.x + r.w * (0.13 + i * 0.245);
       s.base = unitW / s.width;

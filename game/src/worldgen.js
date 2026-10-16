@@ -180,8 +180,8 @@ export async function paintWorld(scene, grid, onProgress, world) {
   };
   // mountain relief: ridged noise under the (warped) mountain mask
   const relief = (px, py, fm) => {
-    const r1 = 1 - Math.abs(2 * n(px / 40 + 60, py / 40) - 1), r2 = 1 - Math.abs(2 * n(px / 17 + 80, py / 17 + 9) - 1);
-    return smooth(0.22, 0.78, fm) * (0.35 + 0.65 * (0.8 * r1 + 0.2 * r2));
+    const r1 = 1 - Math.abs(2 * n(px / 84 + 60, py / 84) - 1);
+    return smooth(0.22, 0.78, fm) * (0.4 + 0.6 * r1);
   };
 
   const band = 40;
@@ -231,16 +231,16 @@ export async function paintWorld(scene, grid, onProgress, world) {
           const sand = Math.max(fs * 0.5 * smooth(0.3, 0.6, n(px / 24, py / 24) + 0.25), smooth(0.1, 0.45, fw));
           if (sand > 0) { r += (SA[ti] - r) * sand; g += (SA[ti + 1] - g) * sand; b += (SA[ti + 2] - b) * sand; }
           // mountains: red badlands foothills first, then slate with hillshaded ridges
-          const foot = smooth(0.12, 0.38, fm) * (1 - smooth(0.42, 0.7, fm));
-          if (foot > 0) { r += (RR[ti] * 0.95 - r) * foot * 0.85; g += (RR[ti + 1] * 0.9 - g) * foot * 0.85; b += (RR[ti + 2] * 0.9 - b) * foot * 0.85; }
+          const foot = smooth(0.1, 0.4, fm) * (1 - smooth(0.4, 0.75, fm)) * 0.6;
+          if (foot > 0) { r += (RR[ti] * 0.78 - r) * foot; g += (RR[ti + 1] * 0.74 - g) * foot; b += (RR[ti + 2] * 0.74 - b) * foot; }
           const rock = smooth(0.4, 0.66, fm);
           let light = 1;
           if (rock > 0) {
             const h0 = relief(px, py, fm), h1 = relief(px + 2.4, py + 2.4, fm);
-            const shade = 0.8 + (h0 - h1) * 4.2 + (h0 - 0.5) * 0.25; // light from the north-west
-            const sr = SL[ti] * 1.15, sg = SL[ti + 1] * 1.1, sb = SL[ti + 2] * 1.05;
-            const cap = smooth(0.62, 0.9, h0) * 0.35; // pale rock high up
-            r += ((sr + (205 - sr) * cap) * Math.max(0.5, Math.min(1.15, shade)) - r) * rock; g += ((sg + (205 - sg) * cap) * Math.max(0.5, Math.min(1.15, shade)) - g) * rock; b += ((sb + (200 - sb) * cap) * Math.max(0.5, Math.min(1.15, shade)) - b) * rock;
+            const shade = 0.92 + (h0 - h1) * 2.4; // light from the north-west
+            const sr = SL[ti] * 1.5 + 8, sg = SL[ti + 1] * 1.45 + 8, sb = SL[ti + 2] * 1.4 + 10;
+            const cap = 0; // pale rock high up
+            r += ((sr + (205 - sr) * cap) * Math.max(0.78, Math.min(1.12, shade)) - r) * rock; g += ((sg + (205 - sg) * cap) * Math.max(0.78, Math.min(1.12, shade)) - g) * rock; b += ((sb + (200 - sb) * cap) * Math.max(0.78, Math.min(1.12, shade)) - b) * rock;
           }
           const wet = 1 - smooth(0.4, 0.5, fw) * 0.2;
           light = (0.9 + 0.22 * n3) * wet;

@@ -12,13 +12,16 @@
     html, body { margin: 0; height: 100%; background: var(--bg); color: #e8f5da; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; overflow: hidden; overscroll-behavior: none; touch-action: none; }
     #game { position: fixed; inset: 0; }
     #game canvas { display: block; touch-action: none; }
-    #boot { position: fixed; inset: 0; display: grid; place-items: center; color: var(--lime); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 14px; background: var(--bg); z-index: 5; }
-    #boot:not(:empty)::before { content: ''; }
+    #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: radial-gradient(ellipse at center, #0b1608 0%, #050805 70%); z-index: 5; }
+    #boot img { width: min(78vw, 420px); height: auto; filter: drop-shadow(0 0 28px rgba(182,255,0,.35)); }
+    #boot .meter { width: min(60vw, 280px); height: 5px; border-radius: 3px; background: #16240f; overflow: hidden; }
+    #boot .meter i { display: block; width: 4%; height: 100%; background: linear-gradient(90deg, #6fb800, var(--lime)); box-shadow: 0 0 14px var(--lime); transition: width .25s ease; }
+    #boot span { color: var(--muted); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }
     #ui { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
     #ui > * { pointer-events: auto; }
     .vignette { position: fixed; inset: 0; pointer-events: none !important; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%); z-index: 1; }
     .top { position: fixed; left: 0; right: 0; top: 0; padding: calc(10px + var(--safe-t)) 14px 10px; display: flex; gap: 10px; align-items: center; pointer-events: none !important;
-      background: linear-gradient(to bottom, rgba(5,8,5,.85), rgba(5,8,5,0)); }
+      background: linear-gradient(to bottom, rgba(5,8,5,.92) 0%, rgba(5,8,5,.6) 55%, rgba(5,8,5,0) 100%); padding-bottom: 26px; }
     .top > * { pointer-events: auto; }
     .brand { display: flex; flex-direction: column; line-height: 1.05; }
     .brand b { color: var(--lime); font-size: 17px; letter-spacing: .09em; font-weight: 900; text-shadow: 0 0 14px rgba(182,255,0,.5); }
@@ -47,7 +50,7 @@
     .btn.primary { background: var(--lime); border-color: var(--lime); color: #071000; box-shadow: 0 0 22px rgba(182,255,0,.28); }
     .btn.danger { background: rgba(255,90,90,.12); border-color: var(--red); color: #ffb0b0; }
     .btn:active { transform: scale(.98); }
-    .btn[disabled] { opacity: .45; }
+    .btn[disabled] { opacity: .6; border-style: dashed; color: #9fb393; }
     .tag { display: inline-block; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; margin-left: 6px; }
     .tag.war { background: rgba(255,90,90,.15); color: #ff8a8a; border: 1px solid var(--red); }
     .tag.prem { background: rgba(182,255,0,.12); color: var(--lime); border: 1px solid var(--lime); }
@@ -82,7 +85,7 @@
   <div id="game"></div>
   <div class="vignette"></div>
   <div id="ui"></div>
-  <div id="boot">loading</div>
+  <div id="boot"><img src="art/title/badlands.png" alt="Vyre Bad Lands" /><div class="meter"><i id="bootbar"></i></div><span id="bootmsg">loading</span></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

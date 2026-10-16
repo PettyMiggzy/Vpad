@@ -3,6 +3,8 @@ import { loadLive } from '../chain.js';
 import { previewWorld } from '../data.js';
 import { buildGrid, paintWorld } from '../worldgen.js';
 
+const setBoot = (msg, pct) => { const m = document.getElementById('bootmsg'), b = document.getElementById('bootbar'); if (m) m.textContent = msg; if (b && pct != null) b.style.width = `${Math.max(4, Math.round(pct * 100))}%`; };
+
 export const PROPS = {
   mount: 4, tree: 6, rock: 10, ruin: 6, mesa: 5, flora: 15, lush: 6,
 };
@@ -12,7 +14,7 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     const bar = document.getElementById('boot');
-    this.load.on('progress', (p) => { if (bar) bar.textContent = `loading ${Math.round(p * 100)}%`; });
+    this.load.on('progress', (p) => setBoot('loading art', p * 0.4));
     for (const u of ['bruiser', 'sniper', 'trickster', 'defender']) this.load.image(u, `art/units/${u}.png`);
     for (const b of ['townhall', 'barracks', 'vault', 'wall', 'guardtower', 'siegeram']) this.load.image(b, `art/buildings/${b}.png`);
     for (const t of ['grass', 'dirt', 'rock', 'water', 'sand', 'lush', 'redrock', 'slate']) this.load.image(`g_${t}`, `art/tiles/g_${t}.jpg`);
@@ -26,7 +28,7 @@ export class BootScene extends Phaser.Scene {
   async create() {
     const bar = document.getElementById('boot');
     this.makeSprites();
-    if (bar) bar.textContent = 'reading the chain…';
+    setBoot('reading the chain', 0.45);
     const live = await loadLive(import.meta.env.BASE_URL);
     const forcePreview = new URLSearchParams(window.location.search).has('preview');
     let world = forcePreview ? previewWorld() : (live && live.nations.length ? live : null);
@@ -43,7 +45,7 @@ export class BootScene extends Phaser.Scene {
     }
     const grid = buildGrid(world);
     this.registry.set('grid', grid);
-    const { ground, shimmer } = await paintWorld(this, grid, (p) => { if (bar) bar.textContent = `painting the Bad Lands ${Math.round(p * 100)}%`; }, world);
+    const { ground, shimmer } = await paintWorld(this, grid, (p) => setBoot('painting the Bad Lands', 0.5 + p * 0.5), world);
     this.textures.addCanvas('ground', ground);
     this.textures.addCanvas('shimmer', shimmer);
     if (bar) bar.remove();
