@@ -611,6 +611,11 @@ function Review({ params, meta, creator, openPrice, sent, onSent, onClose }: {
         }
         if (p.state !== 'pending') { setReplacing(false); setStep('wait'); await checkSent(sent); return; }
       }
+      // launches can be switched off by the pad's owner: said before anything is uploaded or sent (a read that fails just carries on)
+      try {
+        const open = await vyre.readContract({ address: addresses().pad, abi: vyrePadAbi, functionName: 'launchesOpen' });
+        if (open === false) { setStep('review'); setErr('Launches are not open yet on this testnet: the pad’s owner has to open them. Nothing was uploaded or sent.'); return; }
+      } catch { /* not readable: go on, the launch itself will say if it fails */ }
       let metadataURI: string | undefined;
       if (meta.useOwn) metadataURI = meta.own.trim() || undefined;
       else if (withFile && (hasContent(meta.file) || meta.picture)) {

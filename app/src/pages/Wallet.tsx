@@ -527,7 +527,7 @@ function Promoter({ account }: { account: Address }) {
   return (
     <div className="card">
       <h2 className="h3">Your promoter link</h2>
-      <p className="small">People who arrive by your link can name you as their promoter. Once you’ve signed up and been approved, you’re paid 30% of the 1% platform fee on their trades on WARHEADZ, in USDC, in the same transaction. On the testnet that’s test USDC; the paid program opens on mainnet. Not available in the UK, the EU, Australia or Singapore.</p>
+      <p className="small">The promoter program is closed to new people for now. If your wallet is already an approved promoter, people who arrive by your link can name you as their promoter, and you’re paid 30% of the 1% platform fee on their trades on WARHEADZ, in USDC, in the same transaction. On the testnet that’s test USDC. Not available in the UK, the EU, Australia or Singapore.</p>
       <div className="copy-row">
         <input readOnly value={link} aria-label="Your link" onFocus={(e) => e.target.select()} />
         <button type="button" className="btn btn-line btn-sm" onClick={() => { navigator.clipboard?.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>{copied ? 'Copied' : 'Copy'}</button>
@@ -536,7 +536,7 @@ function Promoter({ account }: { account: Address }) {
         You as a promoter: {approved === null || app === undefined ? '…'
           : app === 'unread' ? (approved ? 'approved' : 'couldn’t check your application just now')
           : approved ? (app && app.status === 'approved' ? `approved, code ${app.code}` : 'approved')
-          : !app ? <>not signed up yet (<a href="https://vyrechain.com/promote/" target="_blank" rel="noopener noreferrer">sign up</a> for a short link)</>
+          : !app ? <>not an approved promoter (the program is closed to new people)</>
           : app.status === 'pending' ? `applied as ${app.code}, waiting for approval`
           : app.status === 'declined' ? <>your application ({app.code}) wasn’t approved</>
           : `approval removed (the code ${app.code} stays yours)`}.
