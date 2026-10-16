@@ -38,6 +38,13 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await p.waitForTimeout(3500);
   const z = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); return { z: s.cameras.main.zoom, min: s.minZoom() }; });
   check('R4-L1 a restored zoom is never below the new minimum', z.z >= z.min - 1e-9, JSON.stringify(z));
+  // R5-M3: turning the phone keeps the nation in view
+  await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const c = s.cameras.main; c.setZoom(1.1 * window.__dpr); const n = s.world.nations[0]; c.centerOn(s.px(n.plots[0][0]) + 28, s.px(n.plots[0][1]) + 28); });
+  await p.waitForTimeout(800);
+  await p.setViewportSize({ width: 844, height: 390 }); await p.waitForTimeout(3500);
+  const rot = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const c = s.cameras.main; c.preRender(); const n = s.world.nations[0]; const wx = s.px(n.plots[0][0]) + 28, wy = s.px(n.plots[0][1]) + 28; return { sx: (wx - c.worldView.x) * c.zoom, sy: (wy - c.worldView.y) * c.zoom, w: c.width, h: c.height }; });
+  check('R5-M3 after turning the phone the nation is still on screen', rot.sx > 0 && rot.sx < rot.w && rot.sy > 0 && rot.sy < rot.h, JSON.stringify(rot));
+  await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(1500);
   check('no page errors (preview)', errs.length === 0, errs.slice(0, 2).join(' | '));
   await ctx.close();
 }

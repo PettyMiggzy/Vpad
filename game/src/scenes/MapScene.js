@@ -196,8 +196,13 @@ export class MapScene extends Phaser.Scene {
       // a swept dirt yard under the compound, so it sits on the ground instead of floating
       const yard = this.add.graphics().setDepth(6);
       const yy = this.landPoint(X, Y + T * 0.95) ? Y + T * 0.55 : Y + T * 0.1, yh = this.landPoint(X, Y + T * 0.95) ? T * 1.5 : T * 0.9;
-      yard.fillStyle(0x6b5238, 0.55).fillEllipse(X, yy, T * 2.3, yh);
-      yard.fillStyle(n.color, 0.1).fillEllipse(X, yy, T * 2.3, yh);
+      // the yard is built from overlapping patches and only where there is land under them, so on a coast it never hangs over the sea
+      for (let u = -1; u <= 1; u += 0.5) for (const v of [-0.25, 0.25]) {
+        const px = X + u * T * 0.95, py = yy + v * yh;
+        if (!this.landPoint(px, py) || !this.landPoint(px + Math.sign(u || 1) * T * 0.3, py)) continue;
+        yard.fillStyle(0x6b5238, 0.55).fillEllipse(px, py, T * 0.95, yh * 0.62);
+        yard.fillStyle(n.color, 0.1).fillEllipse(px, py, T * 0.95, yh * 0.62);
+      }
       objs.push(yard);
       // capital glow so it reads from far away
       const glow = this.add.image(X, Y, 'glow').setTint(n.color).setAlpha(0.4).setScale(T * 2.2 / 128).setBlendMode(Phaser.BlendModes.ADD).setDepth(7);
@@ -452,15 +457,18 @@ export class MapScene extends Phaser.Scene {
       }
       const dx = (p.x - p.prevPosition.x) / cam.zoom, dy = (p.y - p.prevPosition.y) / cam.zoom;
       cam.scrollX -= dx; cam.scrollY -= dy;
-      this.vel.set(dx * 60, dy * 60);
+      this.vel.set(dx * 60, dy * 60); this.lastMove = this.time.now;
     });
     this.input.on('pointerup', (p) => {
+      if (this.time.now - (this.lastMove || 0) > 90) this.vel.set(0, 0);   // held still before letting go: no fling
       this.pinch = null;
       if (this.tap && Phaser.Math.Distance.Between(p.x, p.y, this.tap.x, this.tap.y) < 9 * DPR() && this.time.now - this.tap.t < 450) { this.vel.set(0, 0); this.onTap(p); }
       this.tap = null;
     });
     this.input.on('wheel', (p, _o, _dx, dy) => this.zoomAt(p.x, p.y, cam.zoom * (dy > 0 ? 0.88 : 1.14)));
-    this.onResize = () => { cam.setZoom(Math.max(cam.zoom, this.minZoom())); };
+    this.viewMid = { x: cam.scrollX + cam.width / 2, y: cam.scrollY + cam.height / 2 };
+    // turning the phone keeps the same spot in the middle of the screen (the camera's scroll alone would drift by half the size change)
+    this.onResize = () => { cam.setZoom(Math.max(cam.zoom, this.minZoom())); if (this.viewMid) cam.centerOn(this.viewMid.x, this.viewMid.y); };
     this.scale.on('resize', this.onResize);
     this.events.once('shutdown', () => { this.registry.set('mapCam', { x: cam.scrollX, y: cam.scrollY, zoom: cam.zoom }); this.scale.off('resize', this.onResize); clearToasts(); });
   }
@@ -666,6 +674,7 @@ export class MapScene extends Phaser.Scene {
   update(time, delta) {
     const dt = delta / 1000;
     if (this.sim) this.sandboxTick(delta);
+    { const c = this.cameras.main; this.viewMid = { x: c.scrollX + c.width / 2, y: c.scrollY + c.height / 2 }; }
     const cam = this.cameras.main;
     // drag inertia
     if (!this.input.activePointer.isDown && (Math.abs(this.vel.x) > 1 || Math.abs(this.vel.y) > 1)) {
