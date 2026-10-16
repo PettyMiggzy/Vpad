@@ -4,7 +4,7 @@ import { previewWorld } from '../data.js';
 import { buildGrid, paintWorld } from '../worldgen.js';
 
 export const PROPS = {
-  mount: 4, tree: 6, rock: 10, ruin: 6,
+  mount: 4, tree: 6, rock: 10, ruin: 6, mesa: 5, flora: 15, lush: 6,
 };
 
 export class BootScene extends Phaser.Scene {
@@ -15,7 +15,7 @@ export class BootScene extends Phaser.Scene {
     this.load.on('progress', (p) => { if (bar) bar.textContent = `loading ${Math.round(p * 100)}%`; });
     for (const u of ['bruiser', 'sniper', 'trickster', 'defender']) this.load.image(u, `art/units/${u}.png`);
     for (const b of ['townhall', 'barracks', 'vault', 'wall', 'guardtower', 'siegeram']) this.load.image(b, `art/buildings/${b}.png`);
-    for (const t of ['grass', 'dirt', 'rock', 'water', 'sand']) this.load.image(`g_${t}`, `art/tiles/g_${t}.jpg`);
+    for (const t of ['grass', 'dirt', 'rock', 'water', 'sand', 'lush', 'redrock', 'slate']) this.load.image(`g_${t}`, `art/tiles/g_${t}.jpg`);
     for (const [k, n] of Object.entries(PROPS)) for (let i = 0; i < n; i++) this.load.image(`${k}${i}`, `art/props/${k}${i}.png`);
     this.load.image('logo', 'art/logo/warheadz-logo.png');
     this.load.image('title', 'art/title/badlands.png');
@@ -36,7 +36,7 @@ export class BootScene extends Phaser.Scene {
     }
     const grid = buildGrid(world);
     this.registry.set('grid', grid);
-    const { ground, shimmer } = await paintWorld(this, grid, (p) => { if (bar) bar.textContent = `painting the Bad Lands ${Math.round(p * 100)}%`; });
+    const { ground, shimmer } = await paintWorld(this, grid, (p) => { if (bar) bar.textContent = `painting the Bad Lands ${Math.round(p * 100)}%`; }, world);
     this.textures.addCanvas('ground', ground);
     this.textures.addCanvas('shimmer', shimmer);
     if (bar) bar.remove();

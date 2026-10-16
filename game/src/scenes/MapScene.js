@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
-import { TILE, MARGIN } from '../worldgen.js';
+import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
 
 const DPR = () => window.__dpr || 1;
@@ -24,7 +24,7 @@ export class MapScene extends Phaser.Scene {
     for (const n of this.world.nations) for (const [x, y] of n.plots) this.owner.set(`${x},${y}`, n);
 
     const pad = 900;
-    this.add.tileSprite(-pad, -pad, g.size + pad * 2, g.size + pad * 2, 'g_water').setOrigin(0).setTint(0x4d7480).setDepth(-2);
+    this.add.tileSprite(-pad, -pad, g.size + pad * 2, g.size + pad * 2, 'g_water').setOrigin(0).setTint(0x949494).setDepth(-2);
     this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
     this.shimmer = this.add.image(0, 0, 'shimmer').setOrigin(0).setDepth(1).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8);
     this.tweens.add({ targets: this.shimmer, x: { from: -5, to: 5 }, y: { from: 3, to: -3 }, alpha: { from: 0.45, to: 0.95 }, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
@@ -39,37 +39,71 @@ export class MapScene extends Phaser.Scene {
     this.buildUi();
   }
 
-  // ---- scenery ----
+  // ---- scenery: ranges, forests, meadows, reeds and ruins, placed from the same grid and noise the ground was painted with ----
   placeProps() {
-    const { R } = this.grid;
-    const put = (key, x, y, h, depth) => {
+    const { R, T, kinds } = this.grid;
+    const put = (key, x, y, size, byWidth = false, depth = null) => {
       const s = this.add.image(x, y, key).setOrigin(0.5, 0.92);
-      s.setScale(h / s.height).setDepth(depth ?? 10 + y);
+      s.setScale(size / (byWidth ? s.width : s.height)).setDepth(depth ?? 10 + y);
       return s;
     };
-    for (let ty = -R; ty <= R; ty++) {
-      for (let tx = -R; tx <= R; tx++) {
-        const t = this.world.terrain(tx, ty);
+    const pick = (arr, r) => arr[Math.floor(r * arr.length) % arr.length];
+    const terr = (x, y) => (Math.abs(x) > R || Math.abs(y) > R ? WATER : this.world.terrain(x, y));
+    for (let ty = -R - 4; ty <= R + 4; ty++) {
+      for (let tx = -R - 4; tx <= R + 4; tx++) {
+        const inside = Math.abs(tx) <= R && Math.abs(ty) <= R;
         const cx = this.px(tx) + TILE / 2, cy = this.px(ty) + TILE / 2;
-        const r1 = hash(tx, ty, 1), r2 = hash(tx, ty, 2), r3 = hash(tx, ty, 3), r4 = hash(tx, ty, 4);
-        const owned = this.owner.has(`${tx},${ty}`);
-        const jx = (r2 - 0.5) * TILE * 0.7, jy = (r3 - 0.5) * TILE * 0.6;
-        if (t === MOUNTAIN) {
-          if (r1 < 0.42) put(`mount${Math.floor(r4 * 4)}`, cx + jx * 0.9, cy + TILE * 0.5 + jy * 0.5, TILE * (2.1 + r2 * 0.9), 10 + cy + 30);
-        } else if (t === LAND || t === PASS || t === COAST) {
-          if (owned) { if (r1 < 0.12) put(`rock${[0, 1, 4, 6, 9][Math.floor(r4 * 5)]}`, cx + jx, cy + jy + 12, TILE * 0.4); continue; }
-          if (t === PASS) { if (r1 < 0.35) put(`rock${[4, 6, 9][Math.floor(r4 * 3)]}`, cx + jx, cy + jy + 12, TILE * 0.55); continue; }
-          if (t === COAST) { if (r1 < 0.16) put(`rock${[4, 6, 9, 2][Math.floor(r4 * 4)]}`, cx + jx, cy + jy + 12, TILE * 0.45); continue; }
-          if (r1 < 0.2) put(`tree${Math.floor(r4 * 6)}`, cx + jx, cy + jy + TILE * 0.4, TILE * (1.2 + r2 * 0.6));
-          else if (r1 < 0.30) put(`rock${[0, 1, 4, 6, 9][Math.floor(r4 * 5)]}`, cx + jx, cy + jy + 12, TILE * (0.4 + r2 * 0.25));
-          else if (r1 < 0.34) put(`rock${[5, 7, 8][Math.floor(r4 * 3)]}`, cx + jx, cy + jy + TILE * 0.35, TILE * 0.95);
-          else if (r1 < 0.355) put('rock2', cx + jx, cy + jy + 8, TILE * 0.35);
-          else if (r1 < 0.37) put('rock3', cx + jx, cy + jy + 14, TILE * 0.6);
-          else if (r1 < 0.385) {
-            const k = Math.floor(r4 * 6);
-            put(`ruin${k}`, cx + jx * 0.5, cy + TILE * 0.35, TILE * (k === 5 ? 1.8 : k === 2 ? 1.1 : 1.3));
-          }
+        const r1 = hash(tx, ty, 1), r2 = hash(tx, ty, 2), r3 = hash(tx, ty, 3), r4 = hash(tx, ty, 4), r5 = hash(tx, ty, 5);
+        const jx = (r2 - 0.5) * TILE * 0.8, jy = (r3 - 0.5) * TILE * 0.7;
+        if (!inside) {
+          // decorative islets in the ocean margin (see buildGrid): a rock and a tree, nothing playable
+          const kk = kinds[(ty + R + MARGIN) * T + (tx + R + MARGIN)];
+          if (kk === 6) { put('rock' + pick([4, 6, 9], r4), cx + jx * 0.4, cy + 8, TILE * 0.55); if (r5 < 0.7) put('tree' + pick([0, 3, 4], r1), cx - jx * 0.3, cy + 10, TILE * 1.1); }
+          continue;
         }
+        const t = this.world.terrain(tx, ty);
+        const owned = this.owner.has(`${tx},${ty}`);
+        const lush = lushAtPx(cx, cy);
+        const forest = noise(tx * 0.31 + 11, ty * 0.31 + 4);
+        const nm = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => terr(tx + dx, ty + dy) === MOUNTAIN).length;
+        if (t === MOUNTAIN) {
+          if (nm === 4) {
+            if (r1 < 0.72) put(`mount${Math.floor(r4 * 4)}`, cx + jx * 0.7, cy + TILE * 0.42 + jy * 0.4, TILE * (2.3 + r2 * 0.9), true, 10 + cy + 30);
+            if (r5 < 0.25) put(`mount${Math.floor(r1 * 4)}`, cx - jx * 0.8, cy + TILE * 0.6 + jy * 0.3, TILE * (1.6 + r3 * 0.6), true, 10 + cy + 34);
+          } else {
+            if (r1 < 0.34) put(`mesa${Math.floor(r4 * 5)}`, cx + jx * 0.9, cy + TILE * 0.5 + jy * 0.5, TILE * (1.7 + r2 * 1.0), true, 10 + cy + 30);
+            else if (r1 < 0.5) put(`rock${pick([4, 6, 9], r4)}`, cx + jx, cy + TILE * 0.5 + jy * 0.4, TILE * (0.5 + r2 * 0.4));
+            if (r5 < 0.2) put(`mount${Math.floor(r3 * 4)}`, cx + jx, cy + TILE * 0.4, TILE * 2, true, 10 + cy + 32);
+          }
+          if (r3 < 0.18) put(`rock${pick([4, 6, 9], r4)}`, cx - jx, cy + TILE * 0.55, TILE * 0.5);
+          continue;
+        }
+        if (t === WATER) {
+          const shore = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => terr(tx + dx, ty + dy) !== WATER);
+          if (shore && r1 < 0.22) put('flora3', cx + jx, cy + jy, TILE * 0.55, false, 3);
+          continue;
+        }
+        // land
+        if (owned) { if (r1 < 0.1) put(`rock${pick([0, 1, 4, 6, 9], r4)}`, cx + jx, cy + jy + 12, TILE * 0.4); continue; }
+        if (t === PASS) { if (r1 < 0.4) put(`rock${pick([4, 6, 9], r4)}`, cx + jx, cy + jy + 12, TILE * (0.45 + r2 * 0.3)); continue; }
+        if (t === COAST) {
+          if (r1 < 0.5) put(`flora${pick([1, 2, 9], r4)}`, cx + jx, cy + jy + 16, TILE * (0.8 + r2 * 0.4));
+          else if (r1 < 0.62) put(`rock${pick([4, 6, 9, 2], r4)}`, cx + jx, cy + jy + 12, TILE * 0.45);
+          continue;
+        }
+        const green = lush > 0.45;
+        if (forest > 0.58 && r1 < 0.62) {
+          const k = green ? pick(['lush0', 'lush0', 'lush2', 'lush3', 'lush4', 'lush5', 'lush1', 'tree1'], r4) : pick(['tree1', 'tree1', 'tree3', 'tree4', 'tree5', 'tree0', 'tree2'], r4);
+          put(k, cx + jx, cy + jy + TILE * 0.45, TILE * (1.2 + r2 * 0.6));
+          if (r5 < 0.25) put(`flora${pick([12, 5], r3)}`, cx - jx, cy + jy + 14, TILE * 0.38);
+        } else if (r1 < 0.07) put(green ? pick(['lush0', 'lush2', 'lush4', 'lush5'], r4) : pick(['tree0', 'tree1', 'tree3', 'tree4'], r4), cx + jx, cy + jy + TILE * 0.4, TILE * (1.1 + r2 * 0.5));
+        else if (r1 < 0.34) put(`flora${green ? pick([7, 8, 4, 10, 11, 14, 0], r4) : pick([7, 11, 14, 13], r4)}`, cx + jx, cy + jy + 14, TILE * (0.5 + r2 * 0.35));
+        else if (r1 < 0.4) put(`rock${green ? pick([0, 4, 6, 9], r4) : pick([0, 1, 4, 6, 9], r4)}`, cx + jx, cy + jy + 12, TILE * (0.4 + r2 * 0.3));
+        else if (r1 < 0.43 && !green) put(`rock${pick([5, 7, 8], r4)}`, cx + jx, cy + jy + TILE * 0.35, TILE * 0.95);
+        else if (r1 < 0.45) put(`flora${pick([5, 12, 6], r4)}`, cx + jx, cy + jy + 14, TILE * 0.5);
+        else if (r1 < 0.455) put('rock2', cx + jx, cy + jy + 8, TILE * 0.35);
+        else if (r1 < 0.465) put('rock3', cx + jx, cy + jy + 14, TILE * 0.6);
+        else if (r1 < 0.478) put(`ruin${Math.floor(r4 * 6)}`, cx + jx * 0.5, cy + TILE * 0.35, TILE * (Math.floor(r4 * 6) === 5 ? 1.8 : Math.floor(r4 * 6) === 2 ? 1.1 : 1.3));
       }
     }
   }
