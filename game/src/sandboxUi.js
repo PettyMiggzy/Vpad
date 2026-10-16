@@ -64,7 +64,7 @@ export function mountHud(scene) {
 
 export function openLog(scene) {
   const sim = scene.sim;
-  const rows = sim.log.slice(-25).reverse().map((e) => `<div class="logrow ${e.kind}"><span>${esc(e.text)}</span>${e.report ? '<button class="btn small" data-replay="' + sim.log.indexOf(e) + '">Watch</button>' : ''}<small>${gameAgo(sim, e.t)}</small></div>`).join('');
+  const rows = sim.log.slice(-25).reverse().map((e) => `<div class="logrow ${esc(e.kind)}"><span>${esc(e.text)}</span>${e.report ? '<button class="btn small" data-replay="' + sim.log.indexOf(e) + '">Watch</button>' : ''}<small>${gameAgo(sim, e.t)}</small></div>`).join('');
   scene.sheet.open(`<h2>Game log</h2><div class="sub">what happened, newest first</div><div class="loglist">${rows || '<div class="note">Nothing yet.</div>'}</div><div class="row"><button class="btn" data-close>Close</button></div>`, {
     replay: (b) => { const e = sim.log[Number(b.dataset.replay)]; if (e && e.report) openBattle({ report: e.report, back: 'map' }); },
   });
@@ -88,14 +88,14 @@ export function openMenu(scene) {
   scene.sheet.open(`
     <h2>Menu</h2><div class="sub">play test · play money · saved in this browser only</div>
     <label class="lbl">Game speed</label>
-    <div class="row seg">${SPEEDS.map((s) => `<button class="btn ${s === sim.speed ? 'primary' : ''}" data-spd="${s}">${s}×<br><small>${s === 1 ? 'real time' : s === 60 ? '1 h = 1 min' : '1 h = 6 s'}</small></button>`).join('')}</div>
+    <div class="row seg">${SPEEDS.map((s) => `<button class="btn ${s === sim.speed ? 'primary' : ''}" data-spd="${s}">${s}×<br><small>${s === 1 ? 'real time, while open' : s === 60 ? '1 h = 1 min' : '1 h = 6 s'}</small></button>`).join('')}</div>
     <label class="lbl" style="margin-top:14px">Tell the team what you think</label>
     <textarea data-note placeholder="What was confusing, broken, boring or fun? It is saved here; Copy gives you everything to paste to the team.">${esc(scene.noteDraft || '')}</textarea>
     <div class="row"><button class="btn" data-addnote>Save note</button><button class="btn" data-copy>Copy all notes (${sim.notes.length})</button></div>
     <div class="row" style="margin-top:10px"><button class="btn danger" data-wipe>New game (wipes this save)</button><button class="btn" data-close>Close</button></div>
     <div class="note">Rules are the real game's: 1 h training, 24 h cooldowns, shields up to 72 h, a raid takes 20% of the loser's war pool, a win costs the winner 10% of what it sent, the loser's home army 30%; a failed raid costs half of what was sent. Coin and USDC here are free play money; raids reach ${R.REACH} tiles; the other nations are computer-run.</div>`, {
     spd: (b) => { scene.noteDraft = document.querySelector('[data-note]')?.value || ''; sim.setSpeed(Number(b.dataset.spd)); scene.sbx?.refresh(); openMenu(scene); },
-    addnote: () => { const t = document.querySelector('[data-note]').value.trim(); if (!t) { toast('Write a note first'); return; } sim.notes.push({ at: new Date().toISOString(), day: gameClock(sim), text: t }); sim.save(); scene.noteDraft = ''; toast('Note saved'); openMenu(scene); },
+    addnote: () => { const t = document.querySelector('[data-note]').value.trim(); if (!t) { toast('Write a note first'); return; } sim.addNote(t, gameClock(sim)); scene.noteDraft = ''; toast(sim.save() ? 'Note saved' : 'Could not save: this browser is out of storage or blocks it. Copy your notes now.'); openMenu(scene); },
     copy: async () => { const txt = sim.notes.map((n) => `[${n.day}] ${n.text}`).join('\n') || '(no notes)'; try { await navigator.clipboard.writeText(txt); toast('Notes copied'); } catch (_) { window.prompt('Copy this', txt); } },
     wipe: () => { if (window.confirm('Wipe this save and start a new game?')) { sim.reset(); window.location.reload(); } },
   });

@@ -29,6 +29,7 @@ export const COLORS = [0xffc145, 0x46d39a, 0x4cc9f0, 0xff6f91, 0xa78bfa, 0xff8a4
 export const cleanName = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/ +/g, ' ').trim().slice(0, 12).trim();
 const RULES_PRINT = JSON.stringify(R);   // a save made under other rules is dropped, never loaded into a changed game
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+const MAX_ORDERS = 200;                 // uncollected training orders a nation may hold (the loader accepts more, so a legitimate save is never refused)
 const CAP = 1e12;                       // no saved quantity may exceed this: it keeps every sum inside safe-integer range
 const cap = (v) => fin(v) && v >= 0 && v <= CAP;
 const int = (v) => Number.isInteger(v);
@@ -91,10 +92,16 @@ export class Sim {
     return true;
   }
   save() {
-    if (this.wiped) return;                  // a wiped game is not written back by the page-hide handlers
+    if (this.wiped) return true;             // a wiped game is not written back by the page-hide handlers
     try {
       localStorage.setItem(KEY, JSON.stringify({ v: 2, rules: RULES_PRINT, seed: this.seedPrint(), clock: this.clock, speed: this.speed, log: this.log.slice(-60), notes: this.notes, faucetAt: this.faucetAt, nations: this.nations, playerName: this.playerName, aiAt: this.aiAt }));
-    } catch (_) { /* storage full or blocked: the game still runs */ }
+      return true;
+    } catch (_) { this.saveFailed = true; return false; }       // storage full or blocked: the game still runs, but the caller can say so
+  }
+  addNote(text, day) {
+    const n = { at: new Date().toISOString(), day, text: String(text).slice(0, 1000) };
+    this.notes.push(n); if (this.notes.length > 50) this.notes.splice(0, this.notes.length - 50);
+    return n;
   }
   reset() { this.wiped = true; try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ } }
 
@@ -162,7 +169,7 @@ export class Sim {
     if (this.player) throw new Error('you already have a nation');
     name = cleanName(name);
     this.need(int(x) && int(y), 'bad plot');
-    this.need(this.emblems.includes(emblem) && fin(color), 'bad champion or colour');
+    this.need(this.emblems.includes(emblem) && int(color) && color >= 0 && color <= 0xffffff, 'bad champion or colour');
     if (name.length < 2) throw new Error('give your nation a name (2 to 12 letters)');
     if (this.byName(name)) throw new Error('that name is taken');
     if (!this.canFound(x, y)) throw new Error('that plot is not open (water, mountain, taken or too close to another nation)');
@@ -184,9 +191,10 @@ export class Sim {
   train(unit, count) {
     const p = this.player; this.need(p, 'no nation');
     this.need(int(count) && count > 0 && int(unit) && unit >= 0 && unit <= 3, 'bad order');
+    this.need(p.jobs.length < MAX_ORDERS, 'too many training orders waiting: collect your finished units first (or train bigger batches)');
     this.need(p.trained + count <= Math.floor(p.coin / this.slot()), `holding too small: you can train ${Math.max(0, Math.floor(p.coin / this.slot()) - p.trained)} more (hold more coin)`);
     p.trained += count;
-    p.coin -= this.unitCost() * count; p.burned += this.unitCost() * count;
+    p.coin -= this.unitCost() * count; p.burned = Math.min(CAP, p.burned + this.unitCost() * count);
     p.jobs.push({ id: this.nextId(p), unit, count, readyAt: this.clock + R.TRAIN_TIME, collected: false });
     this.logEvent({ kind: 'info', text: `Training ${count} ${UNIT[unit].toLowerCase()}${count > 1 ? 's' : ''}: ready in an hour of game time.` });
     this.save();
@@ -228,7 +236,7 @@ export class Sim {
     this.need(level < R.MAX_LEVEL, 'already at the top level');
     const cost = this.buildCost(level);
     this.need(p.coin >= cost, 'not enough coin to burn: get more in the Shop');
-    p.coin -= cost; p.burned += cost;
+    p.coin -= cost; p.burned = Math.min(CAP, p.burned + cost);
     if (wall) p.wall++; else p.tower++;
     this.logEvent({ kind: 'info', text: `Built ${wall ? 'a wall' : 'a tower'} (level ${level + 1}): +10% defense.` });
     this.save();
@@ -261,7 +269,7 @@ export class Sim {
     const burn = (R.SUPPLY * R.BUILD_COST_BPS * p.plots.length) / 10000;
     this.need(p.coin - burn >= 0, 'not enough coin to burn for this plot');
     this.pay(p, this.plotCost(x, y), R.LAND_POOL_BPS);
-    p.coin -= burn; p.burned += burn;
+    p.coin -= burn; p.burned = Math.min(CAP, p.burned + burn);
     p.plots.push([x, y]);
     this.logEvent({ kind: 'info', text: `Took the plot at ${x}, ${y}.` });
     this.save();
@@ -362,7 +370,8 @@ export class Sim {
 const snap = (n, units) => ({ name: n.name, color: n.color, emblem: n.emblem, units: units.slice(), wall: n.wall, tower: n.tower, isPlayer: n.isPlayer });
 export const fmtLeft = (ms) => {
   if (ms >= 60000) { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
-  return `${Math.max(1, Math.ceil(ms / 1000))}s`;
+  const sec = Math.max(1, Math.ceil(ms / 1000));
+  return sec >= 60 ? '1m' : `${sec}s`;
 };
 export const fmtCoin = (c) => {
   if (c >= 999_500_000) return `${(c / 1e9).toFixed(2)}B`;

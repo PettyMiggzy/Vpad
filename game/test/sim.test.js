@@ -263,3 +263,33 @@ test('R2-L4 formatting rounds before choosing the unit', () => {
   assert.equal(fmtCoin(999_500_000), '1.00B'); assert.equal(fmtCoin(999_949_999), '1.00B'); assert.equal(fmtCoin(99_950_000), '100M');
   assert.equal(fmtLeft(H - 1), '1h 0m'); assert.equal(fmtLeft(H - 30000), '1h 0m'); assert.equal(fmtLeft(H), '1h 0m');
 });
+
+// ---- audit round 3, rules pass ----
+test('R3-M1 training orders are capped in play, and a legit save at the cap reloads', () => {
+  const store = withStore();
+  const { s } = fresh(); const p = found(s); p.coin = 1e12; p.usdc = 0;
+  let n = 0; for (; n < 700; n++) { try { s.train(0, 1); } catch (e) { assert.match(e.message, /collect|orders|too many/i); break; } }
+  assert.ok(n < 500, `refused at ${n}`);
+  s.save();
+  assert.equal(new Sim(previewWorld()).player?.name, 'TESTERS', 'the save at the cap loads');
+  delete globalThis.localStorage;
+});
+
+test('R3-L1/L2 a colour or burn the loader would refuse is never produced', () => {
+  const { s } = fresh();
+  for (const c of [1.5, -1, 0x1000000, NaN]) assert.throws(() => s.claim('BADCOL', 'bruiser', c, 0, 0), /colour|bad/);
+  const { s: t } = fresh(); const p = found(t); p.burned = 1e12 - 5; p.coin = 1e12; t.train(0, 5);
+  assert.ok(p.burned <= 1e12);
+});
+
+test('R3-L3 notes are limited and a failed save is reported, not hidden', () => {
+  const { s } = fresh(); found(s);
+  assert.equal(s.addNote('x'.repeat(5000), 'D1').text.length, 1000);
+  for (let i = 0; i < 80; i++) s.addNote('n' + i, 'D1');
+  assert.ok(s.notes.length <= 50);
+  globalThis.localStorage = { getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem: () => {} };
+  assert.equal(s.save(), false);
+  delete globalThis.localStorage;
+});
+
+test('R3-L6 a minute is never printed as 60 seconds', () => { assert.equal(fmtLeft(59500), '1m'); assert.equal(fmtLeft(59000), '59s'); });
