@@ -10,3 +10,8 @@ test('R4-M2 a chain with many raids gives one war per pair and a bounded set', (
   assert.equal(tidyWars(many).length, 6);
   assert.deepEqual(tidyWars(undefined), []);
 });
+
+test('R5-L7 max 0 keeps no wars, and names holding a bar do not collide', () => {
+  assert.deepEqual(tidyWars([{ a: 'A', b: 'B' }], 0), []);
+  assert.equal(tidyWars([{ a: 'A|B', b: 'C' }, { a: 'A', b: 'B|C' }]).length, 2);
+});

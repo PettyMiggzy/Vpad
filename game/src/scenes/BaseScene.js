@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { powers, UNIT_NAMES } from '../combat.js';
 import { fmtLeft, fmtCoin, UNIT as UNITN, R as RULES } from '../sim.js';
-import { plannerHtml, bindPlanner, toast, gameClock, openBattle, clearToasts, refreshPlanner } from '../sandboxUi.js';
+import { plannerHtml, bindPlanner, toast, gameClock, openBattle, clearToasts, refreshPlanner, checkStale } from '../sandboxUi.js';
 import { train, collectReady, buildDefense, readNation, buyShield, speedUpLatest, raidNation, expandNation } from '../chain.js';
 
 const DPR = () => window.__dpr || 1;
@@ -118,6 +118,7 @@ export class BaseScene extends Phaser.Scene {
       this.sbxPanel.tickAcc += dt;
       if (this.sbxPanel.tickAcc > 700) {
         this.sbxPanel.tickAcc = 0;
+        checkStale(this.sim);
         const fresh = this.sim.tick();
         for (const e of fresh) if (e.kind === 'raid') { const me = this.nation; if (e.b === me.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => openBattle({ report: e.report, back: 'map' }) }); }
         this.sbxPanel.strip();

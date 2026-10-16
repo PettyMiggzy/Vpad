@@ -33,7 +33,7 @@ const MAX_ORDERS = 200;                 // uncollected training orders a nation 
 const CAP = 1e12;                       // no saved quantity may exceed this: it keeps every sum inside safe-integer range
 const cap = (v) => fin(v) && v >= 0 && v <= CAP;
 const int = (v) => Number.isInteger(v);
-const validNation = (n) => !!n && typeof n.name === 'string' && n.name.length > 0 && n.name.length <= 16 && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.length <= R.MAX_PLOTS && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
+const validNation = (n) => !!n && typeof n.name === 'string' && /^[A-Za-z0-9 ]{1,16}$/.test(n.name) && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.length <= R.MAX_PLOTS && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
   && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0 && u <= CAP) && Array.isArray(n.jobs) && n.jobs.length <= 500
   && n.jobs.every((j) => j && int(j.id) && int(j.unit) && j.unit >= 0 && j.unit <= 3 && int(j.count) && j.count > 0 && j.count <= CAP && fin(j.readyAt) && typeof j.collected === 'boolean')
   && [n.wall, n.tower].every((v) => int(v) && v >= 0 && v <= R.MAX_LEVEL) && [n.pool, n.pot, n.coin, n.usdc, n.trained, n.burned].every(cap) && [n.protectedUntil, n.nextRaidAt].every(fin)
@@ -55,10 +55,11 @@ export class Sim {
     this.terrain = world.terrain;
     this.radius = world.radius;
     this.lastReal = Date.now();
+    this.rev = this.storedRev();
     const s = this.read();
     if (s) {
       this.clock = s.clock; this.speed = s.speed; this.log = s.log.filter((e) => e && typeof e === 'object' && typeof e.kind === 'string' && fin(e.t)); this.notes = Array.isArray(s.notes) ? s.notes.filter((x) => x && typeof x.text === 'string') : []; this.faucetAt = s.faucetAt || {};
-      this.nations = s.nations; this.playerName = s.playerName; this.aiAt = s.aiAt || this.clock;
+      this.nations = s.nations; this.playerName = s.playerName; this.aiAt = Math.max(s.aiAt || this.clock, this.clock - 8 * 3 * H);   // an old or tampered turn clock cannot make every tick run catch-up turns
     } else {
       this.clock = 1000 * H; this.speed = 60; this.log = []; this.notes = []; this.faucetAt = {}; this.playerName = null; this.aiAt = this.clock;
       this.nations = world.nations.map((n, i) => this.makeAI(n, i));
@@ -83,8 +84,13 @@ export class Sim {
         try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ }
       }
       return null;
-    } catch (_) { return null; }
+    } catch (_) {   // not even valid JSON: kept aside too
+      try { const raw = localStorage.getItem(KEY); if (raw) { this.rejectedSave = true; localStorage.setItem(KEY + '.rejected', raw); localStorage.removeItem(KEY); } } catch (_2) { /* ignore */ }
+      return null;
+    }
   }
+  /** the save's revision, kept beside it: a tab holding an older one must not overwrite what another tab has saved since */
+  storedRev() { try { const v = Number(localStorage.getItem(KEY + '.rev')); return Number.isFinite(v) && v >= 0 ? v : 0; } catch (_) { return 0; } }
   seedPrint() { return `${this.world.seed}:${this.radius}`; }
   // plots must be real buildable land inside the world, and no two nations may share one
   plotsOk(s) {
@@ -98,7 +104,11 @@ export class Sim {
   }
   save() {
     if (this.wiped) return true;             // a wiped game is not written back by the page-hide handlers
+    if (this.stale) return false;
     try {
+      const cur = this.storedRev();
+      if (cur > this.rev) { this.stale = true; return false; }   // another tab saved since this one loaded: this one is out of date and must reload, not overwrite
+      this.rev = cur + 1; localStorage.setItem(KEY + '.rev', String(this.rev));
       localStorage.setItem(KEY, JSON.stringify({ v: 2, rules: RULES_PRINT, seed: this.seedPrint(), clock: this.clock, speed: this.speed, log: this.log.slice(-60), notes: this.notes, faucetAt: this.faucetAt, nations: this.nations, playerName: this.playerName, aiAt: this.aiAt }));
       this.saveFailed = false;
       return true;
@@ -109,7 +119,7 @@ export class Sim {
     this.notes.push(n); if (this.notes.length > 50) this.notes.splice(0, this.notes.length - 50);
     return n;
   }
-  reset() { this.wiped = true; try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ } }
+  reset() { this.wiped = true; try { localStorage.removeItem(KEY); localStorage.setItem(KEY + '.rev', String(Math.max(this.rev, this.storedRev()) + 1)); } catch (_) { /* ignore */ } }
 
   makeAI(n, i) {
     const base = 8 + rnd(25);

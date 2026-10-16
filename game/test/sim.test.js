@@ -320,3 +320,43 @@ test('R4-L3 a failed save is flagged and clears again once saving works', () => 
   const store = withStore(); s.save(); assert.equal(s.saveFailed, false);
   delete globalThis.localStorage;
 });
+
+test('R5-M1 a second tab with an old copy cannot overwrite newer progress', () => {
+  const store = withStore();
+  const { s: a } = fresh(); found(a); a.save();
+  const b = new Sim(previewWorld());                // the second tab loads the save
+  a.train(0, 50);                                   // the first tab plays on
+  assert.equal(b.save(), false); assert.equal(b.stale, true);
+  b.save();
+  assert.equal(new Sim(previewWorld()).player.jobs.length, 1);
+  delete globalThis.localStorage;
+});
+test('R5-M1 a wipe in one tab is not undone by a stale tab', () => {
+  const store = withStore();
+  const { s: a } = fresh(); found(a); a.save();
+  const b = new Sim(previewWorld());
+  a.reset(); b.save();
+  assert.equal(new Sim(previewWorld()).player, null);
+  delete globalThis.localStorage;
+});
+test('R5-L3 an old turn clock cannot make every tick run catch-up turns', () => {
+  const store = withStore();
+  const { s: a } = fresh(); found(a); a.aiAt = a.clock - 1e12; a.save();
+  const b = new Sim(previewWorld());
+  assert.ok(b.clock - b.aiAt <= 8 * 3 * 3600_000);
+  delete globalThis.localStorage;
+});
+test('R5-L4 a save that is not valid JSON is kept aside too', () => {
+  const store = withStore(); store.set('badlands.sandbox.v2', 'not json');
+  const s = new Sim(previewWorld());
+  assert.equal(store.get('badlands.sandbox.v2.rejected'), 'not json'); assert.equal(s.rejectedSave, true);
+  delete globalThis.localStorage;
+});
+test('R5-L1 a save with markup in a nation name is refused', () => {
+  const store = withStore();
+  const { s: a } = fresh(); found(a); a.save();
+  const raw = JSON.parse(store.get('badlands.sandbox.v2')); raw.nations[0].name = '<svg onload=x()>'.slice(0, 16);
+  store.set('badlands.sandbox.v2', JSON.stringify(raw));
+  const b = new Sim(previewWorld()); assert.ok(b.nations.every((n) => /^[A-Za-z0-9 ]+$/.test(n.name))); assert.equal(b.rejectedSave, true);
+  delete globalThis.localStorage;
+});

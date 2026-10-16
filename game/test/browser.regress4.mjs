@@ -59,9 +59,12 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const foe = s.sim.nations.find((n) => !n.isPlayer); s.sim.player.units = [30, 30, 30, 0]; s.showNationSandbox(foe); });
   await p.waitForTimeout(800); await p.click('[data-plan]'); await p.waitForTimeout(1200);
   await p.evaluate(() => { window.__game.scene.getScene('map').sim.player.units = [12, 30, 30, 0]; });
-  await p.waitForTimeout(2500);
+  await p.waitForFunction(() => document.querySelector('[data-send="0"]')?.max === '12', null, { timeout: 30000 }).catch(() => {});
   const pl = await p.evaluate(() => { const r = document.querySelector('[data-send="0"]'); return { max: r?.max, val: r?.value, label: document.querySelector('[data-m="0"]')?.textContent, shield: /ends your own shield/.test(document.querySelector('.sheet')?.textContent || '') }; });
   check('R4-L4 the map planner follows an army that shrinks while it is open', pl.max === '12' && pl.val === '12' && pl.label === '12', JSON.stringify(pl));
+  // R5-M1: another tab saved a newer game: this tab reloads rather than overwrite it
+  await p.evaluate(() => { const s = window.__game.scene.getScene('map'); window.__tabMark = 1; localStorage.setItem('badlands.sandbox.v2.rev', String(s.sim.rev + 5)); });
+  await p.waitForFunction(() => !window.__tabMark, null, { timeout: 60000 }).then(() => check('R5-M1 a tab whose game was saved elsewhere reloads', true), () => check('R5-M1 a tab whose game was saved elsewhere reloads', false, 'no reload'));
   check('no page errors (play)', errs.length === 0, errs.slice(0, 2).join(' | '));
   await ctx.close();
 }

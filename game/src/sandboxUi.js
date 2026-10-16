@@ -30,6 +30,15 @@ export function toast(text, action) {
 }
 
 // ---------------------------------------------------------------- the strip and rail on the map
+/** another tab saved a newer game: this tab's copy is out of date, so it reloads (and loads that one) rather than overwrite it */
+export function checkStale(sim) {
+  if (!sim.stale && sim.storedRev() > sim.rev) sim.stale = true;
+  if (!sim.stale || sim.reloading) return;
+  sim.reloading = true;
+  toast('This game was changed in another tab. Reloading it.');
+  setTimeout(() => { try { window.location.reload(); } catch (_) { /* ignore */ } }, 1200);
+}
+
 export function mountHud(scene) {
   const sim = scene.sim;
   const ui = document.getElementById('ui');
