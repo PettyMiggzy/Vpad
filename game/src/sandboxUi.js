@@ -37,7 +37,7 @@ export function mountHud(scene) {
   wrap.innerHTML = `
     <div class="sbx-bar">
       <span class="chip"><i>coin</i><b data-coin>0</b></span><span class="chip"><i>USDC</i><b data-usdc>0</b></span>
-      <span class="chip clk"><b data-clock></b><button data-speed></button></span></div>
+      <span class="chip clk"><b data-clock></b><button data-speed></button></span><span class="chip warn" data-nosave hidden><b>⚠ not saving</b></span></div>
     <div class="sbx-rail">
       <button data-base><b>🏰</b><span>Base</span><em data-ready hidden></em></button><button data-log><b>📜</b><span>Log</span></button>
       <button data-rank><b>🏆</b><span>Nations</span></button><button data-menu><b>⚙</b><span>Menu</span></button></div>`;
@@ -52,6 +52,7 @@ export function mountHud(scene) {
     const ready = sim.readyJobs().reduce((t, j) => t + j.count, 0);
     const r = q('[data-ready]'); r.hidden = !ready; r.textContent = ready;
     q('[data-base]').disabled = !p;
+    q('[data-nosave]').hidden = !sim.saveFailed;
   };
   q('[data-speed]').addEventListener('click', () => { sim.setSpeed(SPEEDS[(SPEEDS.indexOf(sim.speed) + 1) % SPEEDS.length]); refresh(); });
   q('[data-base]').addEventListener('click', () => { if (sim.player) scene.scene.start('base', { nation: sim.player }); });
@@ -173,13 +174,14 @@ export function confirmClaim(scene, x, y) {
 // ---------------------------------------------------------------- the raid planner
 /** HTML for planning a raid of `a` (the player) on `d`; bind it with bindPlanner */
 export function plannerHtml(sim, a, d) {
-  const sl = [0, 1, 2].map((i) => `<label class="slide"><span>${UNIT[i]} <b data-n="${i}">${a.units[i]}</b> / ${a.units[i]}</span><input type="range" min="0" max="${a.units[i]}" value="${a.units[i]}" data-send="${i}" ${a.units[i] ? '' : 'disabled'} /></label>`).join('');
+  const sl = [0, 1, 2].map((i) => `<label class="slide"><span>${UNIT[i]} <b data-n="${i}">${a.units[i]}</b> / <em data-m="${i}">${a.units[i]}</em></span><input type="range" min="0" max="${a.units[i]}" value="${a.units[i]}" data-send="${i}" ${a.units[i] ? '' : 'disabled'} /></label>`).join('');
   const total = d.units[0] + d.units[1] + d.units[2] + d.units[3];
   return `<div class="planner">
     <div class="foe"><b style="color:${hex(d.color)}">${esc(d.name)}</b> <small>${total} units (${d.units.map((u, i) => `${u} ${UNIT[i].toLowerCase()}`).join(', ')}) · wall ${d.wall} · tower ${d.tower}</small></div>
     ${sl}
     <div class="fight" data-plan></div>
     <div class="why" data-why></div>
+    ${a.protectedUntil > sim.clock ? '<div class="why">• Launching a raid ends your own shield.</div>' : ''}
     <button class="btn danger" data-launch>Launch the raid</button></div>`;
 }
 
@@ -197,6 +199,11 @@ export function dropPlanner() { activePlanner = null; }
 export function bindPlanner(root, sim, a, d, onReport) {
   const send = () => [0, 1, 2].map((i) => Number(root.querySelector(`[data-send="${i}"]`).value));
   const calc = () => {
+    [0, 1, 2].forEach((i) => {   // the army can change while the planner is open (a raid on you): the slider follows it
+      const el = root.querySelector(`[data-send="${i}"]`);
+      el.max = a.units[i]; if (Number(el.value) > a.units[i]) el.value = a.units[i];
+      root.querySelector(`[data-m="${i}"]`).textContent = a.units[i];
+    });
     const s = send();
     [0, 1, 2].forEach((i) => { root.querySelector(`[data-n="${i}"]`).textContent = s[i]; });
     const pl = sim.plan(a, d, s);

@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050805'/%3E%3Cpath d='M16 4l5 9v11h-10V13z' fill='%23b6ff00'/%3E%3C/svg%3E">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#050805" />
@@ -101,6 +102,7 @@
 
     .sbx-bar { position: fixed; left: 12px; top: calc(62px + var(--safe-t)); display: flex; gap: 5px; flex-wrap: wrap; max-width: calc(100vw - 76px); pointer-events: none; }
     .sbx-bar .chip, .res .chip { display: inline-flex; align-items: center; gap: 5px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; font-size: 12px; pointer-events: auto; white-space: nowrap; }
+    .chip[hidden] { display: none; } .chip.warn { border-color: #ff5a3c; } .chip.warn b { color: #ff8a70; }
     .chip i { font-style: normal; color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; } .chip b { color: #fff; }
     .chip.clk button { border: 1px solid var(--lime); background: rgba(182,255,0,.12); color: var(--lime); border-radius: 999px; font-weight: 800; font-size: 11px; padding: 3px 8px; min-height: 26px; }
     .sbx-rail { position: fixed; left: 12px; top: calc(128px + var(--safe-t)); display: flex; flex-direction: column; gap: 8px; }
@@ -131,7 +133,7 @@
     .card .btn.small { min-width: 58px; padding: 0 8px; font-size: 14px; } .card img { width: 52px; height: 46px; }
     .job { display: flex; justify-content: space-between; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; font-size: 14px; } .job b { color: var(--lime); }
     .planner .foe { margin-bottom: 8px; font-size: 15px; } .planner .foe small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
-    .slide { display: block; margin-bottom: 10px; font-size: 13px; } .slide span { display: block; margin-bottom: 4px; color: #cfe0c4; } .slide b { color: #fff; } .slide input[type=range] { width: 100%; accent-color: var(--lime); height: 32px; }
+    .slide { display: block; margin-bottom: 10px; font-size: 13px; } .slide span { display: block; margin-bottom: 4px; color: #cfe0c4; } .slide b { color: #fff; } .slide em { font-style: normal; } .slide input[type=range] { width: 100%; accent-color: var(--lime); height: 32px; }
     .why { color: var(--red); font-size: 12px; margin-bottom: 8px; line-height: 1.5; } .planner .btn { width: 100%; }
     .battle-result p.small { font-size: 12px; color: var(--muted); margin-top: -6px; }
     @media (min-width: 900px) { .sbx-bar { top: 64px; } }

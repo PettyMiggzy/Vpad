@@ -5,6 +5,7 @@ import { mountSheet } from '../ui.js';
 import { ATTACK, impactMs, attackMs } from '../anim.js';
 import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts, refreshPlanner, dropPlanner } from '../sandboxUi.js';
 import { fmtLeft } from '../sim.js';
+import { tidyWars } from '../wars.js';
 
 const DPR = () => window.__dpr || 1;
 
@@ -21,7 +22,7 @@ export class MapScene extends Phaser.Scene {
   create() {
     this.world = this.registry.get('world');
     this.sim = null; this.sbx = null; this.pick = null; this.pickGfx = null;
-    this.world.wars = this.world.sim ? this.world.sim.currentWars() : this.world.wars;
+    this.world.wars = tidyWars(this.world.sim ? this.world.sim.currentWars() : this.world.wars);
     this.grid = this.registry.get('grid');
     const g = this.grid;
     this.px = (x) => g.toPx(x);
@@ -154,14 +155,32 @@ export class MapScene extends Phaser.Scene {
       const [cx, cy] = n.plots[0];
       const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
       const D = (y) => 2000 + y;
+      const placed = [];
+      const hallHit = (px, py) => Math.abs(px - X) < T * 0.6 && py > Y - T * 0.5 && py < Y + T * 0.8;
       const put = (key, x, y, w, depth = null, force = false, home = null) => {
-        // a piece stands on land: if its exact spot is water or mountain it moves toward its home (the hall, or the plot's centre), never vanishes
-        if (!force && !this.landPoint(x, y - 4)) {
-          const hx = home ? home[0] : X, hy = home ? home[1] : Y + T * 0.3;
-          let placed = false;
-          for (const t of [0.2, 0.4, 0.6, 0.8]) { const nx = x + (hx - x) * t, ny = y + (hy - y) * t; if (this.landPoint(nx, ny - 4)) { x = nx; y = ny; placed = true; break; } }
-          if (!placed) { x = x + (hx - x) * 0.9; y = y + (hy - y) * 0.9; }
+        // a piece stands on open land, clear of the hall and of the pieces already placed: if its exact spot is water, mountain or taken,
+        // it moves to the nearest free spot on a ring around it, never to a place where it would hide behind the hall
+        if (!force) {
+          const free = (px, py) => this.landPoint(px, py - 4) && !hallHit(px, py) && !placed.some(([qx, qy]) => Math.hypot(qx - px, (qy - py) * 1.6) < T * 0.34);
+          if (!free(x, y)) {
+            let spot = null;
+            for (const r of [0.25, 0.5, 0.75, 1.0]) {
+              for (let k = 0; k < 8 && !spot; k++) {
+                const ang = (k / 8) * Math.PI * 2, nx = x + Math.cos(ang) * r * T, ny = y + Math.sin(ang) * r * T * 0.7;
+                if (free(nx, ny)) spot = [nx, ny];
+              }
+              if (spot) break;
+            }
+            if (!spot && home) spot = [home[0], home[1]];
+            if (!spot) {   // no open ground nearby: beside the hall, on the first of a few spots nothing stands on yet
+              const side = x >= X ? 1 : -1, apart = (px, py) => !placed.some(([qx, qy]) => Math.hypot(qx - px, (qy - py) * 1.6) < T * 0.34);
+              const beside = [side, -side].flatMap((sd) => [[0.95, 0.55], [0.95, 0.95], [1.25, 0.55], [0.95, 0.15], [1.25, 0.95], [1.25, 0.15]].map(([dx, dy]) => [X + sd * T * dx, Y + T * dy]));
+              spot = beside.find(([px, py]) => apart(px, py) && this.landPoint(px, py - 4)) || beside.find(([px, py]) => this.landPoint(px, py - 4)) || beside.find(([px, py]) => apart(px, py)) || beside[0];
+            }
+            [x, y] = spot;
+          }
         }
+        placed.push([x, y]);
         const s = this.add.image(x, y, key).setOrigin(0.5, 1);
         s.setScale(w / s.width).setDepth(depth ?? D(y));
         objs.push(s);
@@ -391,7 +410,7 @@ export class MapScene extends Phaser.Scene {
     cam.setZoom(startZoom);
     const first = this.world.nations[0];
     const keep = this.registry.get('mapCam');
-    if (keep) { cam.setZoom(keep.zoom); cam.scrollX = keep.x; cam.scrollY = keep.y; this.registry.remove('mapCam'); }
+    if (keep) { this.camRestored = true; cam.setZoom(Math.max(keep.zoom, this.minZoom())); cam.scrollX = keep.x; cam.scrollY = keep.y; this.registry.remove('mapCam'); }
     else if (first) cam.centerOn(this.px(first.plots[0][0]) + TILE / 2, this.px(first.plots[0][1]) + TILE / 2);
     else cam.centerOn(size / 2, size / 2);
     this.vel = new Phaser.Math.Vector2(0, 0);
@@ -535,10 +554,11 @@ export class MapScene extends Phaser.Scene {
     this.sbx = mountHud(this);
     this.lastHud = 0;
     this.seenLog = this.sim.log.length;
+    if (this.sim.rejectedSave) { this.sim.rejectedSave = false; toast('Your old save was from another version, so a fresh game started.'); }
     const p = this.sim.player;
     if (!p) { const me = this; setTimeout(() => { if (me.scene.isActive() && !me.sim.player) openOnboarding(me); }, 200); return; }
     const c = this.cameras.main;
-    c.centerOn(this.px(p.plots[0][0]) + TILE / 2, this.px(p.plots[0][1]) + TILE / 2);
+    if (!this.camRestored) c.centerOn(this.px(p.plots[0][0]) + TILE / 2, this.px(p.plots[0][1]) + TILE / 2);
     let helped = true;
     try { helped = !!localStorage.getItem('badlands.helped'); if (!helped) localStorage.setItem('badlands.helped', '1'); } catch (_) { /* storage blocked: the game still runs */ }
     if (!helped) toast('Tap your base to train an army. Tap another nation to scout and raid it. To grow, tap an open plot touching your land.');

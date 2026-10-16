@@ -3,6 +3,7 @@
 import { Contract, JsonRpcProvider, formatUnits, keccak256, toUtf8Bytes } from 'ethers';
 import abi from './landsAbi.json';
 import { makeTerrain } from './terrain.js';
+import { tidyWars } from './wars.js';
 
 const ERC20 = ['function name() view returns (string)', 'function symbol() view returns (string)'];
 const EMBLEMS = ['bruiser', 'sniper', 'trickster', 'defender'];
@@ -49,12 +50,13 @@ export async function loadLive(base = '') {
     }
     const byToken = new Map(nations.map((n) => [n.token.toLowerCase(), n]));
     const raids = await lands.queryFilter(lands.filters.Raided(), cfg.fromBlock ?? 0);
-    const wars = raids.map((r) => {
+    let wars = raids.map((r) => {
       const [a, d] = [byToken.get(r.args.attacker.toLowerCase()), byToken.get(r.args.defender.toLowerCase())];
       if (!a || !d) return null;
       const at = [(a.plots[0][0] + d.plots[0][0]) / 2, (a.plots[0][1] + d.plots[0][1]) / 2];
       return { a: a.name, b: d.name, at, success: r.args.success, attack: Number(r.args.attackPower), defense: Number(r.args.defensePower) };
     }).filter(Boolean);
+    wars = tidyWars(wars);
     return { live: true, rpc: cfg.rpc, chainId: cfg.chainId, lands: cfg.lands, wusdc: cfg.wusdc, devKey: cfg.devKey || null, seed: seed.toString(), radius, terrain: makeTerrain(seed), nations, wars };
   } catch (e) {
     console.warn('could not read the chain, showing the preview', e);

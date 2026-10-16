@@ -293,3 +293,30 @@ test('R3-L3 notes are limited and a failed save is reported, not hidden', () => 
 });
 
 test('R3-L6 a minute is never printed as 60 seconds', () => { assert.equal(fmtLeft(59500), '1m'); assert.equal(fmtLeft(59000), '59s'); });
+
+// ---- audit round 4 lows ----
+test('R4-L1 the coin and USDC faucets never push a balance past what the loader accepts', () => {
+  const store = withStore(); const { s } = fresh(); const p = found(s);
+  p.coin = 1e12 - 5e7; s.faucet('coin'); s.faucetAt.coin = 0; s.faucet('coin');
+  p.usdc = 1e12 - 5; s.faucetAt.usdc = 0; s.faucet('usdc');
+  assert.ok(p.coin <= 1e12 && p.usdc <= 1e12);
+  s.save(); assert.equal(new Sim(previewWorld()).player?.name, 'TESTERS');
+  delete globalThis.localStorage;
+});
+test('R4-L2 a rejected save is kept aside, not destroyed', () => {
+  const store = withStore();
+  const junk = JSON.stringify({ v: 2, clock: 5, nations: [{ name: 'X' }] });
+  store.set('badlands.sandbox.v2', junk);
+  const s = new Sim(previewWorld());
+  assert.ok(!store.has('badlands.sandbox.v2'));
+  assert.equal(store.get('badlands.sandbox.v2.rejected'), junk);
+  assert.equal(s.rejectedSave, true);
+  delete globalThis.localStorage;
+});
+test('R4-L3 a failed save is flagged and clears again once saving works', () => {
+  const { s } = fresh(); found(s);
+  globalThis.localStorage = { getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem: () => {} };
+  s.save(); assert.equal(s.saveFailed, true);
+  const store = withStore(); s.save(); assert.equal(s.saveFailed, false);
+  delete globalThis.localStorage;
+});

@@ -74,9 +74,14 @@ export class Sim {
   // ---- saving ----
   read() {
     try {
-      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      const raw = localStorage.getItem(KEY);
+      const s = JSON.parse(raw || 'null');
       if (validSave(s) && this.plotsOk(s) && s.seed === this.seedPrint()) return s;
-      if (s) { try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ } }   // a save that does not make sense is thrown away, never trusted
+      if (s) {   // a save that does not make sense is never trusted, but it is kept aside (one copy) instead of destroyed
+        this.rejectedSave = true;
+        try { localStorage.setItem(KEY + '.rejected', raw); } catch (_) { /* no room: it is dropped */ }
+        try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ }
+      }
       return null;
     } catch (_) { return null; }
   }
@@ -95,6 +100,7 @@ export class Sim {
     if (this.wiped) return true;             // a wiped game is not written back by the page-hide handlers
     try {
       localStorage.setItem(KEY, JSON.stringify({ v: 2, rules: RULES_PRINT, seed: this.seedPrint(), clock: this.clock, speed: this.speed, log: this.log.slice(-60), notes: this.notes, faucetAt: this.faucetAt, nations: this.nations, playerName: this.playerName, aiAt: this.aiAt }));
+      this.saveFailed = false;
       return true;
     } catch (_) { this.saveFailed = true; return false; }       // storage full or blocked: the game still runs, but the caller can say so
   }
@@ -280,7 +286,7 @@ export class Sim {
     let last = this.faucetAt[what] || 0; if (last > Date.now()) last = 0;
     this.need(Date.now() - last > R.FAUCET_WAIT, `wait ${Math.ceil((R.FAUCET_WAIT - (Date.now() - last)) / 1000)} s`);
     this.faucetAt[what] = Date.now();
-    if (what === 'coin') p.coin += R.COIN_FAUCET; else p.usdc += R.USDC_FAUCET;
+    if (what === 'coin') p.coin = Math.min(CAP, p.coin + R.COIN_FAUCET); else p.usdc = Math.min(CAP, p.usdc + R.USDC_FAUCET);
     this.save();
   }
 

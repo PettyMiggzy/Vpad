@@ -21,7 +21,7 @@ export class BaseScene extends Phaser.Scene {
     this.panelOpen = true;
     this.build();
     this.scale.on('resize', this.layout, this);
-    this.events.once('shutdown', () => { this.scale.off('resize', this.layout, this); this.sbxPanel = null; clearToasts(); document.getElementById('ui').innerHTML = ''; });
+    this.events.once('shutdown', () => { this.scale.off('resize', this.layout, this); this.holdAbort?.abort(); this.sbxPanel = null; clearToasts(); document.getElementById('ui').innerHTML = ''; });
   }
 
   // the scene's drawing area: above the panel on a portrait phone, left of it on a wide screen
@@ -123,7 +123,7 @@ export class BaseScene extends Phaser.Scene {
         this.sbxPanel.strip();
         refreshPlanner();
         const rd = this.sim.readyJobs().reduce((t, j) => t + j.count, 0);
-        if (fresh.some((e) => e.kind === 'raid') || rd !== this.sbxPanel.ready) { this.sbxPanel.ready = rd; this.layout(); this.sbxPanel.render(); }
+        if (fresh.some((e) => e.kind === 'raid') || rd !== this.sbxPanel.ready) { this.sbxPanel.ready = rd; this.layout(); if (this.held || document.activeElement?.tagName === 'SELECT') this.heldRender = true; else this.sbxPanel.render(); }
       }
     }
     for (const s of this.units) {
@@ -148,6 +148,13 @@ export class BaseScene extends Phaser.Scene {
         <div class="tabbody" data-body></div></div>`;
     const q = (x) => ui.querySelector(x);
     const body = q('[data-body]');
+    // a re-render while a finger is on a slider (or a list is open) would kill the touch: it waits until the finger lifts
+    this.held = false; this.heldRender = false;
+    this.holdAbort?.abort(); this.holdAbort = new AbortController();
+    const opt = { signal: this.holdAbort.signal };
+    ui.addEventListener('pointerdown', () => { this.held = true; }, opt);
+    const lift = () => { this.held = false; if (this.heldRender && this.sbxPanel) { this.heldRender = false; this.sbxPanel.render(); } };
+    window.addEventListener('pointerup', lift, opt); window.addEventListener('pointercancel', lift, opt);
     const flash = (fn, msg) => { try { fn(); if (msg) toast(msg); } catch (e) { toast(e.message); } this.layout(); render(); strip(); };
     const strip = () => {
       q('[data-clock]').textContent = gameClock(sim);
