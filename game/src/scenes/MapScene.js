@@ -3,7 +3,7 @@ import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
 import { ATTACK, impactMs, attackMs } from '../anim.js';
-import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast } from '../sandboxUi.js';
+import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts } from '../sandboxUi.js';
 import { fmtLeft } from '../sim.js';
 
 const DPR = () => window.__dpr || 1;
@@ -216,9 +216,16 @@ export class MapScene extends Phaser.Scene {
       const tx = Math.floor(x / T) - R - MARGIN, ty = Math.floor(y / T) - R - MARGIN;
       if (Math.abs(tx) > R || Math.abs(ty) > R) return false;
       const t = this.world.terrain(tx, ty);
-      return t !== WATER && t !== MOUNTAIN;
+      if (t === WATER || t === MOUNTAIN) return false;
+      // the painter bends tile edges by up to ~50 px, so the ground around the spot must be open land too
+      for (const [dx, dy] of [[-30, 0], [30, 0], [0, -30], [0, 30], [-22, -22], [22, -22], [-22, 22], [22, 22]]) {
+        const ux = Math.floor((x + dx) / T) - R - MARGIN, uy = Math.floor((y + dy) / T) - R - MARGIN;
+        const k = Math.abs(ux) > R || Math.abs(uy) > R ? WATER : this.world.terrain(ux, uy);
+        if (k === WATER || k === MOUNTAIN) return false;
+      }
+      return true;
     };
-    for (let tries = 0; tries < 14; tries++) {
+    for (let tries = 0; tries < 30; tries++) {
       let x, y;
       if (n.plots.length > 1 && Math.random() < 0.45) {
         const [px, py] = n.plots[1 + Math.floor(Math.random() * (n.plots.length - 1))];
@@ -399,32 +406,48 @@ export class MapScene extends Phaser.Scene {
       this.tap = null;
     });
     this.input.on('wheel', (p, _o, _dx, dy) => this.zoomAt(p.x, p.y, cam.zoom * (dy > 0 ? 0.88 : 1.14)));
-    this.scale.on('resize', () => { cam.setZoom(Math.max(cam.zoom, this.minZoom())); });
+    this.onResize = () => { cam.setZoom(Math.max(cam.zoom, this.minZoom())); };
+    this.scale.on('resize', this.onResize);
+    this.events.once('shutdown', () => { this.scale.off('resize', this.onResize); clearToasts(); });
   }
 
+  // zoom about a screen point: the world point under (sx, sy) stays under it (Phaser zooms about the camera's centre)
   zoomAt(sx, sy, z) {
     const cam = this.cameras.main;
     z = Phaser.Math.Clamp(z, this.minZoom(), 2.4 * DPR());
-    const before = cam.getWorldPoint(sx, sy);
+    const cx = cam.width / 2, cy = cam.height / 2;
+    const wx = cam.scrollX + cx + (sx - cx) / cam.zoom, wy = cam.scrollY + cy + (sy - cy) / cam.zoom;
     cam.setZoom(z);
-    const after = cam.getWorldPoint(sx, sy);
-    cam.scrollX += before.x - after.x; cam.scrollY += before.y - after.y;
+    cam.scrollX = wx - cx - (sx - cx) / z; cam.scrollY = wy - cy - (sy - cy) / z;
   }
 
   // ---- picking ----
+  // what a tap lands on: a war, then a nation (its whole compound, name tag and buildings, not only the tile under the finger), then the tile
+  hitNation(w) {
+    const T = TILE;
+    for (const n of this.world.nations) {
+      const [cx, cy] = n.plots[0];
+      const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
+      if (w.x > X - 1.4 * T && w.x < X + 1.4 * T && w.y > Y - 1.5 * T && w.y < Y + 1.45 * T) return n;
+    }
+    return null;
+  }
+
   onTap(p) {
     const w = this.cameras.main.getWorldPoint(p.x, p.y);
     const R = this.grid.R, M = MARGIN;
     const tx = Math.floor(w.x / TILE) - R - M, ty = Math.floor(w.y / TILE) - R - M;
-    if (Math.abs(tx) > R || Math.abs(ty) > R) { this.sheet.close(); return; }
-    const spot = (this.warSpots || []).find((s) => Math.hypot(s.x - w.x, s.y - w.y) < TILE * 1.1);
+    if (Math.abs(tx) > R + 1 || Math.abs(ty) > R + 1) { this.sheet.close(); return; }
+    const spot = (this.warSpots || []).find((s) => Math.abs(s.x - w.x) < TILE * 1.5 && w.y > s.y - TILE * 1.2 && w.y < s.y + TILE * 1.2);
     if (spot) { this.showWar(spot); return; }
+    if (!this.pick) { const hit = this.hitNation(w); if (hit) { this.marker?.destroy(); this.showNation(hit); return; } }
+    if (Math.abs(tx) > R || Math.abs(ty) > R) { this.sheet.close(); return; }
     this.select(tx, ty);
   }
 
   select(tx, ty) {
     const n = this.owner.get(`${tx},${ty}`);
-    this.marker?.destroy();
+    if (this.marker) { this.tweens.killTweensOf(this.marker); this.marker.destroy(); }
     const X = this.px(tx), Y = this.px(ty);
     this.marker = this.add.rectangle(X + TILE / 2, Y + TILE / 2, TILE - 3, TILE - 3).setStrokeStyle(3, 0xffffff, 1).setFillStyle(0xffffff, 0.08).setDepth(9700);
     this.tweens.add({ targets: this.marker, alpha: 0.4, duration: 520, yoyo: true, repeat: -1 });
@@ -454,12 +477,11 @@ export class MapScene extends Phaser.Scene {
 
   showWar(spot) {
     const { war, a, b } = spot;
-    if (war.report) {
-      this.sheet.open(`<h2><span class="tag war" style="margin:0">WAR</span>${a.name} vs ${b.name}</h2><div class="sub">${war.success ? `${a.name} broke through` : `${b.name} held`}</div><div class="row"><button class="btn danger" data-go>Watch the battle</button><button class="btn" data-close>Close</button></div>`, { go: () => this.scene.start('battle', { report: war.report, back: 'map' }) });
-      return;
-    }
     this.marker?.destroy();
     if (!a || !b) { this.sheet.close(); return; }
+    const snap = (n, units) => ({ name: n.name, color: n.color, emblem: n.emblem, units: units.slice(), wall: n.wall, tower: n.tower });
+    // a raid with its own record replays exactly; one read from the chain replays with the numbers the chain reported
+    const report = war.report || (war.attack !== undefined ? { result: { attack: war.attack, defense: war.defense, success: !!war.success }, send: a.units.slice(0, 3), loot: 0, a: snap(a, a.units.slice(0, 3).concat(0)), b: snap(b, b.units) } : null);
     this.sheet.open(`
       <h2><span class="tag war" style="margin:0">WAR</span>${a.name} vs ${b.name}</h2>
       <div class="sub">${war.success === undefined ? 'a raid is under way' : war.success ? `${a.name} broke through` : `${b.name} held`}</div>
@@ -467,8 +489,8 @@ export class MapScene extends Phaser.Scene {
         <div class="stat"><b>${a.units.reduce((x, y) => x + y, 0)}</b><span>${a.name} units</span></div>
         <div class="stat"><b>${b.units.reduce((x, y) => x + y, 0)}</b><span>${b.name} units</span></div>
       </div>
-      <div class="row"><button class="btn danger" data-go>Watch the battle</button><button class="btn" data-close>Close</button></div>`, {
-      go: () => this.scene.start('battle', { a, b, back: 'map' }),
+      <div class="row">${report ? '<button class="btn danger" data-go>Watch the battle</button>' : ''}<button class="btn" data-close>Close</button></div>`, {
+      go: () => openBattle({ report, back: 'map' }),
     });
   }
 
@@ -497,7 +519,7 @@ export class MapScene extends Phaser.Scene {
     for (const e of fresh) {
       if (e.kind !== 'raid') continue;
       const p = sim.player;
-      if (p && e.b === p.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => this.scene.start('battle', { report: e.report, back: 'map' }) });
+      if (p && e.b === p.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => openBattle({ report: e.report, back: 'map' }) });
       else toast(e.text);
     }
     this.sbx?.refresh();

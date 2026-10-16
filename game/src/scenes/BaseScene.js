@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { powers, UNIT_NAMES } from '../combat.js';
 import { fmtLeft, fmtCoin, UNIT as UNITN, R as RULES } from '../sim.js';
-import { plannerHtml, bindPlanner, toast, gameClock } from '../sandboxUi.js';
+import { plannerHtml, bindPlanner, toast, gameClock, openBattle, clearToasts } from '../sandboxUi.js';
 import { train, collectReady, buildDefense, readNation, buyShield, speedUpLatest, raidNation, expandNation } from '../chain.js';
 
 const DPR = () => window.__dpr || 1;
@@ -21,7 +21,7 @@ export class BaseScene extends Phaser.Scene {
     this.panelOpen = true;
     this.build();
     this.scale.on('resize', this.layout, this);
-    this.events.once('shutdown', () => { this.scale.off('resize', this.layout, this); document.getElementById('ui').innerHTML = ''; });
+    this.events.once('shutdown', () => { this.scale.off('resize', this.layout, this); this.sbxPanel = null; clearToasts(); document.getElementById('ui').innerHTML = ''; });
   }
 
   // the scene's drawing area: above the panel on a portrait phone, left of it on a wide screen
@@ -119,7 +119,7 @@ export class BaseScene extends Phaser.Scene {
       if (this.sbxPanel.tickAcc > 700) {
         this.sbxPanel.tickAcc = 0;
         const fresh = this.sim.tick();
-        for (const e of fresh) if (e.kind === 'raid') { const me = this.nation; if (e.b === me.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => this.scene.start('battle', { report: e.report, back: 'map' }) }); }
+        for (const e of fresh) if (e.kind === 'raid') { const me = this.nation; if (e.b === me.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => openBattle({ report: e.report, back: 'map' }) }); }
         this.sbxPanel.strip();
         const rd = this.sim.readyJobs().length;
         if (fresh.some((e) => e.kind === 'raid') || rd !== this.sbxPanel.ready) { this.sbxPanel.ready = rd; this.layout(); this.sbxPanel.render(); }
@@ -182,7 +182,7 @@ export class BaseScene extends Phaser.Scene {
         if (!target || !others.includes(target)) target = others.slice().sort((a, b) => sim.approach(n, a).k - sim.approach(n, b).k)[0];
         body.innerHTML = `<label class="lbl">Target</label><select data-target>${others.map((o) => `<option value="${o.name}" ${o === target ? 'selected' : ''}>${o.name} · ${sim.approach(n, o).k} tiles away</option>`).join('')}</select><div data-plan-box>${plannerHtml(sim, n, target)}</div>
           <div class="note">The result is the contract's fixed formula, no luck. A win costs you 10% of what you sent and takes 20% of their war pool for your buyback pot; they lose 30% of their army. A failed raid costs you half of what you sent. Attacking drops your own shield and starts a 24 h cooldown.</div>`;
-        bindPlanner(body.querySelector('[data-plan-box]'), sim, n, target, (report) => this.scene.start('battle', { report, back: 'base', home: n }));
+        bindPlanner(body.querySelector('[data-plan-box]'), sim, n, target, (report) => openBattle({ report, back: 'base', home: n }));
         body.querySelector('[data-target]').addEventListener('change', (e) => { target = sim.byName(e.target.value); render(); });
       } else {
         const pot = n.pot, step = RULES.BUYBACK_STEP;

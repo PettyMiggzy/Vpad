@@ -8,6 +8,15 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const EMBLEMS = [['bruiser', 'Bruiser', 'beats tricksters'], ['sniper', 'Sniper', 'beats bruisers'], ['trickster', 'Trickster', 'beats snipers'], ['defender', 'Defender', 'holds the line']];
 export const gameClock = (sim) => { const h = Math.max(0, (sim.now - 1000 * H) / H); return `D${Math.floor(h / 24) + 1} · ${String(Math.floor(h % 24)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`; };
 
+/** start the battle scene from anywhere: every other running scene is stopped first, so two scenes can never run at once */
+export function openBattle(data) {
+  const g = window.__game;
+  clearToasts();
+  for (const sc of g.scene.getScenes(true)) if (sc.scene.key !== 'battle') g.scene.stop(sc.scene.key);
+  g.scene.start('battle', data);
+}
+export function clearToasts() { document.querySelectorAll('.toasts .toast').forEach((t) => t.remove()); }
+
 export function toast(text, action) {
   const box = document.querySelector('.toasts') || (() => { const d = document.createElement('div'); d.className = 'toasts'; document.body.appendChild(d); return d; })();
   const t = document.createElement('div');
@@ -57,7 +66,7 @@ export function openLog(scene) {
   const sim = scene.sim;
   const rows = sim.log.slice(-25).reverse().map((e) => `<div class="logrow ${e.kind}"><span>${esc(e.text)}</span>${e.report ? '<button class="btn small" data-replay="' + sim.log.indexOf(e) + '">Watch</button>' : ''}<small>${gameAgo(sim, e.t)}</small></div>`).join('');
   scene.sheet.open(`<h2>Game log</h2><div class="sub">what happened, newest first</div><div class="loglist">${rows || '<div class="note">Nothing yet.</div>'}</div><div class="row"><button class="btn" data-close>Close</button></div>`, {
-    replay: (b) => { const e = sim.log[Number(b.dataset.replay)]; if (e && e.report) scene.scene.start('battle', { report: e.report, back: 'map' }); },
+    replay: (b) => { const e = sim.log[Number(b.dataset.replay)]; if (e && e.report) openBattle({ report: e.report, back: 'map' }); },
   });
 }
 const gameAgo = (sim, t) => { const d = sim.now - t; return d < 90 * 1000 * 60 ? `${Math.max(1, Math.round(d / 60000))} min ago` : `${Math.round(d / H)} h ago`; };
@@ -97,7 +106,9 @@ export function openOnboarding(scene) {
   const sim = scene.sim;
   const root = document.createElement('div');
   root.className = 'modal';
-  let emblem = 'bruiser', color = COLORS[1];
+  const free = COLORS.filter((c) => !sim.nations.some((n) => n.color === c));
+  const palette = free.length >= 3 ? free : COLORS;
+  let emblem = 'bruiser', color = palette[0];
   root.innerHTML = `
     <div class="card big">
       <img class="ttl" src="art/title/badlands.png" alt="Vyre Bad Lands" />
@@ -107,7 +118,7 @@ export function openOnboarding(scene) {
       <label class="lbl">Your champion</label>
       <div class="picks">${EMBLEMS.map(([k, n, d]) => `<button data-em="${k}" class="${k === emblem ? 'on' : ''}"><img src="art/trim/${k}.png" alt=""/><b>${n}</b><small>${d}</small></button>`).join('')}</div>
       <label class="lbl">Colour</label>
-      <div class="swatches">${COLORS.map((c) => `<button data-col="${c}" class="${c === color ? 'on' : ''}" style="background:${hex(c)}"></button>`).join('')}</div>
+      <div class="swatches">${palette.map((c) => `<button data-col="${c}" class="${c === color ? 'on' : ''}" style="background:${hex(c)}"></button>`).join('')}</div>
       <div class="err" data-err></div>
       <button class="btn primary" data-next>Choose my land →</button>
     </div>`;

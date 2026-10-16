@@ -66,7 +66,11 @@ export class BattleScene extends Phaser.Scene {
 
     this.hud();
     this.cameras.main.fadeIn(350, 0, 0, 0);
-    this.events.once('shutdown', () => { this.alive = false; document.getElementById('ui').innerHTML = ''; });
+    // a rotation or resize mid-battle relays the field out: play it again from the start with the same report
+    let rt = null;
+    this.onResize = () => { clearTimeout(rt); rt = setTimeout(() => { if (this.alive) this.scene.restart(this.data0); }, 350); };
+    this.scale.on('resize', this.onResize);
+    this.events.once('shutdown', () => { this.alive = false; clearTimeout(rt); this.scale.off('resize', this.onResize); document.getElementById('ui').innerHTML = ''; });
     this.sequence();
   }
 
@@ -154,7 +158,7 @@ export class BattleScene extends Phaser.Scene {
     const winner = success ? 'L' : 'R', loser = success ? 'R' : 'L';
     const hits = 5; // blows the loser takes
     const ratio = Math.min(0.85, Math.max(0.25, success ? this.result.defense / Math.max(1, this.result.attack) : this.result.attack / Math.max(1, this.result.defense)));
-    const per = { [loser]: 1 / hits, [winner]: ratio / hits };
+    const per = { [loser]: 1 / (hits + 1), [winner]: ratio / hits };
     const power = { L: this.result.attack, R: this.result.defense };
     for (let i = 0; i < hits * 2 + 1; i++) {
       // the winner's army lands a blow, then the loser's answers (one fewer for the loser)
@@ -243,7 +247,7 @@ export class BattleScene extends Phaser.Scene {
     if (!el) return;
     const lossA = this.send.reduce((t, v) => t + (r.success ? Math.floor(v / 10) : Math.floor(v / 2)), 0);
     const lossB = b.units.reduce((t, v) => t + (r.success ? Math.floor((v * 3) / 10) : Math.floor(v / 10)), 0);
-    const extra = this.report ? `<p class="small">${a.name} loses ${lossA} unit${lossA === 1 ? '' : 's'}, ${b.name} loses ${lossB}${this.report.loot ? `. Loot: $${this.report.loot.toFixed(1)} from ${b.name}'s war pool goes to ${a.name}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${a.name}'s coin is bought back and burned` : ''}.</p>` : '';
+    const extra = this.report ? `<p class="small">${a.name} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${b.name} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toFixed(1)} from ${b.name}'s war pool goes to ${a.name}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${a.name}'s coin is bought back and burned` : ''}.</p>` : '';
     el.innerHTML = `<h3 style="color:${hex(winner === 'L' ? a.color : b.color)}">${wName} wins</h3>
       <p>${r.success ? `${a.name} breaks ${b.name}'s defense` : `${b.name} holds the line against ${a.name}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>${extra}
       <div class="row"><button class="btn primary" data-replay>Watch again</button><button class="btn" data-back2>${this.back === 'base' ? 'Back to base' : 'Back to the map'}</button></div>`;

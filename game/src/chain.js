@@ -7,6 +7,7 @@ import { makeTerrain } from './terrain.js';
 const ERC20 = ['function name() view returns (string)', 'function symbol() view returns (string)'];
 const EMBLEMS = ['bruiser', 'sniper', 'trickster', 'defender'];
 
+const safeName = (v) => String(v).replace(/[^A-Za-z0-9 _.$-]/g, '').slice(0, 16) || 'COIN';
 const colorOf = (s) => {
   const h = parseInt(keccak256(toUtf8Bytes(s)).slice(2, 8), 16);
   // keep it bright: lift each channel into 0x60..0xff
@@ -41,7 +42,7 @@ export async function loadLive(base = '') {
       const [n, erc] = [await lands.nation(token), new Contract(token, ERC20, provider)];
       const symbol = await erc.symbol();
       nations.push({
-        token, name: symbol, color: colorOf(token), emblem: EMBLEMS[parseInt(token.slice(2, 4), 16) % 4],
+        token, name: safeName(symbol), color: colorOf(token), emblem: EMBLEMS[parseInt(token.slice(2, 4), 16) % 4],
         plots: n.plots.map(unpack), units: n.units.map(Number), wall: Number(n.wall), tower: Number(n.tower),
         pool: Math.round(Number(formatUnits(n.warPool, 18))), holders: null,
       });
@@ -52,7 +53,7 @@ export async function loadLive(base = '') {
       const [a, d] = [byToken.get(r.args.attacker.toLowerCase()), byToken.get(r.args.defender.toLowerCase())];
       if (!a || !d) return null;
       const at = [(a.plots[0][0] + d.plots[0][0]) / 2, (a.plots[0][1] + d.plots[0][1]) / 2];
-      return { a: a.name, b: d.name, at, success: r.args.success };
+      return { a: a.name, b: d.name, at, success: r.args.success, attack: Number(r.args.attackPower), defense: Number(r.args.defensePower) };
     }).filter(Boolean);
     return { live: true, rpc: cfg.rpc, chainId: cfg.chainId, lands: cfg.lands, wusdc: cfg.wusdc, devKey: cfg.devKey || null, seed: seed.toString(), radius, terrain: makeTerrain(seed), nations, wars };
   } catch (e) {
