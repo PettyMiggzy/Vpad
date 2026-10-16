@@ -3,7 +3,10 @@
 // decide a result: the server is the only authority, and a finished match is reported to the rules engine by the server alone.
 import { Server, Room } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
+import express from 'express';
 import { Match, cleanName } from './game.js';
+import { CATALOG, REWARD } from './items.js';
+import { getProfile, view, buy, equip, loadoutFor, award, validPid } from './profiles.js';
 
 const TICK = 1000 / 30;     // the simulation steps 30 times a second
 const SEND_EVERY = 2;       // and a snapshot goes out every second step: 15 a second
@@ -22,6 +25,7 @@ class MatchRoom extends Room {
     const perSide = Math.max(1, Math.min(32, Number(options.perSide) || 8));
     this.maxClients = perSide * 2;
     this.match = new Match({ teams, perSide, bots: options.bots !== false });
+    this.pids = new Map();   // session id to profile id
     this.tick = 0;
     this.onMessage('input', (client, m) => {
       const p = this.match.players.get(client.sessionId);
@@ -32,6 +36,7 @@ class MatchRoom extends Room {
       const before = this.match.phase;
       this.match.step(TICK / 1000);
       this.tick += 1;
+      for (const e of this.match.events) this.reward(e);
       if (this.match.events.some((e) => e.type === 'match')) this.reportResult();
       if (this.match.rv !== this.lastRv) { this.lastRv = this.match.rv; this.broadcast('roster', this.match.roster()); }
       if (this.tick % SEND_EVERY === 0 || this.match.phase !== before) this.broadcast('snap', this.match.snapshot());
@@ -39,15 +44,27 @@ class MatchRoom extends Room {
   }
 
   onJoin(client, options = {}) {
-    const p = this.match.addPlayer(client.sessionId, options);
+    const pid = validPid(options.pid) ? options.pid : null;
+    if (pid) this.pids.set(client.sessionId, pid);
+    const p = this.match.addPlayer(client.sessionId, { ...options, loadout: pid ? loadoutFor(pid) : undefined });
     if (!p) { client.leave(4001, 'that match is full'); return; }
     client.send('hello', { id: p.id, team: p.team, teams: this.match.teams, perSide: this.match.perSide, roster: this.match.roster() });
     this.broadcast('roster', this.match.roster());
   }
 
   onLeave(client) {
-    this.match.removePlayer(client.sessionId);
+    this.match.removePlayer(client.sessionId); this.pids.delete(client.sessionId);
     this.broadcast('roster', this.match.roster());
+  }
+
+  /** coins for kills, round wins and match wins go to the profiles of the humans who earned them (bots earn nothing) */
+  reward(e) {
+    const m = this.match;
+    if (e.type === 'kill') { const pid = this.pids.get(e.by); if (pid) award(pid, REWARD.kill); }
+    const team = e.type === 'roundEnd' ? e.winner : e.type === 'match' ? e.winner : null;
+    if ((e.type === 'roundEnd' || e.type === 'match') && (team === 0 || team === 1)) {
+      for (const [sid, pid] of this.pids) if (m.players.get(sid)?.team === team) award(pid, e.type === 'match' ? REWARD.match : REWARD.round);
+    }
   }
 
   /** the one place a result leaves the server: to the rules engine, from the server only (not wired yet: it is logged) */
@@ -58,6 +75,19 @@ class MatchRoom extends Room {
 }
 
 const port = Number(process.env.PORT) || 2567;
-const server = new Server({ transport: new WebSocketTransport() });
+// the shop's small web API: look at a profile, buy an item, equip an item (the server keeps the coins and what is owned)
+const api = (app) => {
+  app.use('/api', (req, res, next) => {
+    res.set({ 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS' });
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+  app.use('/api', express.json({ limit: '2kb' }));
+  const send = (res, r) => res.status(r.error ? 400 : 200).json(r);
+  app.get('/api/profile', (req, res) => { const p = getProfile(String(req.query.pid || '')); if (!p) return res.status(400).json({ error: 'bad id' }); res.json({ ...view(p), catalog: CATALOG }); });
+  app.post('/api/buy', (req, res) => send(res, buy(String(req.body?.pid || ''), String(req.body?.item || ''))));
+  app.post('/api/equip', (req, res) => send(res, equip(String(req.body?.pid || ''), String(req.body?.item || ''))));
+};
+const server = new Server({ transport: new WebSocketTransport(), express: api });
 server.define('match', MatchRoom);
 server.listen(port).then(() => console.log(`arena server on :${port}`));

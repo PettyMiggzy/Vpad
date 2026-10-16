@@ -1,5 +1,6 @@
 // The arena rules, with no network code in them so they can be tested on their own: two teams (one per token), a top-down map of
 // walls, shooting, bots that fill empty seats, and rounds (first team to win two takes the match).
+import { WEAPONS, ARMOR, BOOTS, FREE } from './items.js';
 export const MAP = { w: 1600, h: 1000 };
 export const WALLS = [
   // the outer frame
@@ -69,9 +70,11 @@ export function navPath(x1, y1, x2, y2) {
   const start = sy * GW + sx, goal = ty * GW + tx;
   const prev = new Int32Array(GW * GH).fill(-1); prev[start] = start;
   const q = [start];
+  // a different order of neighbours each time gives a different one of the equally short routes, so a team does not all take the same lane
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]].sort(() => Math.random() - 0.5);
   for (let qi = 0; qi < q.length && prev[goal] < 0; qi++) {
     const c = q[qi], cx = c % GW, cy = (c / GW) | 0;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    for (const [dx, dy] of dirs) {
       const nx = cx + dx, ny = cy + dy;
       if (nx < 0 || ny < 0 || nx >= GW || ny >= GH || blocked[ny * GW + nx] || prev[ny * GW + nx] >= 0) continue;
       if (dx && dy && (blocked[cy * GW + nx] || blocked[ny * GW + cx])) continue;   // no cutting a corner
@@ -84,6 +87,11 @@ export function navPath(x1, y1, x2, y2) {
   return out.reverse();
 }
 
+/** the stats of a loadout (unknown or missing parts fall back to the free items) */
+export function statsOf(l = {}) {
+  const weapon = WEAPONS[l.weapon] ? l.weapon : FREE.weapon, armor = ARMOR[l.armor] ? l.armor : FREE.armor, boots = BOOTS[l.boots] ? l.boots : FREE.boots;
+  return { weapon, armor, boots, camo: typeof l.camo === 'string' ? l.camo : FREE.camo, hpMax: ARMOR[armor].hp, speedMul: ARMOR[armor].speed * BOOTS[boots].speed };
+}
 export const cleanName = (v) => String(v ?? '').replace(/[^A-Za-z0-9 ]/g, '').replace(/ +/g, ' ').trim().slice(0, 12);
 export const cleanColor = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : 0xb6ff00);
 export const cleanSkin = (v) => (Number.isInteger(v) && v >= 0 && v <= 5 ? v : 0);
@@ -107,14 +115,14 @@ export class Match {
     return -1;
   }
 
-  addPlayer(sid, { name, team, color, skin }) {
+  addPlayer(sid, { name, team, loadout }) {
     const t = this.chooseTeam(team);
     if (t < 0) return null;
     // a human takes a bot's seat
     const bot = [...this.players.values()].find((p) => p.bot && p.team === t);
     if (bot) this.players.delete(bot.id);
     this.rv++;
-    const p = this.makePlayer(sid, t, cleanName(name) || 'Player', cleanColor(color), cleanSkin(skin), false);
+    const p = this.makePlayer(sid, t, cleanName(name) || 'Player', loadout, false);
     this.players.set(sid, p);
     this.spawn(p);
     return p;
@@ -122,8 +130,9 @@ export class Match {
 
   removePlayer(sid) { this.players.delete(sid); this.rv++; }
 
-  makePlayer(id, team, name, color, skin, bot) {
-    return { id, team, name, color, skin, bot, x: 0, y: 0, aim: team === 0 ? 0 : Math.PI, hp: R.HP, alive: false, kills: 0, cd: 0, input: { dx: 0, dy: 0, aim: 0, fire: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
+  makePlayer(id, team, name, loadout, bot) {
+    const st = statsOf(loadout);
+    return { id, team, name, ...st, bot, x: 0, y: 0, aim: team === 0 ? 0 : Math.PI, hp: st.hpMax, alive: false, kills: 0, cd: 0, input: { dx: 0, dy: 0, aim: 0, fire: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
   }
 
   spawn(p) {
@@ -131,7 +140,7 @@ export class Match {
     const col = Math.floor(idx / 8), row = idx % 8;
     let x = (left ? 90 : MAP.w - 90) + (left ? col * 46 : -col * 46), y = 120 + row * 106 + rnd(-14, 14);
     [x, y] = pushOut(x, y);
-    Object.assign(p, { x, y, hp: R.HP, alive: true, cd: 0, aim: left ? 0 : Math.PI });
+    Object.assign(p, { x, y, hp: p.hpMax, alive: true, cd: 0, aim: left ? 0 : Math.PI });
   }
 
   fillBots() {
@@ -139,7 +148,8 @@ export class Match {
     for (const t of [0, 1]) {
       while (this.count(t) < this.perSide) {
         const id = `bot${this.nextId++}`;
-        const p = this.makePlayer(id, t, ['Rex', 'Nova', 'Bolt', 'Kilo', 'Zed', 'Echo', 'Ghost', 'Viper', 'Rook', 'Axel', 'Dusk', 'Lynx'][this.nextId % 12], [0xb6ff00, 0xff8a3c, 0x4cc9f0, 0xf72585, 0xffd166][this.nextId % 5], this.nextId % 6, true);
+        const gear = { weapon: Object.keys(WEAPONS)[(this.nextId * 7) % 5], armor: Object.keys(ARMOR)[this.nextId % 3], boots: Object.keys(BOOTS)[(this.nextId + 1) % 3], camo: ['woodland', 'desert', 'arctic', 'night', 'toxic'][this.nextId % 5] };
+        const p = this.makePlayer(id, t, ['Rex', 'Nova', 'Bolt', 'Kilo', 'Zed', 'Echo', 'Ghost', 'Viper', 'Rook', 'Axel', 'Dusk', 'Lynx'][this.nextId % 12], gear, true);
         this.players.set(id, p); this.rv++;
         if (this.phase === 'live') { p.alive = false; } else this.spawn(p);
       }
@@ -198,9 +208,16 @@ export class Match {
       let dx = clamp(Number(inp.dx) || 0, -1, 1), dy = clamp(Number(inp.dy) || 0, -1, 1);
       const len = Math.hypot(dx, dy); if (len > 1) { dx /= len; dy /= len; }
       if (Number.isFinite(inp.aim)) p.aim = inp.aim;
-      [p.x, p.y] = pushOut(p.x + dx * R.SPEED * dt, p.y + dy * R.SPEED * dt);
+      const sp = R.SPEED * p.speedMul;
+      [p.x, p.y] = pushOut(p.x + dx * sp * dt, p.y + dy * sp * dt);
       p.cd = Math.max(0, p.cd - dt);
-      if (live && inp.fire && p.cd === 0) { p.cd = R.FIRE_GAP; this.bullets.push({ x: p.x + Math.cos(p.aim) * 20, y: p.y + Math.sin(p.aim) * 20, vx: Math.cos(p.aim) * R.BULLET_SPEED, vy: Math.sin(p.aim) * R.BULLET_SPEED, team: p.team, owner: p.id, life: R.BULLET_LIFE }); }
+      if (live && inp.fire && p.cd === 0) {
+        const w = WEAPONS[p.weapon]; p.cd = w.gap;
+        for (let i = 0; i < w.pellets; i++) {
+          const a = p.aim + rnd(-w.spread, w.spread);
+          this.bullets.push({ x: p.x + Math.cos(p.aim) * 20, y: p.y + Math.sin(p.aim) * 20, vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed, team: p.team, owner: p.id, life: w.life, dmg: w.dmg });
+        }
+      }
     }
   }
 
@@ -227,6 +244,12 @@ export class Match {
       inp.dx = Math.cos(wa); inp.dy = Math.sin(wa);
       if (!see) inp.aim = wa;
     } else { inp.dx = -Math.sin(ang) * b.strafe; inp.dy = Math.cos(ang) * b.strafe; }
+    // bots keep apart from their own team-mates (and take a little sideways drift of their own), so a team spreads over the map
+    for (const q of this.players.values()) {
+      if (q === p || !q.alive || q.team !== p.team) continue;
+      const ox = p.x - q.x, oy = p.y - q.y, od = Math.hypot(ox, oy);
+      if (od > 0 && od < 55) { inp.dx += (ox / od) * (55 - od) / 28; inp.dy += (oy / od) * (55 - od) / 28; }
+    }
     inp.dx *= 0.9; inp.dy *= 0.9;
     if (see && d < 400 && Math.random() < 0.5) inp.fire = true;
   }
@@ -241,7 +264,7 @@ export class Match {
         for (const p of this.players.values()) {
           if (!p.alive || p.team === bl.team) continue;
           if ((p.x - nx) ** 2 + (p.y - ny) ** 2 < (R.RADIUS + 3) ** 2) {
-            p.hp -= R.DAMAGE; dead = true;
+            p.hp -= bl.dmg ?? R.DAMAGE; dead = true;
             if (p.hp <= 0) { p.alive = false; const o = this.players.get(bl.owner); if (o) o.kills += 1; this.events.push({ type: 'kill', by: bl.owner, victim: p.id, x: p.x, y: p.y }); }
             else this.events.push({ type: 'hit', x: nx, y: ny });
             break;
@@ -264,5 +287,5 @@ export class Match {
     };
   }
 
-  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, skin: p.skin, team: p.team, bot: p.bot })); }
+  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, weapon: p.weapon, armor: p.armor, camo: p.camo, hpMax: p.hpMax, team: p.team, bot: p.bot })); }
 }

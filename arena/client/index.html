@@ -31,6 +31,9 @@
   label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
   input[type=text], select { width: 100%; background: #0d160a; color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 16px; }
   .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .team { border: 2px solid var(--line); border-radius: 14px; padding: 12px; text-align: center; font-weight: 900; cursor: pointer; background: #0d160a; } .team.on { border-color: var(--c); box-shadow: 0 0 18px var(--c); } .team small { display: block; color: var(--muted); font-weight: 600; margin-top: 3px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; } .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0d160a; font-weight: 800; font-size: 13px; cursor: pointer; } .tab.on { background: var(--lime); color: #071000; border-color: var(--lime); }
+  .shop { display: grid; grid-template-columns: 130px 1fr; gap: 12px; } .prev { position: relative; background: #0d160a; border: 1px solid var(--line); border-radius: 14px; display: grid; place-items: center; min-height: 150px; overflow: hidden; } .prev img { width: 120px; } .prev .mult { position: absolute; inset: 0; mix-blend-mode: multiply; pointer-events: none; } .prev small { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 10px; }
+  .items { display: flex; flex-direction: column; gap: 6px; max-height: 230px; overflow-y: auto; touch-action: pan-y; } .it { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); background: #0d160a; border-radius: 12px; padding: 8px 10px; } .it b { display: block; font-size: 14px; } .it small { color: var(--muted); font-size: 11px; } .it button { border: 0; border-radius: 9px; padding: 8px 12px; font-weight: 900; font-size: 13px; cursor: pointer; background: var(--lime); color: #071000; min-width: 74px; } .it button.eq { background: transparent; color: var(--lime); border: 1px solid var(--lime); } .it button:disabled { opacity: .45; }
   .swatches { display: flex; flex-wrap: wrap; gap: 8px; } .sw { width: 36px; height: 36px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; } .sw.on { border-color: #fff; }
   .skins { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; } .skin { aspect-ratio: 1; border-radius: 12px; border: 2px solid var(--line); background: #0d160a; display: grid; place-items: center; cursor: pointer; } .skin.on { border-color: var(--lime); } .skin canvas { width: 70%; height: 70%; }
   button.go { width: 100%; margin-top: 18px; background: var(--lime); color: #071000; border: 0; border-radius: 14px; padding: 15px; font-size: 18px; font-weight: 900; letter-spacing: .04em; cursor: pointer; }
@@ -53,13 +56,14 @@
     <label>Your name</label><input id="name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
     <label>Your team (a token)</label>
     <div class="teams" id="teams"></div>
-    <label>Colour</label><div class="swatches" id="swatches"></div>
-    <label>Character</label><div class="skins" id="skins"></div>
+    <label>Loadout shop <span id="coins" style="float:right;color:var(--lime);letter-spacing:0;font-size:14px;font-weight:800"></span></label>
+    <div class="tabs" id="tabs"></div>
+    <div class="shop"><div class="prev" id="prev"></div><div class="items" id="items"></div></div>
     <label>Seats per side (humans and bots together)</label>
     <select id="seats"><option>4</option><option selected>8</option><option>12</option><option>16</option><option>20</option><option>32</option></select>
     <button class="go" id="go">PLAY</button>
     <div class="err" id="err"></div>
-    <div class="note">Move: WASD or the left thumb. Aim: the mouse or the right thumb. Fire: click, or push the right thumb out. The server decides every hit.</div>
+    <div class="note">Earn coins by winning fights and rounds, spend them in the shop. Move: WASD or the left thumb. Aim: the mouse or the right thumb. Fire: click, or push the right thumb out. The server decides every hit.</div>
   </div>
 </div>
 <script type="module" src="/src/main.js"></script>

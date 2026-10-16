@@ -17,7 +17,7 @@ test('a human takes a bot seat, teams stay within the seats, a full side refuses
   const m = new Match({ teams: [{ name: 'A' }, { name: 'B' }], perSide: 3, bots: true });
   m.fillBots();
   assert.equal(m.count(0), 3); assert.equal(m.count(1), 3);
-  const a = m.addPlayer('s1', { name: 'Ann', team: 0, color: 0xff0000, skin: 2 });
+  const a = m.addPlayer('s1', { name: 'Ann', team: 0, loadout: { weapon: 'rifle', armor: 'heavy', boots: 'runner' } });
   assert.equal(a.team, 0); assert.equal(m.count(0), 3, 'a bot made room');
   m.addPlayer('s2', { name: 'Bob', team: 0 }); m.addPlayer('s3', { name: 'Cy', team: 0 });
   assert.equal(m.humans(0), 3);

@@ -1,15 +1,54 @@
 import Phaser from 'phaser';
 import { Client } from '@colyseus/sdk';
 import { MAP, WALLS, R, pushOut } from '../../server/game.js';
-import { SKINS, COLORS, hex, previewSkin } from './skins.js';
+import { CATALOG, SLOTS } from '../../server/items.js';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 const $ = (s) => document.querySelector(s);
+const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
 const TEAM_DEFAULTS = [{ name: 'FROG', color: 0xff6a3c }, { name: 'APE', color: 0x3cb4ff }];
 const SERVER = new URLSearchParams(location.search).get('server') || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:2567`;
+const API = SERVER.replace(/^ws/, 'http') + '/api';
+// the soldier art: one picture per weapon (the soldier holds it), where the body's centre sits in each picture
+const SOLDIER = { pistol: 0.34, smg: 0.32, rifle: 0.30, shotgun: 0.26, sniper: 0.22 };
 
-// ---------------------------------------------------------------- the menu: team, name, colour, character
-const pick = { team: 0, color: COLORS[0], skin: 0 };
+// a random id, made once and kept in this browser: it is what the server keeps your coins and gear under (a real version would use a wallet)
+let PID = '';
+try { PID = localStorage.getItem('arena.pid') || ''; } catch (_) { /* ignore */ }
+if (!/^[a-f0-9-]{16,64}$/.test(PID)) { PID = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('arena.pid', PID); } catch (_) { /* ignore */ } }
+
+// ---------------------------------------------------------------- the menu: team, name and the loadout shop
+const pick = { team: 0, tab: 'weapon' };
+let prof = null;
+const TAB_NAMES = { weapon: 'Weapons', armor: 'Armour', boots: 'Boots', camo: 'Camo' };
+async function api(path, body) {
+  const r = await fetch(`${API}${path}`, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pid: PID, ...body }) } : undefined);
+  return r.json();
+}
+async function loadProfile() {
+  try { const r = await fetch(`${API}/profile?pid=${PID}`); prof = await r.json(); if (prof.error) prof = null; } catch (_) { prof = null; }
+  renderShop();
+}
+function renderShop() {
+  const coins = $('#coins'), items = $('#items'), tabs = $('#tabs'), prev = $('#prev');
+  tabs.innerHTML = '';
+  for (const t of SLOTS) { const d = document.createElement('div'); d.className = 'tab' + (t === pick.tab ? ' on' : ''); d.textContent = TAB_NAMES[t]; d.onclick = () => { pick.tab = t; renderShop(); }; tabs.appendChild(d); }
+  if (!prof) { coins.textContent = ''; items.innerHTML = '<div class="it"><small>The shop could not be reached. You can still play with the free kit.</small></div>'; prev.innerHTML = ''; return; }
+  coins.textContent = `${prof.coins.toLocaleString()} coins`;
+  items.innerHTML = '';
+  for (const [id, it] of Object.entries(CATALOG)) {
+    if (it.slot !== pick.tab) continue;
+    const owned = prof.owned.includes(id), on = prof.loadout[it.slot] === id;
+    const d = document.createElement('div'); d.className = 'it';
+    d.innerHTML = `<div><b>${it.name}</b><small>${it.blurb}${it.cost && !owned ? ` · ${it.cost} coins` : ''}</small></div>`;
+    const btn = document.createElement('button');
+    btn.textContent = on ? 'Equipped' : owned ? 'Equip' : 'Buy'; btn.className = on || owned ? 'eq' : ''; btn.disabled = on || (!owned && prof.coins < it.cost);
+    btn.onclick = async () => { btn.disabled = true; const r = await api(owned ? '/equip' : '/buy', { item: id }); if (r.error) { $('#err').textContent = r.error; btn.disabled = false; } else { $('#err').textContent = ''; prof = { ...prof, ...r }; renderShop(); } };
+    d.appendChild(btn); items.appendChild(d);
+  }
+  const w = prof.loadout.weapon, camo = CATALOG[prof.loadout.camo];
+  prev.innerHTML = `<img src="/art/soldier_${w}.png" alt=""><div class="mult" style="background:${hex(camo.tint)}"></div><small>${CATALOG[w].name} · ${CATALOG[prof.loadout.armor].name}</small>`;
+}
 function buildMenu() {
   const teams = $('#teams');
   TEAM_DEFAULTS.forEach((t, i) => {
@@ -18,14 +57,9 @@ function buildMenu() {
     d.onclick = () => { pick.team = i; [...teams.children].forEach((c, j) => c.classList.toggle('on', j === i)); };
     teams.appendChild(d);
   });
-  const sw = $('#swatches');
-  COLORS.forEach((c) => { const d = document.createElement('div'); d.className = 'sw' + (c === pick.color ? ' on' : ''); d.style.background = hex(c); d.onclick = () => { pick.color = c; [...sw.children].forEach((x) => x.classList.toggle('on', x === d)); redrawSkins(); }; sw.appendChild(d); });
-  const sk = $('#skins');
-  SKINS.forEach((s, i) => { const d = document.createElement('div'); d.className = 'skin' + (i === pick.skin ? ' on' : ''); d.title = s.name; const cv = document.createElement('canvas'); cv.width = cv.height = 96; d.appendChild(cv); d.onclick = () => { pick.skin = i; [...sk.children].forEach((x) => x.classList.toggle('on', x === d)); }; sk.appendChild(d); });
-  redrawSkins();
   try { $('#name').value = localStorage.getItem('arena.name') || ''; } catch (_) { /* ignore */ }
+  loadProfile();
 }
-function redrawSkins() { [...$('#skins').children].forEach((d, i) => previewSkin(d.firstChild, i, pick.color)); }
 buildMenu();
 
 $('#go').onclick = async () => {
@@ -34,7 +68,7 @@ $('#go').onclick = async () => {
   $('#go').disabled = true; $('#err').textContent = 'Connecting…';
   try {
     const client = new Client(SERVER);
-    const room = await client.joinOrCreate('match', { name, team: pick.team, color: pick.color, skin: pick.skin, perSide: Number($('#seats').value), names: TEAM_DEFAULTS.map((t) => t.name), colors: TEAM_DEFAULTS.map((t) => t.color) });
+    const room = await client.joinOrCreate('match', { name, pid: PID, team: pick.team, perSide: Number($('#seats').value), names: TEAM_DEFAULTS.map((t) => t.name), colors: TEAM_DEFAULTS.map((t) => t.color) });
     $('#menu').hidden = true; $('#hud').hidden = false;
     startGame(room);
   } catch (e) {
@@ -45,7 +79,7 @@ $('#go').onclick = async () => {
 // ---------------------------------------------------------------- the arena
 function startGame(room) {
   const W = Math.round(innerWidth * DPR), H = Math.round(innerHeight * DPR);
-  const st = { me: null, teams: TEAM_DEFAULTS, roster: new Map(), snaps: [], keys: {}, mouse: { x: 0, y: 0, down: false }, sticks: { move: null, aim: null }, pm: null, last: 0, phase: '', round: 0, labels: new Map(), sparks: [], feed: [] };
+  const st = { me: null, teams: TEAM_DEFAULTS, roster: new Map(), snaps: [], keys: {}, mouse: { x: 0, y: 0, down: false }, sticks: { move: null, aim: null }, pm: null, last: 0, phase: '', round: 0, labels: new Map(), sprites: new Map(), sparks: [], feed: [] };
   window.__arena = st;
   room.onMessage('hello', (m) => { st.me = m.id; st.teams = m.teams; for (const r of m.roster) st.roster.set(r.id, r); hud(); });
   room.onMessage('roster', (list) => { st.roster.clear(); for (const r of list) st.roster.set(r.id, r); });
@@ -79,7 +113,7 @@ function startGame(room) {
       const live = s.ph === 'live' || s.ph === 'countdown';
       if (!st.pm || !live || !me[6]) st.pm = { x: me[2], y: me[3] };
       else { const ex = me[2] - st.pm.x, ey = me[3] - st.pm.y; if (Math.hypot(ex, ey) > 80) { st.pm.x = me[2]; st.pm.y = me[3]; } else { st.pm.x += ex * 0.2; st.pm.y += ey * 0.2; } }
-      $('#me .hp i').style.width = `${Math.max(0, me[5])}%`; $('[data-me]').textContent = me[6] ? `${nm(st.me)} · ${me[7]} kills` : 'You are out: watching your team';
+      $('#me .hp i').style.width = `${Math.max(0, me[5]) / (st.roster.get(st.me)?.hpMax || 100) * 100}%`; $('[data-me]').textContent = me[6] ? `${nm(st.me)} · ${me[7]} kills` : 'You are out: watching your team';
     }
     for (const e of s.ev) {
       if (e.type === 'hit') st.sparks.push({ x: e.x, y: e.y, t: 0, r: 8 });
@@ -131,6 +165,7 @@ function startGame(room) {
 
   // ---- the scene
   class Arena extends Phaser.Scene {
+    preload() { for (const w of Object.keys(SOLDIER)) this.load.image(`soldier_${w}`, `/art/soldier_${w}.png`); }
     create() {
       this.bg = this.add.graphics().setDepth(0); this.drawMap();
       this.dyn = this.add.graphics().setDepth(5);
@@ -197,26 +232,25 @@ function startGame(room) {
         seen.add(id);
         let lab = st.labels.get(id);
         if (!lab) { lab = this.add.text(0, 0, r.name, { fontFamily: 'system-ui', fontSize: '13px', fontStyle: '800', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(9); st.labels.set(id, lab); }
-        lab.setPosition(p.x, p.y - 26).setVisible(!!p.alive).setColor(id === st.me ? '#b6ff00' : '#ffffff').setAlpha(p.bot ? 0.75 : 1);
-        if (!p.alive) { g.fillStyle(r.color, 0.18).fillCircle(p.x, p.y, R.RADIUS); g.lineStyle(2, tc(p.team), 0.25).strokeCircle(p.x, p.y, R.RADIUS); continue; }
-        const co = Math.cos(p.aim), si = Math.sin(p.aim), rad = R.RADIUS;
-        g.fillStyle(0x000000, 0.35).fillEllipse(p.x + 3, p.y + 5, rad * 2.1, rad * 1.7);
-        g.lineStyle(4, tc(p.team), 1).strokeCircle(p.x, p.y, rad + 1);
-        g.fillStyle(r.color, 1).fillCircle(p.x, p.y, rad);
-        // the gun
-        const gx = (lx, ly) => p.x + lx * co - ly * si, gy = (lx, ly) => p.y + lx * si + ly * co;
-        g.fillStyle(0x1b1b1b, 1).fillPoints([{ x: gx(8, -3.5), y: gy(8, -3.5) }, { x: gx(28, -3.5), y: gy(28, -3.5) }, { x: gx(28, 3.5), y: gy(28, 3.5) }, { x: gx(8, 3.5), y: gy(8, 3.5) }], true);
-        for (const s of SKINS[r.skin]?.shapes || []) {
-          const col = s.c === 'acc' ? 0xffffff : s.c.startsWith('#') ? parseInt(s.c.slice(1), 16) : 0x78e6ff;
-          const al = s.c.startsWith('rgba') ? 0.8 : 1; g.fillStyle(col, al);
-          if (s.t === 'circle') g.fillCircle(gx(s.x * rad, s.y * rad), gy(s.x * rad, s.y * rad), s.r * rad);
-          else if (s.t === 'rect') g.fillPoints([[s.x, s.y], [s.x + s.w, s.y], [s.x + s.w, s.y + s.h], [s.x, s.y + s.h]].map(([x, y]) => ({ x: gx(x * rad, y * rad), y: gy(x * rad, y * rad) })), true);
-          else g.fillPoints(s.p.map(([x, y]) => ({ x: gx(x * rad, y * rad), y: gy(x * rad, y * rad) })), true);
+        lab.setPosition(p.x, p.y - 34).setVisible(!!p.alive).setColor(id === st.me ? '#b6ff00' : '#ffffff').setAlpha(p.bot ? 0.75 : 1);
+        // the soldier: the picture for the weapon he carries, turned to face where he aims, tinted by his camo
+        let sp = st.sprites.get(id);
+        const weapon = SOLDIER[r.weapon] ? r.weapon : 'pistol';
+        if (!sp || sp.weapon !== weapon) {
+          sp?.img.destroy();
+          const img = this.add.image(0, 0, `soldier_${weapon}`).setOrigin(SOLDIER[weapon], 0.5).setDepth(6);
+          img.setScale(46 / img.height); sp = { img, weapon }; st.sprites.set(id, sp);
         }
-        // health
-        g.fillStyle(0x000000, 0.6).fillRect(p.x - 17, p.y + 21, 34, 5); g.fillStyle(p.hp > 50 ? 0x7be04a : p.hp > 25 ? 0xffc23c : 0xff4a3c, 1).fillRect(p.x - 17, p.y + 21, 34 * Math.max(0, p.hp) / 100, 5);
+        sp.img.setPosition(p.x, p.y).setRotation(p.aim).setTint(p.alive ? (CATALOG[r.camo]?.tint ?? 0xffffff) : 0x555555).setAlpha(p.alive ? 1 : 0.3);
+        const rad = R.RADIUS + 2;
+        g.fillStyle(0x000000, p.alive ? 0.35 : 0.1).fillEllipse(p.x + 3, p.y + 6, rad * 2.2, rad * 1.8);
+        g.lineStyle(4, tc(p.team), p.alive ? 0.95 : 0.25).strokeCircle(p.x, p.y, rad + 3);
+        if (!p.alive) continue;
+        const max = r.hpMax || 100;
+        g.fillStyle(0x000000, 0.6).fillRect(p.x - 18, p.y + 24, 36, 5); g.fillStyle(p.hp > max * 0.5 ? 0x7be04a : p.hp > max * 0.25 ? 0xffc23c : 0xff4a3c, 1).fillRect(p.x - 18, p.y + 24, 36 * Math.max(0, p.hp) / max, 5);
       }
       for (const [id, lab] of st.labels) if (!seen.has(id)) { lab.destroy(); st.labels.delete(id); }
+      for (const [id, sp] of st.sprites) if (!seen.has(id)) { sp.img.destroy(); st.sprites.delete(id); }
     }
     drawBullets(cur, now) {
       const g = this.fx; g.clear();
