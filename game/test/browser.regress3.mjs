@@ -15,8 +15,8 @@ const scene = () => window.__game.scene.getScene('map');
 // M2: no building base and no walker target in the sea, for every nation in the preview world (incl. KRILL/GLORP/WOBBLE on the edges)
 const sea = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); let bad = 0, total = 0; for (const n of s.world.nations) for (let i = 0; i < 80; i++) { const [x, y] = s.yardPoint(n); total++; const T = 56, R = s.grid.R, M = 5; const tx = Math.floor(x / T) - R - M, ty = Math.floor(y / T) - R - M; const k = Math.abs(tx) > R || Math.abs(ty) > R ? 1 : s.world.terrain(tx, ty); if (k === 1 || k === 2) bad++; } return { bad, total }; });
 check('R2-M2 walker targets are never on water or mountain tiles', sea.bad === 0, JSON.stringify(sea));
-const parts = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const out = []; for (const [n, objs] of s.nationObjects) for (const o of objs) if (o.texture && /^b_(gate|wall|tower)$/.test(o.texture.key)) out.push(s.landPoint(o.x, o.y - 4)); return out; });
-check('R2-M2 walls, towers and gates are only drawn on land', parts.every(Boolean), `${parts.filter((x) => !x).length} of ${parts.length} off land`);
+const parts = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const out = []; for (const [n, objs] of s.nationObjects) for (const o of objs) if (o.texture && /^b_(gate|wall|tower)$/.test(o.texture.key)) { const T = 56, R = s.grid.R, M = 5; const tx = Math.floor(o.x / T) - R - M, ty = Math.floor((o.y - 4) / T) - R - M; const kd = Math.abs(tx) > R || Math.abs(ty) > R ? 1 : s.world.terrain(tx, ty); out.push(kd !== 1 && kd !== 2); } return out; });
+check('R2-M2 walls, towers and gates never stand on water or mountain tiles', parts.every(Boolean), `${parts.filter((x) => !x).length} of ${parts.length} off land`);
 
 // M3: at minimum zoom the war name tag is tappable at its ends and top
 await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const c = s.cameras.main; c.setZoom(s.minZoom()); const w = s.warSpots[0]; c.centerOn(w.x, w.y); });
@@ -33,6 +33,13 @@ check('R2-M4 a top-row nation tag opens the nation', tapTag.includes(top), top);
 // L4: at minimum zoom the camera view always fits inside the world bounds (no flat seam)
 const seam = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const c = s.cameras.main; c.setZoom(s.minZoom()); c.centerOn(s.grid.size / 2, s.grid.size / 2); const v = c.worldView; const b = c._bounds; return { w: v.width <= b.width + 1, h: v.height <= b.height + 1 }; });
 check('R2-L4 zoomed out, the view fits inside the world (no seam)', seam.w && seam.h, JSON.stringify(seam));
+
+// R3-M1: every wall and tower level a nation has is drawn as a piece (moved onto land if needed, never dropped)
+const pieces = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); return s.world.nations.map((n) => { const objs = s.nationObjects.get(n) || []; const c = (re) => objs.filter((o) => o.texture && re.test(o.texture.key)).length; return { n: n.name, wall: [c(/^b_(gate|wall)$/), Math.min(3, n.wall)], tower: [c(/^b_tower$/), Math.min(4, n.tower)] }; }); });
+check('R3-M1 every wall and tower level is drawn', pieces.every((x) => x.wall[0] === x.wall[1] && x.tower[0] === x.tower[1]), JSON.stringify(pieces.filter((x) => x.wall[0] !== x.wall[1] || x.tower[0] !== x.tower[1])));
+// R3-L3: the tap marker goes when the sheet closes
+const mk = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const c = s.cameras.main; c.setZoom(1.1 * window.__dpr); c.centerOn(s.grid.size / 2, s.grid.size / 2); c.preRender(); s.select(0, 0); const had = !!s.marker; s.sheet.close(); return { had, after: !!s.marker }; });
+check('R3-L3 the tap marker is removed when the sheet closes', mk.had && !mk.after, JSON.stringify(mk));
 
 // M1: a report built from the chain's own numbers shows no invented losses
 await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const [a, b] = s.world.nations; const snap = (n, u) => ({ name: n.name, color: n.color, emblem: n.emblem, units: u, wall: n.wall, tower: n.tower }); s.scene.start('battle', { report: { estimated: true, result: { attack: 3000, defense: 5000, success: false }, send: [10, 10, 10], loot: 0, a: snap(a, [10, 10, 10, 0]), b: snap(b, [10, 10, 10, 5]) }, back: 'map' }); });

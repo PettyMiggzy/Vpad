@@ -7,7 +7,7 @@ export function mountSheet(el) {
       el.innerHTML = `<div class="grab"></div>${html}`;
       requestAnimationFrame(() => el.classList.add('on'));
     },
-    close() { el.classList.remove('on'); },
+    close() { el.classList.remove('on'); api.onClose?.(); },
   };
   el.addEventListener('click', (e) => {
     const b = e.target.closest('button');

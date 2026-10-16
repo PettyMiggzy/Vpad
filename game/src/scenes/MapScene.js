@@ -154,8 +154,14 @@ export class MapScene extends Phaser.Scene {
       const [cx, cy] = n.plots[0];
       const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
       const D = (y) => 2000 + y;
-      const put = (key, x, y, w, depth = null, force = false) => {
-        if (!force && !this.landPoint(x, y - 4)) return null;          // a wall, tower, gate or tent is never drawn standing in the sea
+      const put = (key, x, y, w, depth = null, force = false, home = null) => {
+        // a piece stands on land: if its exact spot is water or mountain it moves toward its home (the hall, or the plot's centre), never vanishes
+        if (!force && !this.landPoint(x, y - 4)) {
+          const hx = home ? home[0] : X, hy = home ? home[1] : Y + T * 0.3;
+          let placed = false;
+          for (const t of [0.2, 0.4, 0.6, 0.8]) { const nx = x + (hx - x) * t, ny = y + (hy - y) * t; if (this.landPoint(nx, ny - 4)) { x = nx; y = ny; placed = true; break; } }
+          if (!placed) { x = x + (hx - x) * 0.9; y = y + (hy - y) * 0.9; }
+        }
         const s = this.add.image(x, y, key).setOrigin(0.5, 1);
         s.setScale(w / s.width).setDepth(depth ?? D(y));
         objs.push(s);
@@ -190,9 +196,10 @@ export class MapScene extends Phaser.Scene {
       // the other plots: barracks, then the vault, then tents and a campfire
       n.plots.slice(1).forEach(([x, y], i) => {
         const bx = this.px(x) + T / 2, by = this.px(y) + T * 0.82;
-        if (i === 0) put('b_barracks', bx, by, T * 0.95);
-        else if (i === 1) put('b_vault', bx, by, T * 0.9);
-        else put(['c_tent', 'c_crates', 'c_tent3', 'ruin2', 'c_tent2', 'c_rack'][(i - 2) % 6], bx, by, T * 0.85);
+        const home = [bx, this.px(y) + T * 0.5];
+        if (i === 0) put('b_barracks', bx, by, T * 0.95, null, false, home);
+        else if (i === 1) put('b_vault', bx, by, T * 0.9, null, false, home);
+        else put(['c_tent', 'c_crates', 'c_tent3', 'ruin2', 'c_tent2', 'c_rack'][(i - 2) % 6], bx, by, T * 0.85, null, false, home);
       });
       // name tag (kept readable at any zoom in update())
       const label = this.add.text(X, Y - T * 1.3, n.name, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: '#ffffff', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
@@ -278,6 +285,13 @@ export class MapScene extends Phaser.Scene {
         if (taken.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) < 3)) continue;
         const d = Math.hypot(x - mx, y - my);
         if (!best || d < best.d) best = { d, x, y };
+      }
+      if (!best) {                       // no clear 3x3 left: take the nearest plain open tile instead of the raw midpoint
+        for (let y = -R + 1; y <= R - 1; y++) for (let x = -R + 1; x <= R - 1; x++) {
+          const k = t(x, y); if ((k !== LAND && k !== COAST && k !== PASS) || this.owner.has(`${x},${y}`)) continue;
+          if (taken.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) < 2)) continue;
+          const d = Math.hypot(x - mx, y - my); if (!best || d < best.d) best = { d, x, y };
+        }
       }
       const at = best ? [best.x, best.y] : war.at;
       taken.push(at);
@@ -376,7 +390,9 @@ export class MapScene extends Phaser.Scene {
     const startZoom = Math.max(this.minZoom(), Math.min(this.scale.width, this.scale.height) / (TILE * 11), 1.1 * DPR());
     cam.setZoom(startZoom);
     const first = this.world.nations[0];
-    if (first) cam.centerOn(this.px(first.plots[0][0]) + TILE / 2, this.px(first.plots[0][1]) + TILE / 2);
+    const keep = this.registry.get('mapCam');
+    if (keep) { cam.setZoom(keep.zoom); cam.scrollX = keep.x; cam.scrollY = keep.y; this.registry.remove('mapCam'); }
+    else if (first) cam.centerOn(this.px(first.plots[0][0]) + TILE / 2, this.px(first.plots[0][1]) + TILE / 2);
     else cam.centerOn(size / 2, size / 2);
     this.vel = new Phaser.Math.Vector2(0, 0);
     this.pinch = null;
@@ -411,7 +427,7 @@ export class MapScene extends Phaser.Scene {
     this.input.on('wheel', (p, _o, _dx, dy) => this.zoomAt(p.x, p.y, cam.zoom * (dy > 0 ? 0.88 : 1.14)));
     this.onResize = () => { cam.setZoom(Math.max(cam.zoom, this.minZoom())); };
     this.scale.on('resize', this.onResize);
-    this.events.once('shutdown', () => { this.scale.off('resize', this.onResize); clearToasts(); });
+    this.events.once('shutdown', () => { this.registry.set('mapCam', { x: cam.scrollX, y: cam.scrollY, zoom: cam.zoom }); this.scale.off('resize', this.onResize); clearToasts(); });
   }
 
   // zoom about a screen point: the world point under (sx, sy) stays under it (Phaser zooms about the camera's centre)
@@ -593,6 +609,7 @@ export class MapScene extends Phaser.Scene {
       <div class="legend-pop"><div><span class="dot" style="background:#b6ff00"></span>coast plot (premium)</div><div><span class="dot" style="background:#ffd24a"></span>mountain pass (premium)</div><div><span class="dot" style="background:#ff3030"></span>war</div><div style="color:#93a58a;font-size:12px">drag to move · pinch or wheel to zoom · tap a nation</div></div>
       <div class="sheet"></div>`;
     this.sheet = mountSheet(ui.querySelector('.sheet'));
+    this.sheet.onClose = () => this.clearMarker();
     const cam = this.cameras.main;
     ui.querySelector('.rail').addEventListener('click', (e) => {
       const k = e.target.closest('button')?.dataset.z;
