@@ -35,7 +35,7 @@ export default function App() {
       <Ticker />
       <header className="top">
         <div className="top-in">
-          <a className="brand" href={href({ page: 'explore' })} aria-label="MINTA home"><MintaLogo size={54} /></a>
+          <a className="brand" href={href({ page: 'explore' })} aria-label="WARHEADZ home"><MintaLogo size={54} /></a>
           <nav className="nav" aria-label="App">
             {NAV.map((n) => <a key={n.label} href={href(n.route)} aria-current={at(n.route) ? 'page' : undefined}>{n.label}</a>)}
             <a className="nav-ext" href="https://vyrechain.com" target="_blank" rel="noopener noreferrer">VYRE<ExternalIcon /></a>

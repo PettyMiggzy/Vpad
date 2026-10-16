@@ -509,7 +509,7 @@ td.sell { color: var(--sell); font-weight: 700; }
   .chain-pill { width: 40px; height: 40px; padding: 0; justify-content: center; }
   .top-actions { gap: 6px; }
   .logo { gap: 10px; }
-  .logo .mark { width: auto; height: 34px; }
+  .logo .mark { width: auto; height: 40px; }
   .logo .wordmark { width: auto; height: 13px; }
   .top .create-btn { display: inline-flex; }
   .search-trigger { padding: 0; }
