@@ -139,6 +139,8 @@
     @media (min-width: 900px) { .sbx-bar { top: 64px; } }
     #ui > .pickbanner { pointer-events: none; }
     .sbx-rail em[hidden] { display: none; }
+    /* short screens (a phone on its side): the rail wraps into a second column instead of running off the bottom */
+    @media (max-height: 560px) { .sbx-rail { flex-wrap: wrap; max-height: calc(100dvh - 140px); top: calc(112px + var(--safe-t)); } }
     .btn.primary[disabled] { background: #26340f; border-color: #26340f; color: #7c8f6a; box-shadow: none; opacity: 1; }
     .res { flex-wrap: wrap; } .res .chip { padding: 4px 6px; min-width: 0; }
     @media (max-height: 500px) and (orientation: landscape) { .fab.legend { left: auto; right: 12px; } }

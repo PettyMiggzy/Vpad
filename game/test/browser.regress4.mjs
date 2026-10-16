@@ -80,6 +80,11 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   await p.waitForFunction(() => document.querySelector('[data-send="0"]')?.max === '12', null, { timeout: 30000 }).catch(() => {});
   const pl = await p.evaluate(() => { const r = document.querySelector('[data-send="0"]'); return { max: r?.max, val: r?.value, label: document.querySelector('[data-m="0"]')?.textContent, shield: /ends your own shield/.test(document.querySelector('.sheet')?.textContent || '') }; });
   check('R4-L4 the map planner follows an army that shrinks while it is open', pl.max === '12' && pl.val === '12' && pl.label === '12', JSON.stringify(pl));
+  // R8-M2: on a phone turned on its side every rail button is on screen
+  await p.setViewportSize({ width: 844, height: 390 }); await p.waitForTimeout(2500);
+  const rail = await p.evaluate(() => [...document.querySelectorAll('.sbx-rail button')].map((b) => Math.round(b.getBoundingClientRect().bottom)));
+  check('R8-M2 the Menu button is on screen in landscape', rail.length === 5 && rail.every((v) => v <= 386), JSON.stringify(rail));
+  await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(1500);
   // R5-M1 / R7-M2: another window saved a newer game: this one stops and asks, it never reloads itself (two windows would loop)
   await p.evaluate(() => { const s = window.__game.scene.getScene('map'); window.__tabMark = 1; localStorage.setItem('badlands.sandbox.v2.rev', String(s.sim.rev + 5)); });
   await p.waitForSelector('[data-reload]', { timeout: 60000 }).then(() => check('R7-M2 a stale window asks before reloading', true), () => check('R7-M2 a stale window asks before reloading', false, 'no prompt'));

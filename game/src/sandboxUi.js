@@ -40,7 +40,7 @@ export function checkStale(sim) {
   // never reload by itself: two windows would send each other round in circles. This one stops saving and waits to be told.
   const root = document.createElement('div');
   root.className = 'modal';
-  root.innerHTML = `<div class="card"><h3>This game was changed in another window</h3><p class="lead">Another tab or window saved this game since this one opened. This window stopped saving so it cannot overwrite that. Reload to carry on from there.</p><div class="row"><button class="btn primary" data-reload>Reload this window</button></div></div>`;
+  root.innerHTML = `<div class="card big"><h3>This game was changed in another window</h3><p class="lead">Another tab or window saved this game since this one opened. This window stopped saving so it cannot overwrite that. Reload to carry on from there.</p><div class="row"><button class="btn primary" data-reload>Reload this window</button></div></div>`;
   document.body.appendChild(root);
   root.querySelector('[data-reload]').addEventListener('click', () => { try { window.location.reload(); } catch (_) { /* ignore */ } });
 }

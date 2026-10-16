@@ -1,6 +1,6 @@
 // Art for a launch that has no picture of its own: a meme mascot (lib/memes.ts) picked by the token's address, so the same token
 // always gets the same one. If the mascot's file can't load, a faceted gem on a glowing field is drawn from the address instead
-// (cyan to violet). Decoration only: it says nothing about the token (the creator's own picture replaces it as soon as there is one).
+// (lime and amber). Decoration only: it says nothing about the token (the creator's own picture replaces it as soon as there is one).
 import { useId, useMemo, useState } from 'react';
 import { memeFile } from '../lib/memes';
 

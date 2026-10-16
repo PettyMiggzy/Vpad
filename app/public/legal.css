@@ -1,7 +1,7 @@
-/* The legal pages (terms, privacy), in MINTA's colors */
+/* The legal pages (terms, privacy), in WARHEADZ's colors */
 :root {
-  --bg: #03070b; --line: #0e2a31; --line-2: #15383f;
-  --text: #f2fbfb; --soft: #cfe3e5; --muted: #9ab4b8; --dim: #7a969b;
+  --bg: #050805; --line: #10170c; --line-2: #1a2512;
+  --text: #f4f9ec; --soft: #d6dccb; --muted: #a3ad98; --dim: #7f8a75;
   --lime: #b6ff00;
   --gutter: 28px;
 }
