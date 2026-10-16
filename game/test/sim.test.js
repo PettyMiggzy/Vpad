@@ -381,3 +381,32 @@ test('R6-M1 the battle scene\'s loss numbers are exactly what the engine deducts
   }
   assert.ok(ran >= 10, `ran ${ran} raids`);
 });
+
+test('R7-M1 a tampered raid report is dropped on load: only its replay is lost', () => {
+  const store = withStore();
+  const { s: a } = fresh(); found(a); a.logEvent({ kind: 'raid', a: 'X', b: 'Y', success: true, report: { result: { attack: 1, defense: 1, success: true }, send: [1, 1, 1], loot: 0, a: { name: 'A', color: 1, emblem: 'bruiser', units: [1, 1, 1, 0], wall: 0, tower: 0 }, b: { name: 'B', color: 2, emblem: 'sniper', units: [1, 1, 1, 1], wall: 0, tower: 0 } } });
+  a.logEvent({ kind: 'raid', a: 'X', b: 'Y', report: { result: { attack: 1, defense: 1, success: true }, send: [1, 1, 1], a: { name: '<b>x</b>', color: 'red', emblem: 'bruiser', units: [10, -5, 0, 0], wall: 0, tower: 0 }, b: {} } });
+  a.logEvent({ kind: 'raid', a: 'X', b: 'Y', report: {} });
+  a.save();
+  const b = new Sim(previewWorld());
+  const raids = b.log.filter((e) => e.kind === 'raid');
+  assert.equal(raids.length, 3); assert.ok(raids[0].report); assert.equal(raids[1].report, undefined); assert.equal(raids[2].report, undefined);
+  delete globalThis.localStorage;
+});
+test('R7 a future turn clock and finished orders cannot freeze the AI or training', () => {
+  const store = withStore();
+  const { s: a } = fresh(); const p = found(a); a.aiAt = a.clock + 1e9; a.save();
+  const b = new Sim(previewWorld()); assert.ok(b.aiAt <= b.clock);
+  const q = b.player; q.jobs = Array.from({ length: 205 }, (_, i) => ({ id: i + 1, unit: 0, count: 1, readyAt: 0, collected: true }));
+  b.train(0, 3); b.clock += 3 * 3600_000; assert.equal(b.collect(), 3);
+  delete globalThis.localStorage;
+});
+test('R7 computer nations keep raiding each other over a month', () => {
+  let raids = 0;
+  for (let seed = 0; seed < 12; seed++) {
+    const { s } = fresh();
+    for (let day = 0; day < 30; day++) { s.clock += 24 * 3600_000; for (let i = 0; i < 8; i++) s.aiTurn(); }
+    raids += s.log.filter((e) => e.kind === 'raid').length;
+  }
+  assert.ok(raids >= 40, `only ${raids} raids in 12 months`);
+});

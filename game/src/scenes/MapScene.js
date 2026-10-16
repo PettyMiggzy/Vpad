@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
-import { ATTACK, impactMs, attackMs } from '../anim.js';
+import { ATTACK, impactMs, attackMs, flipFor } from '../anim.js';
 import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts, refreshPlanner, dropPlanner, checkStale } from '../sandboxUi.js';
 import { fmtLeft } from '../sim.js';
 import { tidyWars } from '../wars.js';
@@ -294,7 +294,7 @@ export class MapScene extends Phaser.Scene {
     const [gx, gy] = this.yardPoint(n);
     const size = TILE * 1.05;                       // the animation cell; the character fills most of it
     const shadow = this.add.image(gx, gy, 'blob').setScale(size / 128 * 0.42, size / 128 * 0.15).setAlpha(0.85);
-    const spr = this.add.sprite(gx, gy, `${key}_walk`, 0).setOrigin(0.5, 0.97);
+    const spr = this.add.sprite(gx, gy, `${key}_walk`, 0).setOrigin(0.5, 0.97); spr.ch = key;
     spr.setScale(size / 192);
     const w = { n, spr, key, shadow, gx, gy, tx: gx, ty: gy, wait: Math.random() * 2, walking: false };
     this.walkers.push(w);
@@ -359,7 +359,7 @@ export class MapScene extends Phaser.Scene {
         if (!n) return;
         const fx = X + side * TILE * 0.34, fy = Y + TILE * 0.5;
         const sh = this.add.image(fx, fy, 'blob').setScale(0.45, 0.17).setDepth(2000 + fy - 1);
-        const s = this.add.sprite(fx, fy, `${n.emblem}_attack`, 0).setOrigin(0.5, 0.97).setFlipX(side > 0);
+        const s = this.add.sprite(fx, fy, `${n.emblem}_attack`, 0).setOrigin(0.5, 0.97).setFlipX(flipFor(n.emblem, side > 0));
         s.setScale((TILE * 1.2) / 192).setDepth(2000 + fy);
         fighters.push({ s, sh, side, n });
       });
@@ -573,11 +573,55 @@ export class MapScene extends Phaser.Scene {
   }
 
   // ---- play test ----
+  /** the plots the player can take now: pulsing outlines in the nation's colour with the price, so growing is never a guessing game */
+  landOptions() {
+    const sim = this.sim, p = sim.player, out = [], seen = new Set();
+    if (!p) return out;
+    for (const [x, y] of p.plots) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const k = `${x + dx},${y + dy}`;
+      if (seen.has(k)) continue; seen.add(k);
+      if (sim.canExpand(x + dx, y + dy)) out.push([x + dx, y + dy]);
+    }
+    return out;
+  }
+
+  drawLand() {
+    this.landObjs?.forEach((o) => o.destroy());
+    this.landObjs = []; this.landLabels = [];
+    const sim = this.sim, p = sim.player;
+    if (!p) return;
+    const col = p.color, T = TILE;
+    for (const [x, y] of this.landOptions()) {
+      const X = this.px(x), Y = this.px(y), cost = sim.plotCost(x, y), afford = p.usdc >= cost;
+      const g = this.add.graphics().setDepth(6.5);
+      g.fillStyle(col, afford ? 0.16 : 0.07).fillRect(X + 3, Y + 3, T - 6, T - 6);
+      g.lineStyle(3, col, afford ? 0.95 : 0.4).strokeRect(X + 3, Y + 3, T - 6, T - 6);
+      this.tweens.add({ targets: g, alpha: afford ? 0.45 : 0.8, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      const t = this.add.text(X + T / 2, Y + T / 2, `+ $${cost}`, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: afford ? '#ffffff' : '#9a9a8a', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5).setDepth(9400);
+      this.landObjs.push(g, t); this.landLabels.push(t);
+    }
+  }
+
+  /** the Land button: show where the nation can grow and what the next plot costs */
+  focusLand() {
+    const sim = this.sim, p = sim.player;
+    if (!p) return;
+    const opts = this.landOptions();
+    if (!opts.length) { toast(p.plots.length >= 16 ? 'Your nation is full: 16 plots.' : 'No free plot touches your land (water, mountains or other nations all round).'); return; }
+    const c = this.cameras.main, mid = { x: c.scrollX + c.width / 2, y: c.scrollY + c.height / 2 };
+    let best = opts[0], bd = Infinity;
+    for (const o of opts) { const d = Math.hypot(this.px(o[0]) + TILE / 2 - mid.x, this.px(o[1]) + TILE / 2 - mid.y); if (d < bd) { bd = d; best = o; } }
+    c.pan(this.px(best[0]) + TILE / 2, this.px(best[1]) + TILE / 2, 450, 'Sine.easeInOut');
+    c.zoomTo(Math.max(c.zoom, 1.1 * DPR()), 450);
+    toast(`Tap a glowing plot to take it. The next plot costs $${sim.plotCost(best[0], best[1])} and each one doubles. You have $${Math.floor(p.usdc)}.`);
+  }
+
   startSandbox() {
     this.sim = this.world.sim;
     this.sbx = mountHud(this);
     this.lastHud = 0;
     this.seenLog = this.sim.log.length;
+    this.drawLand();
     const p = this.sim.player;
     if (!p) { const me = this; setTimeout(() => { if (me.scene.isActive() && !me.sim.player) openOnboarding(me); }, 200); return; }
     const c = this.cameras.main;
@@ -674,6 +718,7 @@ export class MapScene extends Phaser.Scene {
   update(time, delta) {
     const dt = delta / 1000;
     if (this.sim) this.sandboxTick(delta);
+    if (this.landLabels?.length) { const show = this.cameras.main.zoom > 0.55 * DPR(); for (const l of this.landLabels) if (l.visible !== show) l.setVisible(show); }
     { const c = this.cameras.main; this.viewMid = { x: c.scrollX + c.width / 2, y: c.scrollY + c.height / 2 }; }
     const cam = this.cameras.main;
     // drag inertia
@@ -698,7 +743,7 @@ export class MapScene extends Phaser.Scene {
         walking = true;
         const sp = 26 * dt;
         w.gx += (dx / d) * sp; w.gy += (dy / d) * sp;
-        if (Math.abs(dx) > 1) w.spr.setFlipX(dx < 0);
+        if (Math.abs(dx) > 1) w.spr.setFlipX(flipFor(w.spr.ch, dx < 0));
       } else if (w.wait <= 0) {
         for (let tries = 0; tries < 8; tries++) { const [nx, ny] = this.yardPoint(w.n); if (this.pathOk(w.gx, w.gy, nx, ny)) { w.tx = nx; w.ty = ny; break; } }
         w.wait = 1.5 + Math.random() * 3;

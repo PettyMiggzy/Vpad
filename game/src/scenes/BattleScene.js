@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { powers, UNIT_NAMES, losses } from '../combat.js';
-import { CHARS, ATTACK, FRAME, impactMs, attackMs, makeFighter } from '../anim.js';
+import { CHARS, ATTACK, FRAME, impactMs, attackMs, makeFighter, flipFor } from '../anim.js';
 
 const DPR = () => window.__dpr || 1;
-const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
+const hex = (c) => `#${(Number(c) >>> 0 & 0xffffff).toString(16).padStart(6, '0')}`;
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // A raid, played out. The outcome is the contract's own formula (combat.js); the fight is dressed around it: both armies march in,
 // trade blows (melee units step in, snipers shoot tracers), the loser's bar empties and its army falls.
@@ -120,6 +121,7 @@ export class BattleScene extends Phaser.Scene {
       const s = makeFighter(this, u.ch, x + col - sign * W * 0.4, y, this.size, side === 'R');
       s.home = { x: x + col, y }; s.side = side; s.setDepth(y).setAlpha(0);
       s.shadow = this.add.image(x, y - 2, 'blob').setScale(this.size / 128 * 0.8, this.size / 128 * 0.26).setDepth(y - 1).setAlpha(0);
+      s.team = this.ring(side, x + col - sign * W * 0.4, y, this.size * 0.9);
       this.fighters[side].push(s);
     });
     spread(front, frontX, 0); spread(back, backX, -H * 0.02);
@@ -169,6 +171,7 @@ export class BattleScene extends Phaser.Scene {
       const y = yMin + dy * (r + 0.5) + (Math.random() - 0.5) * dy * 0.3;
       const s = makeFighter(this, CHARS[types[i] === 3 ? 3 : types[i]], x - sign * W * 0.35, y, ms, side === 'R');
       s.home = { x, y }; s.side = side; s.mini = true; s.setDepth(y).setAlpha(0);
+      s.team = this.ring(side, x - sign * W * 0.35, y, ms * 0.9);
       this.mass[side].push(s);
     }
   }
@@ -185,9 +188,18 @@ export class BattleScene extends Phaser.Scene {
       const sp = this.add.image(x - sign * W * 0.4, y, k).setOrigin(0.5, 1);
       sp.setScale(vw / sp.width).setFlipX(side === 'R').setDepth(y).setAlpha(0);
       sp.home = { x, y }; sp.side = side;
+      sp.team = this.ring(side, x - sign * W * 0.4, y, vw * 0.8);
       this.vehicles[side].push(sp);
     });
   }
+
+  /** a glow in the side's colour under a fighter's feet, so the two armies tell apart at a glance (the art itself is all lime) */
+  ring(side, x, y, w) {
+    const c = side === 'L' ? this.att.color : this.def.color;
+    return this.add.image(x, y - 2, 'glow').setTint(c).setBlendMode(Phaser.BlendModes.ADD).setScale(w / 128, w * 0.34 / 128).setDepth(y - 2).setAlpha(0);
+  }
+
+  sync(s) { if (s.shadow) s.shadow.x = s.x; if (s.team) s.team.x = s.x; }
 
   // ---- impact kit: one explosion, one shell, one way to lose soldiers ----
   boom(x, y, k = 1) {
@@ -229,7 +241,7 @@ export class BattleScene extends Phaser.Scene {
     while (dead < want) {
       const live = arr.filter((m) => !m.dead); if (!live.length) break;
       const m = live[Math.floor(Math.random() * live.length)]; m.dead = true; dead++;
-      m.setTint(0x777777); m.stop();
+      m.setTint(0x777777); m.stop(); if (m.team) m.team.setAlpha(0.12);
       this.tweens.add({ targets: m, angle: (side === 'L' ? -1 : 1) * 80, y: m.y + 6 * d, alpha: 0.35, duration: 420, ease: 'Quad.in' });
     }
     const el = document.querySelector(`[data-units="${side}"]`);
@@ -243,9 +255,9 @@ export class BattleScene extends Phaser.Scene {
       <div class="battle-top">
         <button class="back" data-back>‹ Back</button><button class="back fast" data-fast>×1</button>
         <div class="vs">
-          <div class="side l"><b style="color:${hex(a.color)}">${a.name}</b><div class="bar"><i data-hp="L" style="background:${hex(a.color)}"></i></div><small>attack ${this.result.attack.toLocaleString()}</small><small data-units="L">${this.showUnits ? this.start.L.toLocaleString() + ' units' : ''}</small></div>
+          <div class="side l"><b style="color:${hex(a.color)}">${esc(a.name)}</b><div class="bar"><i data-hp="L" style="background:${hex(a.color)}"></i></div><small>attack ${this.result.attack.toLocaleString()}</small><small data-units="L">${this.showUnits ? this.start.L.toLocaleString() + ' units' : ''}</small></div>
           <div class="x">VS</div>
-          <div class="side r"><b style="color:${hex(b.color)}">${b.name}</b><div class="bar"><i data-hp="R" style="background:${hex(b.color)}"></i></div><small>defense ${this.result.defense.toLocaleString()}</small><small data-units="R">${this.showUnits ? this.start.R.toLocaleString() + ' units' : ''}</small></div>
+          <div class="side r"><b style="color:${hex(b.color)}">${esc(b.name)}</b><div class="bar"><i data-hp="R" style="background:${hex(b.color)}"></i></div><small>defense ${this.result.defense.toLocaleString()}</small><small data-units="R">${this.showUnits ? this.start.R.toLocaleString() + ' units' : ''}</small></div>
         </div>
       </div>
       <div class="banner" data-banner></div>
@@ -288,17 +300,20 @@ export class BattleScene extends Phaser.Scene {
     for (const side of ['L', 'R']) this.fighters[side].forEach((s, i) => {
       s.play(`${s.ch}_walk`);
       this.tweens.add({ targets: [s, s.shadow], alpha: 1, duration: 300, delay: i * 80 });
-      this.tweens.add({ targets: s, x: s.home.x, duration: 1300, delay: i * 80, ease: 'Sine.out', onUpdate: () => { s.shadow.x = s.x; }, onComplete: () => { s.stop(); s.setFrame(0); } });
+      this.tweens.add({ targets: s.team, alpha: 0.85, duration: 300, delay: i * 80 });
+      this.tweens.add({ targets: s, x: s.home.x, duration: 1300, delay: i * 80, ease: 'Sine.out', onUpdate: () => { this.sync(s); }, onComplete: () => { s.stop(); s.setFrame(0); } });
     });
     for (const side of ['L', 'R']) {
       this.mass[side].forEach((m, i) => {
         m.play(`${m.ch}_walk`);
         this.tweens.add({ targets: m, alpha: 1, duration: 300, delay: i * 45 });
-        this.tweens.add({ targets: m, x: m.home.x, duration: 1500, delay: i * 45, ease: 'Sine.out', onComplete: () => { m.stop(); m.setFrame(0); } });
+        this.tweens.add({ targets: m.team, alpha: 0.7, duration: 300, delay: i * 45 });
+        this.tweens.add({ targets: m, x: m.home.x, duration: 1500, delay: i * 45, ease: 'Sine.out', onUpdate: () => this.sync(m), onComplete: () => { m.stop(); m.setFrame(0); } });
       });
       this.vehicles[side].forEach((v, i) => {
         this.tweens.add({ targets: v, alpha: 1, duration: 300, delay: i * 200 });
-        this.tweens.add({ targets: v, x: v.home.x, duration: 1500, delay: i * 200, ease: 'Sine.out' });
+        this.tweens.add({ targets: v.team, alpha: 0.8, duration: 300, delay: i * 200 });
+        this.tweens.add({ targets: v, x: v.home.x, duration: 1500, delay: i * 200, ease: 'Sine.out', onUpdate: () => this.sync(v) });
       });
     }
     if (!(await ok(2000))) return;
@@ -343,7 +358,7 @@ export class BattleScene extends Phaser.Scene {
     const dir = side === 'L' ? 1 : -1;
     const melee = !info.ranged;
     const gap = Math.abs(t.home.x - u.home.x);
-    if (melee) this.tweens.add({ targets: u, x: u.home.x + dir * gap * 0.62, duration: 320, ease: 'Quad.out', onUpdate: () => { u.shadow.x = u.x; } });
+    if (melee) this.tweens.add({ targets: u, x: u.home.x + dir * gap * 0.62, duration: 320, ease: 'Quad.out', onUpdate: () => { this.sync(u); } });
     u.setDepth(u.y + 5000);
     u.play(`${u.ch}_attack`);
     await this.wait(impactMs(u.ch) + (melee ? 120 : 0));
@@ -352,7 +367,7 @@ export class BattleScene extends Phaser.Scene {
     this.hit(t, u, dmg, hpLoss, share);
     await this.wait(Math.max(200, attackMs(u.ch) - impactMs(u.ch)));
     if (!this.alive) return;
-    if (melee) this.tweens.add({ targets: u, x: u.home.x, duration: 260, ease: 'Quad.inOut', onUpdate: () => { u.shadow.x = u.x; }, onComplete: () => u.setDepth(u.home.y) });
+    if (melee) this.tweens.add({ targets: u, x: u.home.x, duration: 260, ease: 'Quad.inOut', onUpdate: () => { this.sync(u); }, onComplete: () => u.setDepth(u.home.y) });
     else u.setDepth(u.home.y);
     u.setFrame(0);
   }
@@ -378,7 +393,7 @@ export class BattleScene extends Phaser.Scene {
     t.setTintFill(0xffffff);
     this.time.delayedCall(70, () => t.clearTint());
     const dir = from.side === 'L' ? 1 : -1;
-    this.tweens.add({ targets: t, x: t.x + dir * 14 * d, duration: 80, yoyo: true, ease: 'Quad.out', onUpdate: () => { t.shadow.x = t.x; } });
+    this.tweens.add({ targets: t, x: t.x + dir * 14 * d, duration: 80, yoyo: true, ease: 'Quad.out', onUpdate: () => { this.sync(t); } });
     this.cameras.main.shake(130, 0.004);
     this.dust.emitParticleAt(t.x, t.y - this.size * 0.4, 14);
     this.puff.emitParticleAt(t.x, t.y - 4, 3);
@@ -403,6 +418,7 @@ export class BattleScene extends Phaser.Scene {
       s.setTint(0x777777); if (s.mini) s.stop();
       this.tweens.add({ targets: s, angle: (loser === 'L' ? -1 : 1) * 78, y: s.y + 10 * d, alpha: 0.4, duration: 520, delay: i * 90, ease: 'Quad.in' });
       if (s.shadow) this.tweens.add({ targets: s.shadow, alpha: 0.2, duration: 400, delay: i * 90 });
+      if (s.team) this.tweens.add({ targets: s.team, alpha: 0.12, duration: 400, delay: i * 90 });
     });
     this.mass[winner].filter((m) => !m.dead).forEach((m, i) => { m.stop(); m.setFrame(0); this.tweens.add({ targets: m, y: m.y - 10 * d, duration: 220, yoyo: true, repeat: 2, delay: i * 40, ease: 'Quad.out' }); });
     this.fighters[winner].forEach((s, i) => {
@@ -417,9 +433,9 @@ export class BattleScene extends Phaser.Scene {
     const el = document.querySelector('[data-result]');
     if (!el) return;
     const lossA = this.loss.L, lossB = this.loss.R;
-    const extra = (this.report && !this.report.estimated) ? `<p class="small">${a.name} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${b.name} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toLocaleString(undefined, { maximumFractionDigits: 1 })} from ${b.name}'s war pool goes to ${a.name}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${a.name}'s coin is bought back and burned` : ''}.</p>` : '';
-    el.innerHTML = `<h3 style="color:${hex(winner === 'L' ? a.color : b.color)}">${wName} wins</h3>
-      <p>${r.success ? `${a.name} breaks ${b.name}'s defense` : `${b.name} holds the line against ${a.name}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>${extra}
+    const extra = (this.report && !this.report.estimated) ? `<p class="small">${esc(a.name)} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${esc(b.name)} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toLocaleString(undefined, { maximumFractionDigits: 1 })} from ${esc(b.name)}'s war pool goes to ${esc(a.name)}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${esc(a.name)}'s coin is bought back and burned` : ''}.</p>` : '';
+    el.innerHTML = `<h3 style="color:${hex(winner === 'L' ? a.color : b.color)}">${esc(wName)} wins</h3>
+      <p>${r.success ? `${esc(a.name)} breaks ${esc(b.name)}'s defense` : `${esc(b.name)} holds the line against ${esc(a.name)}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>${extra}
       <div class="row"><button class="btn primary" data-replay>Watch again</button><button class="btn" data-back2>${this.back === 'base' ? 'Back to base' : 'Back to the map'}</button></div>`;
     el.classList.add('on');
     el.querySelector('[data-replay]').addEventListener('click', () => this.scene.restart(this.data0));

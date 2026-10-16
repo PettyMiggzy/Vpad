@@ -35,8 +35,12 @@ export function checkStale(sim) {
   if (!sim.stale && sim.storedRev() > sim.rev) sim.stale = true;
   if (!sim.stale || sim.reloading) return;
   sim.reloading = true;
-  toast('This game was changed in another tab. Reloading it.');
-  setTimeout(() => { try { window.location.reload(); } catch (_) { /* ignore */ } }, 1200);
+  // never reload by itself: two windows would send each other round in circles. This one stops saving and waits to be told.
+  const root = document.createElement('div');
+  root.className = 'modal';
+  root.innerHTML = `<div class="card"><h3>This game was changed in another window</h3><p class="lead">Another tab or window saved this game since this one opened. This window stopped saving so it cannot overwrite that. Reload to carry on from there.</p><div class="row"><button class="btn primary" data-reload>Reload this window</button></div></div>`;
+  document.body.appendChild(root);
+  root.querySelector('[data-reload]').addEventListener('click', () => { try { window.location.reload(); } catch (_) { /* ignore */ } });
 }
 
 export function mountHud(scene) {
@@ -48,7 +52,7 @@ export function mountHud(scene) {
       <span class="chip"><i>coin</i><b data-coin>0</b></span><span class="chip"><i>USDC</i><b data-usdc>0</b></span>
       <span class="chip clk"><b data-clock></b><button data-speed></button></span><span class="chip warn" data-nosave hidden><b>⚠ not saving</b></span></div>
     <div class="sbx-rail">
-      <button data-base><b>🏰</b><span>Base</span><em data-ready hidden></em></button><button data-log><b>📜</b><span>Log</span></button>
+      <button data-base><b>🏰</b><span>Base</span><em data-ready hidden></em></button><button data-log><b>📜</b><span>Log</span></button><button data-land><b>＋</b><span>Land</span></button>
       <button data-rank><b>🏆</b><span>Nations</span></button><button data-menu><b>⚙</b><span>Menu</span></button></div>`;
   ui.append(...wrap.children);
   const q = (s) => ui.querySelector(s);
@@ -60,12 +64,13 @@ export function mountHud(scene) {
     q('[data-speed]').textContent = `${sim.speed}×`;
     const ready = sim.readyJobs().reduce((t, j) => t + j.count, 0);
     const r = q('[data-ready]'); r.hidden = !ready; r.textContent = ready;
-    q('[data-base]').disabled = !p;
+    q('[data-base]').disabled = !p; q('[data-land]').disabled = !p;
     q('[data-nosave]').hidden = !sim.saveFailed;
   };
   q('[data-speed]').addEventListener('click', () => { sim.setSpeed(SPEEDS[(SPEEDS.indexOf(sim.speed) + 1) % SPEEDS.length]); refresh(); });
   q('[data-base]').addEventListener('click', () => { if (sim.player) scene.scene.start('base', { nation: sim.player }); });
   q('[data-log]').addEventListener('click', () => openLog(scene));
+  q('[data-land]').addEventListener('click', () => scene.focusLand());
   q('[data-rank]').addEventListener('click', () => openNations(scene));
   q('[data-menu]').addEventListener('click', () => openMenu(scene));
   refresh();

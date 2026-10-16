@@ -33,6 +33,13 @@ const MAX_ORDERS = 200;                 // uncollected training orders a nation 
 const CAP = 1e12;                       // no saved quantity may exceed this: it keeps every sum inside safe-integer range
 const cap = (v) => fin(v) && v >= 0 && v <= CAP;
 const int = (v) => Number.isInteger(v);
+const validSnap = (n) => !!n && typeof n.name === 'string' && /^[A-Za-z0-9 ]{1,16}$/.test(n.name) && Number.isInteger(n.color) && n.color >= 0 && n.color <= 0xffffff
+  && EMBLEMS.includes(n.emblem) && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0 && u <= CAP)
+  && int(n.wall) && n.wall >= 0 && n.wall <= R.MAX_LEVEL && int(n.tower) && n.tower >= 0 && n.tower <= R.MAX_LEVEL;
+/** a raid report kept in the log must be sound before the battle scene is allowed to replay it: a bad one loses only its replay */
+export const validReport = (r) => !!r && typeof r === 'object' && !!r.result && fin(r.result.attack) && r.result.attack >= 0 && fin(r.result.defense) && r.result.defense >= 0
+  && typeof r.result.success === 'boolean' && Array.isArray(r.send) && r.send.length === 3 && r.send.every((u) => int(u) && u >= 0 && u <= CAP)
+  && (r.loot === undefined || (fin(r.loot) && r.loot >= 0)) && validSnap(r.a) && validSnap(r.b);
 const validNation = (n) => !!n && typeof n.name === 'string' && /^[A-Za-z0-9 ]{1,16}$/.test(n.name) && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.length <= R.MAX_PLOTS && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
   && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0 && u <= CAP) && Array.isArray(n.jobs) && n.jobs.length <= 500
   && n.jobs.every((j) => j && int(j.id) && int(j.unit) && j.unit >= 0 && j.unit <= 3 && int(j.count) && j.count > 0 && j.count <= CAP && fin(j.readyAt) && typeof j.collected === 'boolean')
@@ -58,8 +65,8 @@ export class Sim {
     this.rev = this.storedRev();
     const s = this.read();
     if (s) {
-      this.clock = s.clock; this.speed = s.speed; this.log = s.log.filter((e) => e && typeof e === 'object' && typeof e.kind === 'string' && fin(e.t)); this.notes = Array.isArray(s.notes) ? s.notes.filter((x) => x && typeof x.text === 'string') : []; this.faucetAt = s.faucetAt || {};
-      this.nations = s.nations; this.playerName = s.playerName; this.aiAt = Math.max(s.aiAt || this.clock, this.clock - 8 * 3 * H);   // an old or tampered turn clock cannot make every tick run catch-up turns
+      this.clock = s.clock; this.speed = s.speed; this.log = s.log.filter((e) => e && typeof e === 'object' && typeof e.kind === 'string' && fin(e.t)).map((e) => (e.report !== undefined && !validReport(e.report) ? { ...e, report: undefined } : e)); this.notes = Array.isArray(s.notes) ? s.notes.filter((x) => x && typeof x.text === 'string') : []; this.faucetAt = s.faucetAt || {};
+      this.nations = s.nations; this.playerName = s.playerName; this.aiAt = Math.min(this.clock, Math.max(s.aiAt || this.clock, this.clock - 8 * 3 * H));   // an old or tampered turn clock cannot make every tick run catch-up turns
     } else {
       this.clock = 1000 * H; this.speed = 60; this.log = []; this.notes = []; this.faucetAt = {}; this.playerName = null; this.aiAt = this.clock;
       this.nations = world.nations.map((n, i) => this.makeAI(n, i));
@@ -205,6 +212,7 @@ export class Sim {
   need(cond, msg) { if (!cond) throw new Error(msg); }
   train(unit, count) {
     const p = this.player; this.need(p, 'no nation');
+    p.jobs = p.jobs.filter((j) => !j.collected);   // collected orders are history, they never count against the limit
     this.need(int(count) && count > 0 && int(unit) && unit >= 0 && unit <= 3, 'bad order');
     this.need(p.jobs.length < MAX_ORDERS, 'too many training orders waiting: collect your finished units first (or train bigger batches)');
     this.need(p.trained + count <= Math.floor(p.coin / this.slot()), `holding too small: you can train ${Math.max(0, Math.floor(p.coin / this.slot()) - p.trained)} more (hold more coin)`);
@@ -221,6 +229,7 @@ export class Sim {
   readyJobs() { const p = this.player; return p ? p.jobs.filter((j) => !j.collected && this.clock >= j.readyAt) : []; }
   collect() {
     const p = this.player; this.need(p, 'no nation');
+    p.jobs = p.jobs.filter((j) => !j.collected);   // finished orders already collected never block a new collection
     const jobs = this.readyJobs(); this.need(jobs.length, 'nothing is ready yet');
     let total = 0;
     for (const j of jobs) { j.collected = true; p.units[j.unit] += j.count; total += j.count; }
@@ -358,7 +367,7 @@ export class Sim {
       if (n.isPlayer) continue;
       // economy: a batch of units now and then, a defense level now and then, a little war chest income
       if (Math.random() < 0.7) { const t = Math.random() < 0.4 ? ['bruiser', 'sniper', 'trickster', 'defender'].indexOf(n.emblem) : rnd(4); n.units[t] += 3 + rnd(8); }
-      if (Math.random() < 0.12) { if (Math.random() < 0.5 && n.wall < 4) n.wall++; else if (n.tower < 4) n.tower++; }
+      if (n.aggression < 0.55 && Math.random() < 0.12) { if (Math.random() < 0.5 && n.wall < 4) n.wall++; else if (n.tower < 4) n.tower++; }   // the aggressive nations spend on armies, not on walls
       n.pool += 5 + rnd(25);
       const total = n.units[0] + n.units[1] + n.units[2] + n.units[3];
       if (total > 700) for (let i = 0; i < 4; i++) n.units[i] = Math.floor(n.units[i] * 0.9);
@@ -370,10 +379,10 @@ export class Sim {
       const targets = this.nations.filter((d) => d !== n && this.protectedLeft(d) === 0 && this.approach(n, d).k <= R.REACH);
       if (!targets.length) continue;
       const d = (p && targets.includes(p) && Math.random() < 0.6) ? p : targets[rnd(targets.length)];
-      const send = [Math.floor(n.units[0] * 0.8), Math.floor(n.units[1] * 0.8), Math.floor(n.units[2] * 0.8)];
+      const send = [n.units[0], n.units[1], n.units[2]];
       if (send[0] + send[1] + send[2] < 5) continue;
       const pl = this.plan(n, d, send);
-      if (pl.attack < pl.defense * 0.85) continue;              // only attack when it looks winnable
+      if (pl.attack < pl.defense * 0.6) continue;              // only attack when it looks winnable
       const why = pl.why.filter((w) => !/command a raid/.test(w));
       if (why.length) continue;
       this.raid(n, d, send);

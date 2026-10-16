@@ -1,5 +1,9 @@
 // The characters' animation sheets (generated clips, cut out and packed by the art pipeline): per character a walk loop and an attack.
 // Each sheet is 8 columns of 192-pixel cells; the feet are at the bottom centre of a cell, the character faces right.
+// the defender's art holds its shield in front on the left, so it faces left; the other three face right
+export const NATIVE_LEFT = { defender: true };
+/** flipX for a character that should face left (`faceLeft`) or right, whichever way its art was drawn */
+export const flipFor = (ch, faceLeft) => (NATIVE_LEFT[ch] ? !faceLeft : !!faceLeft);
 export const CHARS = ['bruiser', 'sniper', 'trickster', 'defender'];
 export const FRAME = 192;
 // the attack clip's useful part: first frame of the wind-up, the frame where the blow lands, the last frame of the recovery
@@ -30,7 +34,7 @@ export function makeAnims(scene) {
 /** a character sprite standing at (x, y) (feet), `size` is the cell's on-screen width; the stance is the attack clip's first frame */
 export function makeFighter(scene, ch, x, y, size, flip = false) {
   const s = scene.add.sprite(x, y, `${ch}_attack`, 0).setOrigin(0.5, 1);
-  s.setScale(size / FRAME).setFlipX(flip);
+  s.setScale(size / FRAME).setFlipX(flipFor(ch, flip));
   s.ch = ch;
   return s;
 }
