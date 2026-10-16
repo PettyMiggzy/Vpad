@@ -34,12 +34,12 @@ const CAP = 1e12;                       // no saved quantity may exceed this: it
 const cap = (v) => fin(v) && v >= 0 && v <= CAP;
 const int = (v) => Number.isInteger(v);
 const validSnap = (n) => !!n && typeof n.name === 'string' && /^[A-Za-z0-9 ]{1,16}$/.test(n.name) && Number.isInteger(n.color) && n.color >= 0 && n.color <= 0xffffff
-  && EMBLEMS.includes(n.emblem) && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0 && u <= CAP)
+  && EMBLEMS.includes(n.emblem) && Array.isArray(n.units) && (n.units.length === 3 || n.units.length === 4) && n.units.every((u) => int(u) && u >= 0 && u <= CAP)   // the attacker's snapshot lists the three types it sent
   && int(n.wall) && n.wall >= 0 && n.wall <= R.MAX_LEVEL && int(n.tower) && n.tower >= 0 && n.tower <= R.MAX_LEVEL;
 /** a raid report kept in the log must be sound before the battle scene is allowed to replay it: a bad one loses only its replay */
 export const validReport = (r) => !!r && typeof r === 'object' && !!r.result && fin(r.result.attack) && r.result.attack >= 0 && fin(r.result.defense) && r.result.defense >= 0
   && typeof r.result.success === 'boolean' && Array.isArray(r.send) && r.send.length === 3 && r.send.every((u) => int(u) && u >= 0 && u <= CAP)
-  && (r.loot === undefined || (fin(r.loot) && r.loot >= 0)) && validSnap(r.a) && validSnap(r.b);
+  && (r.loot === undefined || (fin(r.loot) && r.loot >= 0)) && (r.buyback === undefined || (fin(r.buyback) && r.buyback >= 0)) && validSnap(r.a) && validSnap(r.b);
 const validNation = (n) => !!n && typeof n.name === 'string' && /^[A-Za-z0-9 ]{1,16}$/.test(n.name) && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.length <= R.MAX_PLOTS && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
   && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0 && u <= CAP) && Array.isArray(n.jobs) && n.jobs.length <= 500
   && n.jobs.every((j) => j && int(j.id) && int(j.unit) && j.unit >= 0 && j.unit <= 3 && int(j.count) && j.count > 0 && j.count <= CAP && fin(j.readyAt) && typeof j.collected === 'boolean')
@@ -383,7 +383,7 @@ export class Sim {
       const send = [n.units[0], n.units[1], n.units[2]];
       if (send[0] + send[1] + send[2] < 5) continue;
       const pl = this.plan(n, d, send);
-      if (pl.attack < pl.defense * 0.6) continue;              // only attack when it looks winnable
+      if (pl.attack < pl.defense * (d === p ? 1 : 0.6)) continue;   // against the player a computer nation only strikes when it would win: a failed raid still costs the defender units              // only attack when it looks winnable
       const why = pl.why.filter((w) => !/command a raid/.test(w));
       if (why.length) continue;
       this.raid(n, d, send);

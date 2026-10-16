@@ -419,3 +419,26 @@ test('R7 a window still on the founding screen never takes the save from the one
   assert.equal(a.stale, undefined); assert.ok(new Sim(previewWorld()).player);
   delete globalThis.localStorage;
 });
+
+test('R8-M1 a raid the engine itself produced keeps its replay across a save and a reload', () => {
+  const store = withStore();
+  const { s: a } = fresh(); const p = found(a);
+  p.protectedUntil = 0; p.nextRaidAt = 0; p.units = [100, 100, 100, 0];
+  const foe = a.nations.find((n) => !n.isPlayer && a.approach(p, n).k <= 6); foe.protectedUntil = 0; foe.nextRaidAt = 0;
+  a.raid(p, foe, [100, 100, 100]); a.save();
+  const b = new Sim(previewWorld());
+  const raids = b.log.filter((e) => e.kind === 'raid' && e.a === p.name);
+  assert.equal(raids.length, 1); assert.ok(raids[0].report, 'the replay survived the reload');
+  delete globalThis.localStorage;
+});
+
+test('R8 a computer nation only strikes the player when it would win (a failed raid still costs the defender units)', () => {
+  let onPlayer = 0, failed = 0;
+  for (let seed = 0; seed < 10; seed++) {
+    const { s } = fresh(); const p = found(s); p.units = [60 + seed * 20, 40, 40, 0]; p.protectedUntil = 0;
+    for (let day = 0; day < 30; day++) { s.clock += 24 * 3600_000; for (let i = 0; i < 8; i++) s.aiTurn(); }
+    for (const e of s.log) if (e.kind === 'raid' && e.b === p.name) { onPlayer++; if (!e.success) failed++; }
+  }
+  assert.ok(onPlayer > 0, 'the computer nations do raid the player');
+  assert.equal(failed, 0, `${failed} of ${onPlayer} raids on the player were doomed`);
+});
