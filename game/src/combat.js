@@ -28,3 +28,12 @@ export function powers(send, home, wall = 0, tower = 0, onPass = false, attacker
   defense = Math.trunc((defense * (BPS + defenderActivity)) / BPS);
   return { attack, defense, success: attack > defense };
 }
+
+/** the units each side loses in a raid, by the contract's rule (per unit type, rounded down): the attacker loses a tenth of what it sent when it wins and half when it fails; the defender three tenths when it falls and a tenth when it holds */
+export function losses(send, defUnits, success) {
+  const sum = (arr, f) => arr.reduce((t, v) => t + f(v), 0);
+  return {
+    L: sum(send, (v) => (success ? Math.floor(v / 10) : Math.floor(v / 2))),
+    R: sum(defUnits, (v) => (success ? Math.floor((v * 3) / 10) : Math.floor(v / 10))),
+  };
+}

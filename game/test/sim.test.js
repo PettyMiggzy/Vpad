@@ -360,3 +360,24 @@ test('R5-L1 a save with markup in a nation name is refused', () => {
   const b = new Sim(previewWorld()); assert.ok(b.nations.every((n) => /^[A-Za-z0-9 ]+$/.test(n.name))); assert.equal(b.rejectedSave, true);
   delete globalThis.localStorage;
 });
+
+import { losses } from '../src/combat.js';
+test('R6-M1 the battle scene\'s loss numbers are exactly what the engine deducts', () => {
+  let ran = 0;
+  for (let trial = 0; trial < 60; trial++) {
+    const { s } = fresh(); const p = found(s);
+    p.protectedUntil = 0; p.nextRaidAt = 0;
+    const foe = s.nations.find((n) => !n.isPlayer && s.approach(p, n) && s.approach(p, n).k <= 6) || s.nations.find((n) => !n.isPlayer);
+    if (!s.approach(p, foe) || s.approach(p, foe).k > 6) continue;
+    foe.protectedUntil = 0; foe.nextRaidAt = 0;
+    p.units = [1 + trial * 7 % 40, 1 + trial * 3 % 25, 1 + trial * 11 % 30, 0];
+    foe.units = [trial * 5 % 90, trial * 13 % 60, trial * 7 % 40, trial * 3 % 70];
+    const send = [p.units[0], p.units[1], p.units[2]]; if (send.reduce((t, v) => t + v, 0) < 10) continue;
+    const a0 = p.units.slice(), d0 = foe.units.slice();
+    let rep; try { rep = s.raid(p, foe, send); } catch (_) { continue; }
+    const mine = a0.slice(0, 3).reduce((t, v, i) => t + v - p.units[i], 0), theirs = d0.reduce((t, v, i) => t + v - foe.units[i], 0);
+    const l = losses(send, d0, rep.result.success);
+    assert.equal(l.L, mine); assert.equal(l.R, theirs); ran++;
+  }
+  assert.ok(ran >= 10, `ran ${ran} raids`);
+});

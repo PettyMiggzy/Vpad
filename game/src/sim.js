@@ -80,8 +80,7 @@ export class Sim {
       if (validSave(s) && this.plotsOk(s) && s.seed === this.seedPrint()) return s;
       if (s) {   // a save that does not make sense is never trusted, but it is kept aside (one copy) instead of destroyed
         this.rejectedSave = true;
-        try { localStorage.setItem(KEY + '.rejected', raw); } catch (_) { /* no room: it is dropped */ }
-        try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ }
+        try { localStorage.setItem(KEY + '.rejected', raw); localStorage.removeItem(KEY); } catch (_) { /* no room for the copy: the save stays where it is, untrusted and unused, and the next save replaces it */ }
       }
       return null;
     } catch (_) {   // not even valid JSON: kept aside too
@@ -90,7 +89,7 @@ export class Sim {
     }
   }
   /** the save's revision, kept beside it: a tab holding an older one must not overwrite what another tab has saved since */
-  storedRev() { try { const v = Number(localStorage.getItem(KEY + '.rev')); return Number.isFinite(v) && v >= 0 ? v : 0; } catch (_) { return 0; } }
+  storedRev() { try { const v = Number(localStorage.getItem(KEY + '.rev')); return Number.isSafeInteger(v) && v >= 0 && v < 1e12 ? v : 0; } catch (_) { return 0; } }
   seedPrint() { return `${this.world.seed}:${this.radius}`; }
   // plots must be real buildable land inside the world, and no two nations may share one
   plotsOk(s) {
@@ -108,8 +107,8 @@ export class Sim {
     try {
       const cur = this.storedRev();
       if (cur > this.rev) { this.stale = true; return false; }   // another tab saved since this one loaded: this one is out of date and must reload, not overwrite
-      this.rev = cur + 1; localStorage.setItem(KEY + '.rev', String(this.rev));
       localStorage.setItem(KEY, JSON.stringify({ v: 2, rules: RULES_PRINT, seed: this.seedPrint(), clock: this.clock, speed: this.speed, log: this.log.slice(-60), notes: this.notes, faucetAt: this.faucetAt, nations: this.nations, playerName: this.playerName, aiAt: this.aiAt }));
+      this.rev = cur + 1; try { localStorage.setItem(KEY + '.rev', String(this.rev)); } catch (_) { /* the game itself was saved */ }
       this.saveFailed = false;
       return true;
     } catch (_) { this.saveFailed = true; return false; }       // storage full or blocked: the game still runs, but the caller can say so

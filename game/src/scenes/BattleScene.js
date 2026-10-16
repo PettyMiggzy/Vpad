@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { powers, UNIT_NAMES } from '../combat.js';
+import { powers, UNIT_NAMES, losses } from '../combat.js';
 import { CHARS, ATTACK, FRAME, impactMs, attackMs, makeFighter } from '../anim.js';
 
 const DPR = () => window.__dpr || 1;
@@ -77,6 +77,7 @@ export class BattleScene extends Phaser.Scene {
     const won = this.result.success;
     this.lossFrac = { L: won ? 0.1 : 0.5, R: won ? 0.3 : 0.1 };
     this.start = { L: armyA.units.reduce((t, v) => t + v, 0), R: b.units.reduce((t, v) => t + v, 0) };
+    this.loss = losses(this.send, b.units, won);
     this.showUnits = !!this.report && !this.report.estimated;
     this.fortress = this.addFortress();
     this.placeArmy('L', armyA, [0, 1, 2]);
@@ -230,7 +231,7 @@ export class BattleScene extends Phaser.Scene {
       this.tweens.add({ targets: m, angle: (side === 'L' ? -1 : 1) * 80, y: m.y + 6 * d, alpha: 0.35, duration: 420, ease: 'Quad.in' });
     }
     const el = document.querySelector(`[data-units="${side}"]`);
-    if (el && this.showUnits) el.textContent = `${(this.start[side] - Math.round(this.start[side] * this.lossFrac[side] * this.prog[side])).toLocaleString()} units`;
+    if (el && this.showUnits) el.textContent = `${(this.start[side] - Math.round(this.loss[side] * this.prog[side])).toLocaleString()} units`;
   }
 
   hud() {
@@ -389,6 +390,7 @@ export class BattleScene extends Phaser.Scene {
   async finish(winner, loser) {
     const d = DPR();
     if (this.chatter) this.chatter.remove();
+    this.hurt('L', 1); this.hurt('R', 1);   // the counters end on exactly what the result card says
     // a won raid breaks the gate and walls, a failed one leaves them standing
     if (winner === 'L') {
       const f = this.fortress;
@@ -412,8 +414,7 @@ export class BattleScene extends Phaser.Scene {
     if (!(await this.wait(900))) return;
     const el = document.querySelector('[data-result]');
     if (!el) return;
-    const lossA = this.send.reduce((t, v) => t + (r.success ? Math.floor(v / 10) : Math.floor(v / 2)), 0);
-    const lossB = b.units.reduce((t, v) => t + (r.success ? Math.floor((v * 3) / 10) : Math.floor(v / 10)), 0);
+    const lossA = this.loss.L, lossB = this.loss.R;
     const extra = (this.report && !this.report.estimated) ? `<p class="small">${a.name} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${b.name} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toLocaleString(undefined, { maximumFractionDigits: 1 })} from ${b.name}'s war pool goes to ${a.name}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${a.name}'s coin is bought back and burned` : ''}.</p>` : '';
     el.innerHTML = `<h3 style="color:${hex(winner === 'L' ? a.color : b.color)}">${wName} wins</h3>
       <p>${r.success ? `${a.name} breaks ${b.name}'s defense` : `${b.name} holds the line against ${a.name}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>${extra}

@@ -122,7 +122,7 @@ export function openOnboarding(scene) {
   root.innerHTML = `
     <div class="card big">
       <img class="ttl" src="art/title/badlands.png" alt="Vyre Bad Lands" />
-      ${sim.rejectedSave ? '<p class="lead" style="color:#ffb347">Your earlier game was saved by another version of the game, so it could not be loaded. A copy is kept in this browser. Found a new nation to start again.</p>' : ''}
+      ${sim.rejectedSave ? '<p class="lead" style="color:#ffb347">Your earlier game was saved by another version of the game, so it could not be loaded. A copy is kept in this browser when there is room. Found a new nation to start again.</p>' : ''}
       <p class="lead">Found a nation, train an army, build defenses and raid your neighbours. This is a play test with play money: nothing here touches a wallet or a chain.</p>
       <label class="lbl">Nation name</label>
       <input data-name maxlength="12" placeholder="e.g. WARHEADZ" autocomplete="off" />
