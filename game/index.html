@@ -100,12 +100,12 @@
     .battle-result p { margin: 0 0 14px; color: #cfe0c4; font-size: 14px; line-height: 1.5; } .battle-result b { color: #fff; }
     @media (min-width: 900px) { .battle-result { left: auto; right: 18px; bottom: 18px; margin: 0; border-radius: 22px; border-bottom: 1px solid var(--line); width: 420px; } }
 
-    .sbx-bar { position: fixed; left: 12px; top: calc(62px + var(--safe-t)); display: flex; gap: 5px; flex-wrap: wrap; max-width: calc(100vw - 76px); pointer-events: none; }
+    .sbx-bar { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); top: calc(62px + var(--safe-t)); display: flex; gap: 5px; flex-wrap: wrap; max-width: calc(100vw - 76px); pointer-events: none; }
     .sbx-bar .chip, .res .chip { display: inline-flex; align-items: center; gap: 5px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; font-size: 12px; pointer-events: auto; white-space: nowrap; }
     .chip[hidden] { display: none; } .chip.warn { border-color: #ff5a3c; } .chip.warn b { color: #ff8a70; }
     .chip i { font-style: normal; color: var(--muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; } .chip b { color: #fff; }
     .chip.clk button { border: 1px solid var(--lime); background: rgba(182,255,0,.12); color: var(--lime); border-radius: 999px; font-weight: 800; font-size: 11px; padding: 3px 8px; min-height: 26px; }
-    .sbx-rail { position: fixed; left: 12px; top: calc(128px + var(--safe-t)); display: flex; flex-direction: column; gap: 8px; }
+    .sbx-rail { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); top: calc(128px + var(--safe-t)); display: flex; flex-direction: column; gap: 8px; }
     .sbx-rail button { position: relative; width: 56px; height: 56px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; backdrop-filter: blur(6px); }
     .sbx-rail b { font-size: 20px; line-height: 1; } .sbx-rail span { font-size: 10px; color: var(--muted); } .sbx-rail button[disabled] { opacity: .4; }
     .sbx-rail em { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--lime); color: #071000; font-style: normal; font-weight: 900; font-size: 12px; display: grid; place-items: center; padding: 0 5px; }
@@ -127,7 +127,7 @@
     .loglist { max-height: 46vh; overflow-y: auto; margin-bottom: 12px; touch-action: pan-y; }
     .logrow { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.4; } .logrow span { flex: 1; } .logrow small { color: var(--muted); font-size: 11px; white-space: nowrap; } .logrow.raid span { color: #ffc2c2; }
     .nrow { display: flex; gap: 10px; align-items: center; padding: 10px 6px; border-bottom: 1px solid var(--line); border-radius: 8px; } .nrow.me { background: rgba(182,255,0,.08); } .nrow .nm { font-weight: 800; flex: 1; } .nrow small { color: var(--muted); } .nrow b { color: var(--muted); width: 18px; }
-    textarea { width: 100%; min-height: 84px; border-radius: 12px; background: #0d160a; color: #fff; border: 1px solid var(--line); font-size: 14px; padding: 10px; margin-bottom: 8px; font-family: inherit; }
+    textarea { width: 100%; min-height: 84px; border-radius: 12px; background: #0d160a; color: #fff; border: 1px solid var(--line); font-size: 16px; padding: 10px; margin-bottom: 8px; font-family: inherit; }
     .seg .btn small { font-weight: 500; color: inherit; opacity: .7; } .seg .btn { line-height: 1.2; padding: 6px; }
     .res { display: flex; gap: 4px; padding: 10px 12px 0; flex-wrap: nowrap; } .res .chip { padding: 4px 8px; font-size: 12px; gap: 4px; flex: 1; justify-content: center; white-space: nowrap; } .res .chip i { font-size: 9px; }
     .card .btn.small { min-width: 58px; padding: 0 8px; font-size: 14px; } .card img { width: 52px; height: 46px; }

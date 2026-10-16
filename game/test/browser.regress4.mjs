@@ -68,5 +68,15 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   check('no page errors (play)', errs.length === 0, errs.slice(0, 2).join(' | '));
   await ctx.close();
 }
+
+{ // R5: a rejected old save is explained inside the onboarding card, not in a toast the modal would cover
+  const ctx = await browser.newContext(phone); await ctx.addInitScript(() => { try { localStorage.setItem('badlands.sandbox.v2', JSON.stringify({ v: 2, rules: 'old', nations: [] })); } catch (_) { /* ignore */ } });
+  const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(String(e)));
+  await p.goto(`${BASE}?play`); await p.waitForFunction(() => !document.getElementById('boot'), null, { timeout: 120000 });
+  await p.waitForSelector('[data-name]', { timeout: 90000 });
+  const note = await p.evaluate(() => document.querySelector('.card.big')?.textContent || '');
+  check('R5-M2 a rejected save is explained on the founding card', /earlier game/.test(note), note.slice(0, 60));
+  await ctx.close();
+}
 await browser.close();
 process.exit(results.every(Boolean) ? 0 : 1);

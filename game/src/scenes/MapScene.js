@@ -570,7 +570,6 @@ export class MapScene extends Phaser.Scene {
     this.sbx = mountHud(this);
     this.lastHud = 0;
     this.seenLog = this.sim.log.length;
-    if (this.sim.rejectedSave) { this.sim.rejectedSave = false; toast('Your old save was from another version, so a fresh game started.'); }
     const p = this.sim.player;
     if (!p) { const me = this; setTimeout(() => { if (me.scene.isActive() && !me.sim.player) openOnboarding(me); }, 200); return; }
     const c = this.cameras.main;
