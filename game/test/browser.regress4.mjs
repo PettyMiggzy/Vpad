@@ -45,6 +45,11 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
   const rot = await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const c = s.cameras.main; c.preRender(); const n = s.world.nations[0]; const wx = s.px(n.plots[0][0]) + 28, wy = s.px(n.plots[0][1]) + 28; return { sx: (wx - c.worldView.x) * c.zoom, sy: (wy - c.worldView.y) * c.zoom, w: c.width, h: c.height }; });
   check('R5-M3 after turning the phone the nation is still on screen', rot.sx > 0 && rot.sx < rot.w && rot.sy > 0 && rot.sy < rot.h, JSON.stringify(rot));
   await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(1500);
+  // R6: the fortress at its fullest (wall 3, tower 2) is entirely on screen
+  await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const [a, b] = s.world.nations; const snap = (n, u, w, t) => ({ name: n.name, color: n.color, emblem: n.emblem, units: u, wall: w, tower: t }); s.scene.start('battle', { report: { estimated: true, result: { attack: 100, defense: 900, success: false }, send: [5, 5, 5], loot: 0, a: snap(a, [5, 5, 5, 0], 0, 0), b: snap(b, [20, 20, 20, 20], 3, 2) }, back: 'map' }); });
+  await p.waitForTimeout(2500);
+  const fo = await p.evaluate(() => { const s = window.__game.scene.getScene('battle'); const W = s.scale.width; return s.fortress.parts.filter((x) => x.texture.key !== 'v_banner').map((x) => { const b = x.getBounds(); return { k: x.texture.key, l: Math.round(b.x), r: Math.round(b.right), W }; }); });
+  check('R6 the fortress at wall 3 and tower 2 is wholly on screen', fo.length >= 6 && fo.every((x) => x.l >= -2 && x.r <= x.W + 4), JSON.stringify(fo.filter((x) => x.l < -2 || x.r > x.W + 4)));
   // R6-M1: the unit counters end on exactly what the result card says (3 each sent and a win: the attacker loses none)
   await p.evaluate(() => { const s = window.__game.scene.getScene('map'); const [a, b] = s.world.nations; const snap = (n, u) => ({ name: n.name, color: n.color, emblem: n.emblem, units: u, wall: 1, tower: 1 }); s.scene.start('battle', { report: { result: { attack: 900, defense: 100, success: true }, send: [3, 3, 3], loot: 0, a: snap(a, [3, 3, 3, 0]), b: snap(b, [4, 0, 0, 0]) }, back: 'map' }); });
   await p.waitForTimeout(1500); await p.click('[data-fast]'); await p.click('[data-fast]');

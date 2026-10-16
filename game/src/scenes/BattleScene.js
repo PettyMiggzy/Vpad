@@ -116,8 +116,9 @@ export class BattleScene extends Phaser.Scene {
     const top = H * (this.portrait ? 0.62 : 0.6), bottom = H * (this.portrait ? 0.92 : 0.94);
     const spread = (arr, x, off) => arr.forEach((u, i) => {
       const y = arr.length === 1 ? (top + bottom) / 2 + off : top + (bottom - top) * (i / (arr.length - 1)) + off;
-      const s = makeFighter(this, u.ch, x - sign * W * 0.4, y, this.size, side === 'R');
-      s.home = { x, y }; s.side = side; s.setDepth(y).setAlpha(0);
+      const col = !this.portrait && i % 2 ? sign * -W * 0.07 : 0;
+      const s = makeFighter(this, u.ch, x + col - sign * W * 0.4, y, this.size, side === 'R');
+      s.home = { x: x + col, y }; s.side = side; s.setDepth(y).setAlpha(0);
       s.shadow = this.add.image(x, y - 2, 'blob').setScale(this.size / 128 * 0.8, this.size / 128 * 0.26).setDepth(y - 1).setAlpha(0);
       this.fighters[side].push(s);
     });
@@ -129,15 +130,16 @@ export class BattleScene extends Phaser.Scene {
   // ---- the set dressing: a fortress for the defender, a massed formation behind each side's champions, vehicles on both sides ----
   addFortress() {
     const W = this.scale.width, H = this.scale.height, b = this.def;
-    const fw = Math.min(W * (this.portrait ? 0.2 : 0.1), H * 0.115);
-    const base = H * 0.5, gx = W - fw * 0.62, parts = [];
+    const fw = Math.min(W * (this.portrait ? 0.2 : 0.12), H * (this.portrait ? 0.115 : 0.2));
+    const base = H * 0.5, gx = W - fw * 1.45, parts = [];
     const put = (key, x, w, depthAdd = 0) => { const sp = this.add.image(x, base, key).setOrigin(0.5, 1); sp.setScale(w / sp.width).setDepth(base + depthAdd); parts.push(sp); return sp; };
     const nw = Math.min(3, Math.max(0, b.wall)), nt = Math.min(2, Math.max(0, b.tower));
-    if (nw >= 2) put('b_wall', gx - fw * 1.62, fw * 1.05); if (nw >= 1) put('b_wall', gx - fw * 0.84, fw * 1.05);
-    if (nw >= 3) put('b_wall', gx + fw * 0.84, fw * 1.05);
+    // everything stays on screen: the gate, one wall to its left, a second further left, a third on its right; towers at the corners
+    if (nw >= 2) put('b_wall', gx - fw * 1.9, fw * 1.05); if (nw >= 1) put('b_wall', gx - fw * 0.95, fw * 1.05);
+    if (nw >= 3) put('b_wall', gx + fw * 0.95, fw * 1.05);
     put('b_gate', gx, fw * 1.15, 2);
-    if (nt >= 1) put('b_tower', gx - fw * 1.0 - (nw >= 2 ? fw * 0.8 : 0), fw * 0.5, 3);
-    if (nt >= 2) put('b_tower', Math.min(W - fw * 0.15, gx + fw * 0.62), fw * 0.5, 3);
+    if (nt >= 1) put('b_tower', gx - fw * (nw >= 2 ? 2.5 : 1.45), fw * 0.5, 3);
+    if (nt >= 2) put('b_tower', W - fw * 0.28, fw * 0.5, 3);
     const flag = this.add.image(gx - fw * 0.35, base + H * 0.05, 'v_banner').setOrigin(0.5, 1);
     flag.setScale(Math.min(W * 0.1, H * 0.17) / flag.width).setFlipX(true).setDepth(base + H * 0.05);
     parts.push(flag);
@@ -150,7 +152,7 @@ export class BattleScene extends Phaser.Scene {
   addMass(side, n) {
     const W = this.scale.width, H = this.scale.height, sign = side === 'L' ? 1 : -1;
     const total = n.units.reduce((t, v) => t + v, 0);
-    const count = total <= 0 ? 4 : Phaser.Math.Clamp(Math.round(Math.sqrt(total) * 1.3), 6, 24);
+    const count = total <= 0 ? 0 : Phaser.Math.Clamp(Math.round(Math.sqrt(total) * 1.3), 6, 24);
     const order = [0, 2, 3, 1], sum = order.reduce((t, k) => t + (n.units[k] || 0), 0) || 1;
     let types = [];
     for (const k of order) types.push(...Array(Math.round(count * (n.units[k] || 0) / sum)).fill(k));
@@ -204,7 +206,7 @@ export class BattleScene extends Phaser.Scene {
     return new Promise((res) => this.time.delayedCall(delay, () => {
       if (!this.alive) return res();
       const dir = v.side === 'L' ? 1 : -1, d = DPR();
-      this.tweens.add({ targets: v, x: v.x - dir * 7 * d, duration: 90, yoyo: true, ease: 'Quad.out' });
+      this.tweens.add({ targets: v, x: v.home.x - dir * 7 * d, duration: 90, ease: 'Quad.out', onComplete: () => this.tweens.add({ targets: v, x: v.home.x, duration: 90 }) });
       const mx = v.x + dir * v.displayWidth * 0.46, my = v.y - v.displayHeight * 0.62;
       this.dust.emitParticleAt(mx, my, 8);
       const shell = this.add.circle(mx, my, 4 * d, 0xffe066).setDepth(99993), o = { t: 0 };
