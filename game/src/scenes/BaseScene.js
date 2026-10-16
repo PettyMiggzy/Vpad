@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { powers, UNIT_NAMES } from '../combat.js';
+import { fmtLeft, fmtCoin, UNIT as UNITN, R as RULES } from '../sim.js';
+import { plannerHtml, bindPlanner, toast, gameClock } from '../sandboxUi.js';
 import { train, collectReady, buildDefense, readNation, buyShield, speedUpLatest, raidNation, expandNation } from '../chain.js';
 
 const DPR = () => window.__dpr || 1;
@@ -15,6 +17,7 @@ export class BaseScene extends Phaser.Scene {
   create() {
     this.world = this.registry.get('world');
     this.live = this.world.live && !!this.nation.token;
+    this.sbxPanel = null; this.sim = null;
     this.panelOpen = true;
     this.build();
     this.scale.on('resize', this.layout, this);
@@ -57,7 +60,7 @@ export class BaseScene extends Phaser.Scene {
     this.wallTag = this.tag('');
     this.dust = this.add.particles(0, 0, 'spark', { speed: { min: 20, max: 70 }, lifespan: 420, scale: { start: 0.9, end: 0 }, alpha: { start: 0.6, end: 0 }, tint: 0xb9a98a, emitting: false });
     this.embers = this.add.particles(0, 0, 'spark', { x: { min: 0, max: this.scale.width }, y: this.scale.height, speedY: { min: -40, max: -14 }, speedX: { min: -8, max: 14 }, scale: { start: 0.35, end: 0 }, alpha: { start: 0.6, end: 0 }, lifespan: 4200, frequency: 120, tint: [0xb6ff00, 0xffe066], blendMode: 'ADD' });
-    this.panel();
+    if (this.world.sandbox) this.panelSandbox(); else this.panel();
     this.layout();
   }
 
@@ -111,6 +114,17 @@ export class BaseScene extends Phaser.Scene {
 
   update(t, dt) {
     const sec = dt / 1000;
+    if (this.sbxPanel) {
+      this.sbxPanel.tickAcc += dt;
+      if (this.sbxPanel.tickAcc > 700) {
+        this.sbxPanel.tickAcc = 0;
+        const fresh = this.sim.tick();
+        for (const e of fresh) if (e.kind === 'raid') { const me = this.nation; if (e.b === me.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => this.scene.start('battle', { report: e.report, back: 'map' }) }); }
+        this.sbxPanel.strip();
+        const rd = this.sim.readyJobs().length;
+        if (fresh.some((e) => e.kind === 'raid') || rd !== this.sbxPanel.ready) { this.sbxPanel.ready = rd; this.layout(); this.sbxPanel.render(); }
+      }
+    }
     for (const s of this.units) {
       s.phase += sec * 2.2;
       const breathe = Math.sin(s.phase) * 0.025;
@@ -119,6 +133,80 @@ export class BaseScene extends Phaser.Scene {
       s.shadow.x = s.x;
     }
     this.bgGrass.tilePositionX += sec * 2; // a slow drift so the ground is never dead still
+  }
+
+  // ---- the play-test panel: the same four tabs, driven by the sandbox rules (sim.js) ----
+  panelSandbox() {
+    const sim = this.world.sim, n = this.nation;
+    const ui = document.getElementById('ui');
+    let tab = 'army', target = null;
+    ui.innerHTML = `
+      <div class="top basetop"><button class="back" data-back>‹ Map</button><div class="brand"><b style="color:${hex(n.color)}">${n.name}</b><span data-clock></span></div><div class="pill preview">PLAY TEST</div></div>
+      <div class="dock"><div class="res"><span class="chip"><i>coin</i><b data-coin></b></span><span class="chip"><i>USDC</i><b data-usdc></b></span><span class="chip"><i>shield</i><b data-shield></b></span><span class="chip"><i>raid</i><b data-cool></b></span></div>
+        <div class="tabs"><button data-tab="army" class="on">Army</button><button data-tab="build">Build</button><button data-tab="war">War</button><button data-tab="shop">Shop</button></div>
+        <div class="tabbody" data-body></div></div>`;
+    const q = (x) => ui.querySelector(x);
+    const body = q('[data-body]');
+    const flash = (fn, msg) => { try { fn(); if (msg) toast(msg); } catch (e) { toast(e.message); } this.layout(); render(); strip(); };
+    const strip = () => {
+      q('[data-clock]').textContent = gameClock(sim);
+      q('[data-coin]').textContent = fmtCoin(n.coin);
+      q('[data-usdc]').textContent = `$${Math.floor(n.usdc)}`;
+      const sh = sim.protectedLeft(n), cd = sim.cooldownLeft(n);
+      q('[data-shield]').textContent = sh ? fmtLeft(sh) : 'none';
+      q('[data-cool]').textContent = cd ? fmtLeft(cd) : 'ready';
+      body.querySelectorAll('[data-job]').forEach((el) => { const j = n.jobs.find((x) => x.id === Number(el.dataset.job)); if (j) el.textContent = sim.now >= j.readyAt ? 'ready' : fmtLeft(j.readyAt - sim.now); });
+    };
+    const unitCards = () => ['bruiser', 'sniper', 'trickster', 'defender'].map((k, i) => {
+      const can = Math.max(0, Math.floor(n.coin / sim.slot()) - n.trained);
+      return `<div class="card"><img src="art/trim/${k}.png" alt=""/><div class="grow"><b>${UNIT_NAMES[i]} <span class="cnt">×${n.units[i]}</span></b><small>${UNIT_NOTE[i]}</small></div>
+        <button class="btn small" data-tr="${i}:5" ${can >= 5 ? '' : 'disabled'}>+5</button><button class="btn small" data-tr="${i}:25" ${can >= 25 ? '' : 'disabled'}>+25</button></div>`;
+    }).join('');
+    const queue = () => {
+      if (!n.jobs.length) return '';
+      return `<label class="lbl">Training</label>` + n.jobs.map((j) => `<div class="job"><span>${j.count} ${UNITN[j.unit].toLowerCase()}${j.count > 1 ? 's' : ''}</span><b data-job="${j.id}"></b></div>`).join('');
+    };
+    const render = () => {
+      this.layout();
+      if (tab === 'army') {
+        const ready = sim.readyJobs().length;
+        body.innerHTML = `${unitCards()}${queue()}
+          <div class="row" style="margin-top:8px"><button class="btn primary" data-collect ${ready ? '' : 'disabled'}>Collect finished units${ready ? ` (${ready})` : ''}</button>
+          <button class="btn" data-speed ${n.jobs.some((j) => !j.collected && j.readyAt > sim.now) ? '' : 'disabled'}>Speed up 1h · $${RULES.SPEEDUP_PER_HOUR}</button></div>
+          <div class="note">Training burns coin (0.01% of supply per unit) and takes an hour of game time. You can only train as many units as your coin holding allows (0.05% of supply each). Bruiser beats trickster, trickster beats sniper, sniper beats bruiser. Speed-ups only save time, they never add strength.</div>`;
+      } else if (tab === 'build') {
+        const row = (wall) => { const lv = wall ? n.wall : n.tower, cost = sim.buildCost(lv); return `<div class="card"><img src="art/trim/${wall ? 'b_wall' : 'b_tower'}.png" alt=""/><div class="grow"><b>${wall ? 'Wall' : 'Guard tower'} <span class="cnt">level ${lv}/${RULES.MAX_LEVEL}</span></b><small>+10% defense per level · next costs ${fmtCoin(cost)} coin</small></div><button class="btn small" data-bd="${wall ? 'w' : 't'}" ${lv >= RULES.MAX_LEVEL || n.coin < cost ? 'disabled' : ''}>Build</button></div>`; };
+        body.innerHTML = `${row(true)}${row(false)}<div class="note">Building burns coin. Each level costs more than the last. Walls and towers only add defense.</div>`;
+      } else if (tab === 'war') {
+        const others = sim.nations.filter((o) => o !== n);
+        if (!target || !others.includes(target)) target = others.slice().sort((a, b) => sim.approach(n, a).k - sim.approach(n, b).k)[0];
+        body.innerHTML = `<label class="lbl">Target</label><select data-target>${others.map((o) => `<option value="${o.name}" ${o === target ? 'selected' : ''}>${o.name} · ${sim.approach(n, o).k} tiles away</option>`).join('')}</select><div data-plan-box>${plannerHtml(sim, n, target)}</div>
+          <div class="note">The result is the contract's fixed formula, no luck. A win costs you 10% of what you sent and takes 20% of their war pool for your buyback pot; they lose 30% of their army. A failed raid costs you half of what you sent. Attacking drops your own shield and starts a 24 h cooldown.</div>`;
+        bindPlanner(body.querySelector('[data-plan-box]'), sim, n, target, (report) => this.scene.start('battle', { report, back: 'base', home: n }));
+        body.querySelector('[data-target]').addEventListener('change', (e) => { target = sim.byName(e.target.value); render(); });
+      } else {
+        const pot = n.pot, step = RULES.BUYBACK_STEP;
+        body.innerHTML = `<div class="grid2"><button class="btn" data-sh="6">Shield 6h · $${6 * RULES.SHIELD_PER_HOUR}</button><button class="btn" data-sh="24">Shield 24h · $${24 * RULES.SHIELD_PER_HOUR}</button></div>
+          <div class="grid2" style="margin-top:10px"><button class="btn" data-fc="coin">Get ${fmtCoin(RULES.COIN_FAUCET)} play coin</button><button class="btn" data-fc="usdc">Get $${RULES.USDC_FAUCET} play USDC</button></div>
+          <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div class="stat"><b>$${Math.floor(n.pool)}</b><span>war pool</span></div><div class="stat"><b>$${pot.toFixed(0)}</b><span>buyback pot (burns at $${step})</span></div><div class="stat"><b>${n.plots.length}/${RULES.MAX_PLOTS}</b><span>plots</span></div></div>
+          <div class="note">Play money is free here. In the real game, USDC for shields, speed-ups and plots comes from players; 60% of it joins the nation's war pool. Shields add time (never strength) and reach at most 72 hours ahead. To take more land, go back to the map and tap an open plot next to yours.</div>`;
+      }
+      strip();
+    };
+    q('[data-back]').addEventListener('click', () => this.scene.start('map'));
+    ui.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; ui.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b)); render(); }));
+    body.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b || b.disabled) return;
+      if (b.dataset.tr) { const [u, c] = b.dataset.tr.split(':').map(Number); this.hop(this.units[u]); flash(() => sim.train(u, c)); }
+      else if (b.dataset.collect !== undefined) flash(() => { const t = sim.collect(); toast(`${t} unit${t > 1 ? 's' : ''} join your army`); });
+      else if (b.dataset.speed !== undefined) flash(() => sim.speedUp(1));
+      else if (b.dataset.bd) flash(() => sim.build(b.dataset.bd === 'w'));
+      else if (b.dataset.sh) flash(() => sim.buyShield(Number(b.dataset.sh)));
+      else if (b.dataset.fc) flash(() => sim.faucet(b.dataset.fc));
+    });
+    this.sbxPanel = { strip, render, tickAcc: 0 };
+    render();
+    this.sim = sim;
   }
 
   // ---- the panel (HTML): tabs for Army, Build, War, Shop ----

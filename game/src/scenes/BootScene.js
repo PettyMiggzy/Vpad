@@ -3,6 +3,7 @@ import { loadLive } from '../chain.js';
 import { previewWorld } from '../data.js';
 import { buildGrid, paintWorld } from '../worldgen.js';
 import { loadAnimSheets, makeAnims } from '../anim.js';
+import { Sim } from '../sim.js';
 
 const setBoot = (msg, pct) => { const m = document.getElementById('bootmsg'), b = document.getElementById('bootbar'); if (m) m.textContent = msg; if (b && pct != null) b.style.width = `${Math.max(4, Math.round(pct * 100))}%`; };
 
@@ -34,11 +35,12 @@ export class BootScene extends Phaser.Scene {
     setBoot('reading the chain', 0.45);
     const live = await loadLive(import.meta.env.BASE_URL);
     const forcePreview = new URLSearchParams(window.location.search).has('preview');
-    let world = forcePreview ? previewWorld() : (live && live.nations.length ? live : null);
+    const params = new URLSearchParams(window.location.search);
+    let world = forcePreview ? previewWorld() : (live && live.nations.length && !params.has('play') ? live : null);
     if (!world) {
-      // nothing claimed on the test chain yet: show the made-up demo world (its own map and nations), labelled as a demo
+      // no real nations yet (or ?play): the play-test sandbox, the game's rules with play money, saved in this browser
       world = previewWorld();
-      if (live && !forcePreview) world.empty = true;
+      if (!forcePreview) new Sim(world);
     }
     this.registry.set('world', world);
     if (new URLSearchParams(window.location.search).has('logo')) {

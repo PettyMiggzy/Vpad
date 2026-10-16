@@ -10,7 +10,16 @@ const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
 export class BattleScene extends Phaser.Scene {
   constructor() { super('battle'); }
 
-  init(data) { this.att = data.a; this.def = data.b; this.back = data.back || 'map'; this.token = (this.token || 0) + 1; }
+  init(data) {
+    this.data0 = data;
+    this.report = data.report || null;
+    this.att = this.report ? this.report.a : data.a;
+    this.def = this.report ? this.report.b : data.b;
+    this.send = this.report ? this.report.send : [data.a.units[0], data.a.units[1], data.a.units[2]];
+    this.home = data.home || null;
+    this.back = data.back || 'map';
+    this.token = (this.token || 0) + 1;
+  }
 
   create() {
     const W = this.scale.width, H = this.scale.height, d = DPR();
@@ -19,7 +28,7 @@ export class BattleScene extends Phaser.Scene {
     const portrait = window.innerWidth < 900;
     this.portrait = portrait;
     const a = this.att, b = this.def;
-    this.result = powers([a.units[0], a.units[1], a.units[2]], b.units, b.wall, b.tower, false);
+    this.result = this.report ? this.report.result : powers(this.send, b.units, b.wall, b.tower, false);
 
     // --- the field: dirt ground with a grass verge, a backdrop of mountains, trees and rocks at the edges ---
     this.add.tileSprite(0, 0, W, H, 'g_dirt').setOrigin(0).setTint(0xb7a68c).setTileScale(1.2 * d);
@@ -50,7 +59,7 @@ export class BattleScene extends Phaser.Scene {
     this.fighters = { L: [], R: [] };
     this.hp = { L: 1, R: 1 };
     this.size = portrait ? Math.min(W * 0.3, H * 0.19) : Math.min(W * 0.13, H * 0.3);
-    this.placeArmy('L', a, [0, 1, 2]);
+    this.placeArmy('L', { ...a, units: [this.send[0], this.send[1], this.send[2], 0] }, [0, 1, 2]);
     this.placeArmy('R', b, [0, 1, 2, 3]);
     this.dust = this.add.particles(0, 0, 'spark', { speed: { min: 30, max: 140 }, angle: { min: 200, max: 340 }, gravityY: 260, lifespan: 520, scale: { start: 1.1, end: 0 }, tint: [0xffe066, 0xff7a2a, 0xffffff], emitting: false, blendMode: 'ADD' }).setDepth(99999);
     this.puff = this.add.particles(0, 0, 'glow', { speed: { min: 10, max: 60 }, lifespan: 600, scale: { start: 0.25, end: 0.7 }, alpha: { start: 0.35, end: 0 }, tint: 0xb9a98a, emitting: false }).setDepth(99998);
@@ -114,7 +123,7 @@ export class BattleScene extends Phaser.Scene {
 
   leave() {
     this.alive = false;
-    if (this.back === 'base') this.scene.start('base', { nation: this.att });
+    if (this.back === 'base') this.scene.start('base', { nation: this.home || this.att });
     else this.scene.start('map');
   }
 
@@ -232,11 +241,14 @@ export class BattleScene extends Phaser.Scene {
     if (!(await this.wait(900))) return;
     const el = document.querySelector('[data-result]');
     if (!el) return;
+    const lossA = this.send.reduce((t, v) => t + (r.success ? Math.floor(v / 10) : Math.floor(v / 2)), 0);
+    const lossB = b.units.reduce((t, v) => t + (r.success ? Math.floor((v * 3) / 10) : Math.floor(v / 10)), 0);
+    const extra = this.report ? `<p class="small">${a.name} loses ${lossA} unit${lossA === 1 ? '' : 's'}, ${b.name} loses ${lossB}${this.report.loot ? `. Loot: $${this.report.loot.toFixed(1)} from ${b.name}'s war pool goes to ${a.name}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${a.name}'s coin is bought back and burned` : ''}.</p>` : '';
     el.innerHTML = `<h3 style="color:${hex(winner === 'L' ? a.color : b.color)}">${wName} wins</h3>
-      <p>${r.success ? `${a.name} breaks ${b.name}'s defense` : `${b.name} holds the line against ${a.name}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>
+      <p>${r.success ? `${a.name} breaks ${b.name}'s defense` : `${b.name} holds the line against ${a.name}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>${extra}
       <div class="row"><button class="btn primary" data-replay>Watch again</button><button class="btn" data-back2>${this.back === 'base' ? 'Back to base' : 'Back to the map'}</button></div>`;
     el.classList.add('on');
-    el.querySelector('[data-replay]').addEventListener('click', () => this.scene.restart({ a, b, back: this.back }));
+    el.querySelector('[data-replay]').addEventListener('click', () => this.scene.restart(this.data0));
     el.querySelector('[data-back2]').addEventListener('click', () => this.leave());
   }
 }

@@ -3,6 +3,8 @@ import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
 import { ATTACK, impactMs, attackMs } from '../anim.js';
+import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast } from '../sandboxUi.js';
+import { fmtLeft } from '../sim.js';
 
 const DPR = () => window.__dpr || 1;
 
@@ -18,6 +20,8 @@ export class MapScene extends Phaser.Scene {
 
   create() {
     this.world = this.registry.get('world');
+    this.sim = null; this.sbx = null; this.pick = null; this.pickGfx = null;
+    this.world.wars = this.world.sim ? this.world.sim.currentWars() : this.world.wars;
     this.grid = this.registry.get('grid');
     const g = this.grid;
     this.px = (x) => g.toPx(x);
@@ -39,6 +43,7 @@ export class MapScene extends Phaser.Scene {
     this.atmosphere();
     this.cameraSetup();
     this.buildUi();
+    if (this.world.sandbox) this.startSandbox();
   }
 
   // ---- scenery: ranges, forests, meadows, reeds and ruins, placed from the same grid and noise the ground was painted with ----
@@ -429,6 +434,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   showNation(n) {
+    if (this.world.sandbox) { this.showNationSandbox(n); return; }
     const wars = this.world.wars.filter((w) => w.a === n.name || w.b === n.name);
     const foes = wars.map((w) => (w.a === n.name ? w.b : w.a));
     const holders = n.holders === null ? '-' : n.holders.toLocaleString();
@@ -448,6 +454,10 @@ export class MapScene extends Phaser.Scene {
 
   showWar(spot) {
     const { war, a, b } = spot;
+    if (war.report) {
+      this.sheet.open(`<h2><span class="tag war" style="margin:0">WAR</span>${a.name} vs ${b.name}</h2><div class="sub">${war.success ? `${a.name} broke through` : `${b.name} held`}</div><div class="row"><button class="btn danger" data-go>Watch the battle</button><button class="btn" data-close>Close</button></div>`, { go: () => this.scene.start('battle', { report: war.report, back: 'map' }) });
+      return;
+    }
     this.marker?.destroy();
     if (!a || !b) { this.sheet.close(); return; }
     this.sheet.open(`
@@ -462,7 +472,69 @@ export class MapScene extends Phaser.Scene {
     });
   }
 
+  // ---- play test ----
+  startSandbox() {
+    this.sim = this.world.sim;
+    this.sbx = mountHud(this);
+    this.lastHud = 0;
+    this.seenLog = this.sim.log.length;
+    const p = this.sim.player;
+    if (!p) { this.time.delayedCall(300, () => openOnboarding(this)); return; }
+    const c = this.cameras.main;
+    c.centerOn(this.px(p.plots[0][0]) + TILE / 2, this.px(p.plots[0][1]) + TILE / 2);
+    if (!localStorage.getItem('badlands.helped')) {
+      try { localStorage.setItem('badlands.helped', '1'); } catch (_) { /* fine */ }
+      toast('Tap your base to train an army. Tap another nation to scout it and plan a raid.');
+    }
+  }
+
+  sandboxTick(delta) {
+    const sim = this.sim;
+    this.lastHud = (this.lastHud || 0) + delta;
+    if (this.lastHud < 700) return;
+    this.lastHud = 0;
+    const fresh = sim.tick();
+    for (const e of fresh) {
+      if (e.kind !== 'raid') continue;
+      const p = sim.player;
+      if (p && e.b === p.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => this.scene.start('battle', { report: e.report, back: 'map' }) });
+      else toast(e.text);
+    }
+    this.sbx?.refresh();
+  }
+
+  showNationSandbox(n) {
+    const sim = this.sim, me = sim.player;
+    const total = n.units.reduce((a, b) => a + b, 0);
+    const prot = sim.protectedLeft(n);
+    const stats = `<div class="stats">
+      <div class="stat"><b>${total}</b><span>units</span></div><div class="stat"><b>$${Math.floor(n.pool)}</b><span>war pool</span></div>
+      <div class="stat"><b>${n.wall}/${n.tower}</b><span>wall/tower</span></div><div class="stat"><b>${prot ? '🛡' : '-'}</b><span>${prot ? fmtLeft(prot) : 'open'}</span></div></div>`;
+    if (n.isPlayer) {
+      this.sheet.open(`<h2><span class="dot" style="background:#${n.color.toString(16).padStart(6, '0')};width:14px;height:14px"></span>${n.name} <span class="tag prem">YOU</span></h2><div class="sub">${n.plots.length} plot${n.plots.length > 1 ? 's' : ''}</div>${stats}<div class="row"><button class="btn primary" data-go>Enter base</button><button class="btn" data-close>Close</button></div>`, { go: () => this.scene.start('base', { nation: n }) });
+      return;
+    }
+    if (!me) { this.sheet.open(`<h2>${n.name}</h2><div class="sub">found your own nation first</div>${stats}<div class="row"><button class="btn" data-close>Close</button></div>`, {}); return; }
+    this.sheet.open(`<h2><span class="dot" style="background:#${n.color.toString(16).padStart(6, '0')};width:14px;height:14px"></span>${n.name}</h2><div class="sub">scouted: you can see their whole army</div>${stats}<div class="row"><button class="btn danger" data-plan>Plan a raid</button><button class="btn" data-close>Close</button></div>`, {
+      plan: () => {
+        this.sheet.open(`<h2>Raid ${n.name}</h2><div class="sub">choose how many units to send</div>${plannerHtml(sim, me, n)}<div class="row"><button class="btn" data-close>Back</button></div>`, {});
+        bindPlanner(document.querySelector('.sheet'), sim, me, n, (report) => { this.sheet.close(); this.scene.start('battle', { report, back: 'map', home: me }); });
+      },
+    });
+  }
+
   showTile(tx, ty, t) {
+    if (this.world.sandbox) {
+      const sim = this.sim;
+      if (this.pick) { confirmClaim(this, tx, ty); return; }
+      if (sim.player && sim.canExpand(tx, ty)) {
+        const cost = t === 0 ? 5 : 20;
+        this.sheet.open(`<h2>Take this plot?</h2><div class="sub">next to your land · plot ${tx}, ${ty}</div><div class="note" style="margin-top:0">Costs $${cost} play USDC (half of it joins your war pool).</div><div class="row"><button class="btn primary" data-go>Take it · $${cost}</button><button class="btn" data-close>Close</button></div>`, {
+          go: () => { try { sim.expand(tx, ty); this.sheet.close(); this.scene.restart(); } catch (e) { toast(e.message); } },
+        });
+        return;
+      }
+    }
     const prem = t === COAST ? '<span class="tag prem">premium</span>' : t === PASS ? '<span class="tag gold">premium</span>' : '';
     const text = t === COAST ? 'Coast plot. 20 USDC unless the project took it at launch.' : t === PASS ? 'Mountain pass plot, +20% defense for whoever holds it. 20 USDC unless taken at launch.'
       : t === MOUNTAIN ? 'Mountains: nobody can build here.' : t === WATER ? 'Water: nobody can build here.' : 'Open ground. A project claims land at about $50k market cap, or by deal at launch.';
@@ -475,7 +547,7 @@ export class MapScene extends Phaser.Scene {
     const ui = document.getElementById('ui');
     ui.innerHTML = `
       <div class="top"><div class="brand"><b>VYRE BAD LANDS</b><span>${this.world.nations.length} nations · ${this.world.wars.length} wars</span></div>
-        <div class="pill ${live ? '' : 'preview'}">${live ? 'LIVE · TEST CHAIN' : this.world.empty ? 'DEMO WORLD' : 'PREVIEW DATA'}</div></div>
+        <div class="pill ${live ? '' : 'preview'}">${live ? 'LIVE · TEST CHAIN' : this.world.sandbox ? 'PLAY TEST' : this.world.empty ? 'DEMO WORLD' : 'PREVIEW DATA'}</div></div>
       <div class="rail"><button data-z="+" aria-label="zoom in">+</button><button data-z="-" aria-label="zoom out">−</button><button data-z="c" aria-label="centre">◎</button></div>
       <button class="fab legend" aria-label="legend">?</button>
       <div class="legend-pop"><div><span class="dot" style="background:#b6ff00"></span>coast plot (premium)</div><div><span class="dot" style="background:#ffd24a"></span>mountain pass (premium)</div><div><span class="dot" style="background:#ff3030"></span>war</div><div style="color:#93a58a;font-size:12px">drag to move · pinch or wheel to zoom · tap a nation</div></div>
@@ -495,6 +567,7 @@ export class MapScene extends Phaser.Scene {
 
   update(time, delta) {
     const dt = delta / 1000;
+    if (this.sim) this.sandboxTick(delta);
     const cam = this.cameras.main;
     // drag inertia
     if (!this.input.activePointer.isDown && (Math.abs(this.vel.x) > 1 || Math.abs(this.vel.y) > 1)) {
