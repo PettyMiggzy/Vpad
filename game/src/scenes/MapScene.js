@@ -28,7 +28,7 @@ export class MapScene extends Phaser.Scene {
     this.owner = new Map();
     for (const n of this.world.nations) for (const [x, y] of n.plots) this.owner.set(`${x},${y}`, n);
 
-    const pad = 900;
+    const pad = 2200;
     this.add.tileSprite(-pad, -pad, g.size + pad * 2, g.size + pad * 2, 'g_water').setOrigin(0).setTint(0x949494).setDepth(-2);
     this.add.image(0, 0, 'ground').setOrigin(0).setDepth(0);
     this.shimmer = this.add.image(0, 0, 'shimmer').setOrigin(0).setDepth(1).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8);
@@ -154,7 +154,8 @@ export class MapScene extends Phaser.Scene {
       const [cx, cy] = n.plots[0];
       const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
       const D = (y) => 2000 + y;
-      const put = (key, x, y, w, depth = null) => {
+      const put = (key, x, y, w, depth = null, force = false) => {
+        if (!force && !this.landPoint(x, y - 4)) return null;          // a wall, tower, gate or tent is never drawn standing in the sea
         const s = this.add.image(x, y, key).setOrigin(0.5, 1);
         s.setScale(w / s.width).setDepth(depth ?? D(y));
         objs.push(s);
@@ -162,8 +163,9 @@ export class MapScene extends Phaser.Scene {
       };
       // a swept dirt yard under the compound, so it sits on the ground instead of floating
       const yard = this.add.graphics().setDepth(6);
-      yard.fillStyle(0x6b5238, 0.55).fillEllipse(X, Y + T * 0.55, T * 2.3, T * 1.5);
-      yard.fillStyle(n.color, 0.1).fillEllipse(X, Y + T * 0.55, T * 2.3, T * 1.5);
+      const yy = this.landPoint(X, Y + T * 0.95) ? Y + T * 0.55 : Y + T * 0.1, yh = this.landPoint(X, Y + T * 0.95) ? T * 1.5 : T * 0.9;
+      yard.fillStyle(0x6b5238, 0.55).fillEllipse(X, yy, T * 2.3, yh);
+      yard.fillStyle(n.color, 0.1).fillEllipse(X, yy, T * 2.3, yh);
       objs.push(yard);
       // capital glow so it reads from far away
       const glow = this.add.image(X, Y, 'glow').setTint(n.color).setAlpha(0.4).setScale(T * 2.2 / 128).setBlendMode(Phaser.BlendModes.ADD).setDepth(7);
@@ -175,7 +177,7 @@ export class MapScene extends Phaser.Scene {
       const towerAt = [[-1.0, 0.9], [1.0, 0.9], [-0.95, 0.15], [0.95, 0.15]];
       for (let i = 0; i < Math.min(4, n.tower); i++) put('b_tower', X + towerAt[i][0] * T, Y + towerAt[i][1] * T, T * 0.36);
       // the hall
-      put('b_keep', X, Y + T * 0.6, T * 1.3);
+      put('b_keep', X, Y + T * 0.6, T * 1.3, null, true);
       // flag on the hall's right shoulder
       const pole = this.add.graphics().setDepth(D(Y + T * 0.7));
       pole.lineStyle(2.5, 0x2a2a2a, 1).lineBetween(X + T * 0.62, Y + T * 0.05, X + T * 0.62, Y - T * 0.75);
@@ -213,6 +215,7 @@ export class MapScene extends Phaser.Scene {
     const [cx, cy] = n.plots[0];
     const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
     const ok = (x, y) => {
+      if (!this.landPoint(x, y)) return false;
       const tx = Math.floor(x / T) - R - MARGIN, ty = Math.floor(y / T) - R - MARGIN;
       if (Math.abs(tx) > R || Math.abs(ty) > R) return false;
       const t = this.world.terrain(tx, ty);
@@ -235,7 +238,7 @@ export class MapScene extends Phaser.Scene {
       }
       if (ok(x, y)) return [x, y];
     }
-    return [X, Y + T * 1.65];
+    return [X, Y + T * 0.2];                                     // the capital's own tile is always land
   }
 
   addWalker(n, i) {
@@ -327,7 +330,7 @@ export class MapScene extends Phaser.Scene {
       lbl.n = { color: 0xff4040 };
       this.labels.push(lbl);
       this.warFx.push({ ring, fighters, lbl });
-      this.warSpots.push({ x: X, y: Y, war, a, b });
+      this.warSpots.push({ x: X, y: Y, war, a, b, lbl });
     }
   }
 
@@ -367,9 +370,9 @@ export class MapScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const size = this.grid.size;
     this.input.addPointer(2);
-    cam.setBounds(-900, -900, size + 1800, size + 1800);
+    cam.setBounds(-2200, -2200, size + 4400, size + 4400);
     cam.setBackgroundColor(0x07262d);
-    this.minZoom = () => Math.min(this.scale.width, this.scale.height) / size * 0.92;
+    this.minZoom = () => Math.max(this.scale.width, this.scale.height) / (size + 4400);
     const startZoom = Math.max(this.minZoom(), Math.min(this.scale.width, this.scale.height) / (TILE * 11), 1.1 * DPR());
     cam.setZoom(startZoom);
     const first = this.world.nations[0];
@@ -422,6 +425,20 @@ export class MapScene extends Phaser.Scene {
   }
 
   // ---- picking ----
+  /** is this world point open land (not water, mountain or off the map, nor the painted edge of either)? */
+  landPoint(x, y) {
+    const T = TILE, { R } = this.grid;
+    const at = (px, py) => { const ux = Math.floor(px / T) - R - MARGIN, uy = Math.floor(py / T) - R - MARGIN; return Math.abs(ux) > R || Math.abs(uy) > R ? WATER : this.world.terrain(ux, uy); };
+    for (const [dx, dy] of [[0, 0], [-26, 0], [26, 0], [0, -26], [0, 26], [-20, -20], [20, -20], [-20, 20], [20, 20]]) { const k = at(x + dx, y + dy); if (k === WATER || k === MOUNTAIN) return false; }
+    return true;
+  }
+  /** a walk in a straight line must stay on land all the way */
+  pathOk(ax, ay, bx, by) {
+    for (let i = 1; i <= 6; i++) if (!this.landPoint(ax + ((bx - ax) * i) / 6, ay + ((by - ay) * i) / 6)) return false;
+    return true;
+  }
+  clearMarker() { if (this.marker) { this.tweens.killTweensOf(this.marker); this.marker.destroy(); this.marker = null; } }
+
   // what a tap lands on: a war, then a nation (its whole compound, name tag and buildings, not only the tile under the finger), then the tile
   hitNation(w) {
     const T = TILE;
@@ -439,17 +456,17 @@ export class MapScene extends Phaser.Scene {
     const w = this.cameras.main.getWorldPoint(p.x, p.y);
     const R = this.grid.R, M = MARGIN;
     const tx = Math.floor(w.x / TILE) - R - M, ty = Math.floor(w.y / TILE) - R - M;
-    if (Math.abs(tx) > R + 1 || Math.abs(ty) > R + 1) { this.sheet.close(); return; }
-    const spot = (this.warSpots || []).find((s) => Math.abs(s.x - w.x) < TILE * 1.5 && w.y > s.y - TILE * 1.2 && w.y < s.y + TILE * 1.2);
-    if (spot) { this.showWar(spot); return; }
-    if (!this.pick) { const hit = this.hitNation(w); if (hit) { this.marker?.destroy(); this.showNation(hit); return; } }
+    // a war (its field or its name tag, which grows when zoomed out), then a nation (tag or capital), then the tile
+    const spot = (this.warSpots || []).find((s) => (Math.abs(s.x - w.x) < TILE * 1.5 && w.y > s.y - TILE * 1.2 && w.y < s.y + TILE * 1.2) || (s.lbl && s.lbl.getBounds().contains(w.x, w.y)));
+    if (spot) { this.clearMarker(); this.showWar(spot); return; }
+    if (!this.pick) { const hit = this.hitNation(w); if (hit) { this.clearMarker(); this.showNation(hit); return; } }
     if (Math.abs(tx) > R || Math.abs(ty) > R) { this.sheet.close(); return; }
     this.select(tx, ty);
   }
 
   select(tx, ty) {
     const n = this.owner.get(`${tx},${ty}`);
-    if (this.marker) { this.tweens.killTweensOf(this.marker); this.marker.destroy(); }
+    this.clearMarker();
     const X = this.px(tx), Y = this.px(ty);
     this.marker = this.add.rectangle(X + TILE / 2, Y + TILE / 2, TILE - 3, TILE - 3).setStrokeStyle(3, 0xffffff, 1).setFillStyle(0xffffff, 0.08).setDepth(9700);
     this.tweens.add({ targets: this.marker, alpha: 0.4, duration: 520, yoyo: true, repeat: -1 });
@@ -479,11 +496,11 @@ export class MapScene extends Phaser.Scene {
 
   showWar(spot) {
     const { war, a, b } = spot;
-    this.marker?.destroy();
+    this.clearMarker();
     if (!a || !b) { this.sheet.close(); return; }
     const snap = (n, units) => ({ name: n.name, color: n.color, emblem: n.emblem, units: units.slice(), wall: n.wall, tower: n.tower });
     // a raid with its own record replays exactly; one read from the chain replays with the numbers the chain reported
-    const report = war.report || (war.attack !== undefined ? { result: { attack: war.attack, defense: war.defense, success: !!war.success }, send: a.units.slice(0, 3), loot: 0, a: snap(a, a.units.slice(0, 3).concat(0)), b: snap(b, b.units) } : null);
+    const report = war.report || (war.attack !== undefined ? { estimated: true, result: { attack: war.attack, defense: war.defense, success: !!war.success }, send: a.units.slice(0, 3), loot: 0, a: snap(a, a.units.slice(0, 3).concat(0)), b: snap(b, b.units) } : null);
     this.sheet.open(`
       <h2><span class="tag war" style="margin:0">WAR</span>${a.name} vs ${b.name}</h2>
       <div class="sub">${war.success === undefined ? 'a raid is under way' : war.success ? `${a.name} broke through` : `${b.name} held`}</div>
@@ -616,7 +633,7 @@ export class MapScene extends Phaser.Scene {
         w.gx += (dx / d) * sp; w.gy += (dy / d) * sp;
         if (Math.abs(dx) > 1) w.spr.setFlipX(dx < 0);
       } else if (w.wait <= 0) {
-        [w.tx, w.ty] = this.yardPoint(w.n);
+        for (let tries = 0; tries < 8; tries++) { const [nx, ny] = this.yardPoint(w.n); if (this.pathOk(w.gx, w.gy, nx, ny)) { w.tx = nx; w.ty = ny; break; } }
         w.wait = 1.5 + Math.random() * 3;
       }
       if (walking !== w.walking) {

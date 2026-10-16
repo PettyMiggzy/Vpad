@@ -70,7 +70,7 @@ export class BattleScene extends Phaser.Scene {
     let rt = null;
     this.onResize = () => { clearTimeout(rt); rt = setTimeout(() => { if (this.alive) this.scene.restart(this.data0); }, 350); };
     this.scale.on('resize', this.onResize);
-    this.events.once('shutdown', () => { this.alive = false; clearTimeout(rt); this.scale.off('resize', this.onResize); document.getElementById('ui').innerHTML = ''; });
+    this.events.once('shutdown', () => { this.alive = false; this.time.timeScale = 1; this.tweens.timeScale = 1; this.anims.globalTimeScale = 1; clearTimeout(rt); this.scale.off('resize', this.onResize); document.getElementById('ui').innerHTML = ''; });
     this.sequence();
   }
 
@@ -106,7 +106,7 @@ export class BattleScene extends Phaser.Scene {
     const ui = document.getElementById('ui');
     ui.innerHTML = `
       <div class="battle-top">
-        <button class="back" data-back>‹ Back</button>
+        <button class="back" data-back>‹ Back</button><button class="back fast" data-fast>×1</button>
         <div class="vs">
           <div class="side l"><b style="color:${hex(a.color)}">${a.name}</b><div class="bar"><i data-hp="L" style="background:${hex(a.color)}"></i></div><small>attack ${this.result.attack.toLocaleString()}</small></div>
           <div class="x">VS</div>
@@ -116,6 +116,11 @@ export class BattleScene extends Phaser.Scene {
       <div class="banner" data-banner></div>
       <div class="battle-result" data-result></div>`;
     ui.querySelector('[data-back]').addEventListener('click', () => this.leave());
+    const fast = ui.querySelector('[data-fast]');
+    fast.addEventListener('click', () => {                           // 1x, 3x, 6x: the whole fight speeds up (timers, tweens, animations)
+      const steps = [1, 3, 6]; this.fastIx = ((this.fastIx || 0) + 1) % steps.length; const f = steps[this.fastIx];
+      this.time.timeScale = f; this.tweens.timeScale = f; this.anims.globalTimeScale = f; fast.textContent = `×${f}`;
+    });
     this.setHp('L', 1); this.setHp('R', 1);
   }
 
@@ -247,7 +252,7 @@ export class BattleScene extends Phaser.Scene {
     if (!el) return;
     const lossA = this.send.reduce((t, v) => t + (r.success ? Math.floor(v / 10) : Math.floor(v / 2)), 0);
     const lossB = b.units.reduce((t, v) => t + (r.success ? Math.floor((v * 3) / 10) : Math.floor(v / 10)), 0);
-    const extra = this.report ? `<p class="small">${a.name} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${b.name} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toFixed(1)} from ${b.name}'s war pool goes to ${a.name}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${a.name}'s coin is bought back and burned` : ''}.</p>` : '';
+    const extra = (this.report && !this.report.estimated) ? `<p class="small">${a.name} loses ${lossA.toLocaleString()} unit${lossA === 1 ? '' : 's'}, ${b.name} loses ${lossB.toLocaleString()} unit${lossB === 1 ? '' : 's'}${this.report.loot ? `. Loot: $${this.report.loot.toFixed(1)} from ${b.name}'s war pool goes to ${a.name}'s buyback pot` : ''}${this.report.buyback ? `. The pot reaches $${this.report.buyback.toFixed(0)}: ${a.name}'s coin is bought back and burned` : ''}.</p>` : '';
     el.innerHTML = `<h3 style="color:${hex(winner === 'L' ? a.color : b.color)}">${wName} wins</h3>
       <p>${r.success ? `${a.name} breaks ${b.name}'s defense` : `${b.name} holds the line against ${a.name}`}.<br/>Attack <b>${r.attack.toLocaleString()}</b> vs defense <b>${r.defense.toLocaleString()}</b>. A fixed formula, no luck.</p>${extra}
       <div class="row"><button class="btn primary" data-replay>Watch again</button><button class="btn" data-back2>${this.back === 'base' ? 'Back to base' : 'Back to the map'}</button></div>`;
