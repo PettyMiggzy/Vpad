@@ -173,3 +173,26 @@ test('a buyback burns the pot in steps of the threshold, as the contract does', 
   p.pot = 180; s.settlePot(p);
   assert.equal(p.pot, 30);
 });
+
+// ---- audit round 1, UI pass ----
+import { cleanName } from '../src/sim.js';
+test('H2 a wiped save stays wiped even if the page-hide handler saves afterwards', () => {
+  const store = withStore();
+  const { s } = fresh(); found(s); s.save();
+  assert.ok(store.has('badlands.sandbox.v2'));
+  s.reset(); s.save();
+  assert.equal(store.has('badlands.sandbox.v2'), false);
+  delete globalThis.localStorage;
+});
+
+test('H3 every name the founding screen accepts is a name the engine accepts', () => {
+  const { s } = fresh();
+  for (const raw of ['a !', 'AB', '  x y  ', 'Tester one', '!!ab!!', 'ab  cd', 'a'.repeat(30), 'é', '']) {
+    const name = cleanName(raw);
+    if (name.length < 2 || s.byName(name)) continue;           // the screen refuses these before the map step
+    const { s: t } = fresh();
+    assert.doesNotThrow(() => { for (let y = -12; y <= 12; y++) for (let x = -12; x <= 12; x++) if (t.canFound(x, y)) { t.claim(raw, 'bruiser', 1, x, y); return; } }, `claim(${JSON.stringify(raw)})`);
+  }
+  assert.equal(cleanName('toasty !'), 'TOASTY');
+  assert.equal(cleanName('a !'), 'A');
+});

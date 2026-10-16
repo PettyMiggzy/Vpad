@@ -1,6 +1,6 @@
 // The play-test's screens: founding a nation, the money and clock strip, the game log, the nations ranking, the menu (speed, feedback,
 // new game) and the raid planner. Plain DOM over the game, so it works the same on a phone. All of it reads and drives `Sim` (sim.js).
-import { R, H, UNIT, COLORS, SPEEDS, fmtLeft, fmtCoin } from './sim.js';
+import { R, H, UNIT, COLORS, SPEEDS, fmtLeft, fmtCoin, cleanName } from './sim.js';
 import { LAND, COAST, PASS } from './terrain.js';
 
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
@@ -77,10 +77,10 @@ export function openNations(scene) {
     <div class="nrow ${n.isPlayer ? 'me' : ''}" data-nation="${esc(n.name)}"><b>${i + 1}</b><span class="dot" style="background:${hex(n.color)}"></span><span class="nm">${esc(n.name)}${n.isPlayer ? ' (you)' : ''}</span>
       <small>${sim.strength(n).toLocaleString()} power · ${n.plots.length} plot${n.plots.length > 1 ? 's' : ''}${sim.protectedLeft(n) ? ' · 🛡' : ''}</small></div>`).join('');
   scene.sheet.open(`<h2>Nations</h2><div class="sub">ranked by army strength · tap one to find it on the map</div><div class="loglist">${rows}</div><div class="row"><button class="btn" data-close>Close</button></div>`, {
-    nation: (b) => { const n = sim.byName(b.dataset.nation); if (n) { scene.sheet.close(); scene.cameras.main.pan(scene.px(n.plots[0][0]) + 28, scene.px(n.plots[0][1]) + 28, 600, 'Sine.inOut'); } },
+    nation: (b) => { const n = sim.byName(b.dataset.nation); if (n) { scene.sheet.close(); scene.cameras.main.pan(scene.px(n.plots[0][0]) + 28, scene.px(n.plots[0][1]) + 28, 600, 'Sine.easeInOut'); } },
   });
   // rows are divs, not buttons: route their taps through the sheet's handler
-  document.querySelectorAll('.nrow').forEach((r) => r.addEventListener('click', () => { const n = sim.byName(r.dataset.nation); if (n) { scene.sheet.close(); scene.cameras.main.pan(scene.px(n.plots[0][0]) + 28, scene.px(n.plots[0][1]) + 28, 600, 'Sine.inOut'); } }));
+  document.querySelectorAll('.nrow').forEach((r) => r.addEventListener('click', () => { const n = sim.byName(r.dataset.nation); if (n) { scene.sheet.close(); scene.cameras.main.pan(scene.px(n.plots[0][0]) + 28, scene.px(n.plots[0][1]) + 28, 600, 'Sine.easeInOut'); } }));
 }
 
 export function openMenu(scene) {
@@ -90,12 +90,12 @@ export function openMenu(scene) {
     <label class="lbl">Game speed</label>
     <div class="row seg">${SPEEDS.map((s) => `<button class="btn ${s === sim.speed ? 'primary' : ''}" data-spd="${s}">${s}×<br><small>${s === 1 ? 'real time' : s === 60 ? '1 h = 1 min' : '1 h = 6 s'}</small></button>`).join('')}</div>
     <label class="lbl" style="margin-top:14px">Tell the team what you think</label>
-    <textarea data-note placeholder="What was confusing, broken, boring or fun? It is saved here; Copy gives you everything to paste to the team."></textarea>
+    <textarea data-note placeholder="What was confusing, broken, boring or fun? It is saved here; Copy gives you everything to paste to the team.">${esc(scene.noteDraft || '')}</textarea>
     <div class="row"><button class="btn" data-addnote>Save note</button><button class="btn" data-copy>Copy all notes (${sim.notes.length})</button></div>
     <div class="row" style="margin-top:10px"><button class="btn danger" data-wipe>New game (wipes this save)</button><button class="btn" data-close>Close</button></div>
     <div class="note">Rules are the real game's: 1 h training, 24 h cooldowns, shields up to 72 h, a raid takes 20% of the loser's war pool, a win costs the winner 10% of what it sent, the loser's home army 30%; a failed raid costs half of what was sent. Coin and USDC here are free play money; raids reach ${R.REACH} tiles; the other nations are computer-run.</div>`, {
-    spd: (b) => { sim.setSpeed(Number(b.dataset.spd)); scene.sbx?.refresh(); openMenu(scene); },
-    addnote: () => { const t = document.querySelector('[data-note]').value.trim(); if (t) { sim.notes.push({ at: new Date().toISOString(), day: gameClock(sim), text: t }); sim.save(); toast('Note saved'); openMenu(scene); } },
+    spd: (b) => { scene.noteDraft = document.querySelector('[data-note]')?.value || ''; sim.setSpeed(Number(b.dataset.spd)); scene.sbx?.refresh(); openMenu(scene); },
+    addnote: () => { const t = document.querySelector('[data-note]').value.trim(); if (!t) { toast('Write a note first'); return; } sim.notes.push({ at: new Date().toISOString(), day: gameClock(sim), text: t }); sim.save(); scene.noteDraft = ''; toast('Note saved'); openMenu(scene); },
     copy: async () => { const txt = sim.notes.map((n) => `[${n.day}] ${n.text}`).join('\n') || '(no notes)'; try { await navigator.clipboard.writeText(txt); toast('Notes copied'); } catch (_) { window.prompt('Copy this', txt); } },
     wipe: () => { if (window.confirm('Wipe this save and start a new game?')) { sim.reset(); window.location.reload(); } },
   });
@@ -126,7 +126,7 @@ export function openOnboarding(scene) {
   root.querySelectorAll('[data-em]').forEach((b) => b.addEventListener('click', () => { emblem = b.dataset.em; root.querySelectorAll('[data-em]').forEach((x) => x.classList.toggle('on', x === b)); }));
   root.querySelectorAll('[data-col]').forEach((b) => b.addEventListener('click', () => { color = Number(b.dataset.col); root.querySelectorAll('[data-col]').forEach((x) => x.classList.toggle('on', x === b)); }));
   root.querySelector('[data-next]').addEventListener('click', () => {
-    const name = root.querySelector('[data-name]').value.trim().toUpperCase().replace(/[^A-Z0-9 ]/g, '');
+    const name = cleanName(root.querySelector('[data-name]').value);
     const err = root.querySelector('[data-err]');
     if (name.length < 2) { err.textContent = 'Give your nation a name (2 to 12 letters or numbers).'; return; }
     if (sim.byName(name)) { err.textContent = 'That name is taken by another nation.'; return; }

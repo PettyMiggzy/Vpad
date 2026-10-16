@@ -193,8 +193,8 @@ export class MapScene extends Phaser.Scene {
         else put(['c_tent', 'c_crates', 'c_tent3', 'ruin2', 'c_tent2', 'c_rack'][(i - 2) % 6], bx, by, T * 0.85);
       });
       // name tag (kept readable at any zoom in update())
-      const label = this.add.text(X, Y - T * 1.0, n.name, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: '#ffffff', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
-      const chip = this.add.rectangle(X, Y - T * 1.0 + 2, 0, 0, n.color, 1).setDepth(9499);
+      const label = this.add.text(X, Y - T * 1.3, n.name, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: '#ffffff', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
+      const chip = this.add.rectangle(X, Y - T * 1.3 + 2, 0, 0, n.color, 1).setDepth(9499);
       label.chip = chip; label.n = n;
       this.labels.push(label);
       objs.push(label, chip);
@@ -425,10 +425,12 @@ export class MapScene extends Phaser.Scene {
   // what a tap lands on: a war, then a nation (its whole compound, name tag and buildings, not only the tile under the finger), then the tile
   hitNation(w) {
     const T = TILE;
+    for (const l of this.labels) if (!l.isWar && l.n && l.getBounds().contains(w.x, w.y)) return l.n;
     for (const n of this.world.nations) {
       const [cx, cy] = n.plots[0];
       const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
-      if (w.x > X - 1.4 * T && w.x < X + 1.4 * T && w.y > Y - 1.5 * T && w.y < Y + 1.45 * T) return n;
+      // the capital's own tile, plus the hall's base that hangs over its lower edge: the other tiles around it stay tappable
+      if (Math.abs(w.x - X) < 0.62 * T && w.y > Y - 0.5 * T && w.y < Y + 0.8 * T) return n;
     }
     return null;
   }
@@ -504,10 +506,9 @@ export class MapScene extends Phaser.Scene {
     if (!p) { this.time.delayedCall(300, () => openOnboarding(this)); return; }
     const c = this.cameras.main;
     c.centerOn(this.px(p.plots[0][0]) + TILE / 2, this.px(p.plots[0][1]) + TILE / 2);
-    if (!localStorage.getItem('badlands.helped')) {
-      try { localStorage.setItem('badlands.helped', '1'); } catch (_) { /* fine */ }
-      toast('Tap your base to train an army. Tap another nation to scout it and plan a raid.');
-    }
+    let helped = true;
+    try { helped = !!localStorage.getItem('badlands.helped'); if (!helped) localStorage.setItem('badlands.helped', '1'); } catch (_) { /* storage blocked: the game still runs */ }
+    if (!helped) toast('Tap your base to train an army. Tap another nation to scout and raid it. To grow, tap an open plot touching your land.');
   }
 
   sandboxTick(delta) {
@@ -520,7 +521,6 @@ export class MapScene extends Phaser.Scene {
       if (e.kind !== 'raid') continue;
       const p = sim.player;
       if (p && e.b === p.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => openBattle({ report: e.report, back: 'map' }) });
-      else toast(e.text);
     }
     this.sbx?.refresh();
   }
@@ -539,7 +539,7 @@ export class MapScene extends Phaser.Scene {
     if (!me) { this.sheet.open(`<h2>${n.name}</h2><div class="sub">found your own nation first</div>${stats}<div class="row"><button class="btn" data-close>Close</button></div>`, {}); return; }
     this.sheet.open(`<h2><span class="dot" style="background:#${n.color.toString(16).padStart(6, '0')};width:14px;height:14px"></span>${n.name}</h2><div class="sub">scouted: you can see their whole army</div>${stats}<div class="row"><button class="btn danger" data-plan>Plan a raid</button><button class="btn" data-close>Close</button></div>`, {
       plan: () => {
-        this.sheet.open(`<h2>Raid ${n.name}</h2><div class="sub">choose how many units to send</div>${plannerHtml(sim, me, n)}<div class="row"><button class="btn" data-close>Back</button></div>`, {});
+        this.sheet.open(`<h2>Raid ${n.name}</h2><div class="sub">choose how many units to send</div>${plannerHtml(sim, me, n)}<div class="row"><button class="btn" data-back>Back</button></div>`, { back: () => this.showNationSandbox(n) });
         bindPlanner(document.querySelector('.sheet'), sim, me, n, (report) => { this.sheet.close(); this.scene.start('battle', { report, back: 'map', home: me }); });
       },
     });
@@ -579,7 +579,7 @@ export class MapScene extends Phaser.Scene {
     ui.querySelector('.rail').addEventListener('click', (e) => {
       const k = e.target.closest('button')?.dataset.z;
       if (!k) return;
-      if (k === 'c') { const n = this.world.nations[0]; cam.pan(n ? this.px(n.plots[0][0]) + TILE / 2 : this.grid.size / 2, n ? this.px(n.plots[0][1]) + TILE / 2 : this.grid.size / 2, 500, 'Sine.inOut'); return; }
+      if (k === 'c') { const n = this.world.sim?.player || this.world.nations[0]; cam.pan(n ? this.px(n.plots[0][0]) + TILE / 2 : this.grid.size / 2, n ? this.px(n.plots[0][1]) + TILE / 2 : this.grid.size / 2, 500, 'Sine.easeInOut'); return; }
       this.zoomAt(this.scale.width / 2, this.scale.height / 2, cam.zoom * (k === '+' ? 1.35 : 0.74));
     });
     const pop = ui.querySelector('.legend-pop');

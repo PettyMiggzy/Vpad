@@ -135,6 +135,11 @@
     .why { color: var(--red); font-size: 12px; margin-bottom: 8px; line-height: 1.5; } .planner .btn { width: 100%; }
     .battle-result p.small { font-size: 12px; color: var(--muted); margin-top: -6px; }
     @media (min-width: 900px) { .sbx-bar { top: 64px; } }
+    #ui > .pickbanner { pointer-events: none; }
+    .sbx-rail em[hidden] { display: none; }
+    .btn.primary[disabled] { background: #26340f; border-color: #26340f; color: #7c8f6a; box-shadow: none; opacity: 1; }
+    .res { flex-wrap: wrap; } .res .chip { padding: 4px 6px; min-width: 0; }
+    @media (max-height: 500px) and (orientation: landscape) { .fab.legend { left: auto; right: 12px; } }
   </style>
 </head>
 <body>

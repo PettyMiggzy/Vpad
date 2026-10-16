@@ -25,6 +25,8 @@ export const UNIT = ['Bruiser', 'Sniper', 'Trickster', 'Defender'];
 const EMBLEMS = ['bruiser', 'sniper', 'trickster', 'defender'];
 export const COLORS = [0xffc145, 0x46d39a, 0x4cc9f0, 0xff6f91, 0xa78bfa, 0xff8a4c, 0xe8ff5a, 0xffffff];
 
+/** the one place a nation name is cleaned: the founding screen and the engine must agree, or a name can pass one and fail the other */
+export const cleanName = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/ +/g, ' ').trim().slice(0, 12).trim();
 const fin = (v) => typeof v === 'number' && Number.isFinite(v);
 const int = (v) => Number.isInteger(v);
 const validNation = (n) => !!n && typeof n.name === 'string' && n.name.length > 0 && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
@@ -72,11 +74,12 @@ export class Sim {
     } catch (_) { return null; }
   }
   save() {
+    if (this.wiped) return;                  // a wiped game is not written back by the page-hide handlers
     try {
       localStorage.setItem(KEY, JSON.stringify({ v: 2, clock: this.clock, speed: this.speed, log: this.log.slice(-60), notes: this.notes, faucetAt: this.faucetAt, nations: this.nations, playerName: this.playerName, aiAt: this.aiAt }));
     } catch (_) { /* storage full or blocked: the game still runs */ }
   }
-  reset() { try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ } }
+  reset() { this.wiped = true; try { localStorage.removeItem(KEY); } catch (_) { /* ignore */ } }
 
   makeAI(n, i) {
     const base = 8 + rnd(25);
@@ -138,7 +141,7 @@ export class Sim {
   // ---- founding ----
   claim(name, emblem, color, x, y) {
     if (this.player) throw new Error('you already have a nation');
-    name = String(name || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').trim().replace(/ +/g, ' ').slice(0, 12).trim();
+    name = cleanName(name);
     this.need(int(x) && int(y), 'bad plot');
     this.need(this.emblems.includes(emblem) && fin(color), 'bad champion or colour');
     if (name.length < 2) throw new Error('give your nation a name (2 to 12 letters)');

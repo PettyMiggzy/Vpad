@@ -84,7 +84,7 @@ export class BaseScene extends Phaser.Scene {
     put(this.towerS, cx - r.w * 0.38, baseY + r.h * 0.06, small * 0.42, this.towerTag, `tower ×${n.tower}`, n.tower === 0);
     put(this.barracks, cx + r.w * 0.38, baseY - r.h * 0.02, small, this.barTag, '', false);
     put(this.wallS, cx - r.w * 0.2, baseY + r.h * 0.1, small * 0.85, this.wallTag, `wall ×${n.wall}`, n.wall === 0);
-    put(this.vaultS, cx + r.w * 0.2, baseY + r.h * 0.1, small * 0.75, this.vaultTag, `pool $${n.pool}`, false);
+    put(this.vaultS, cx + r.w * 0.2, baseY + r.h * 0.1, small * 0.75, this.vaultTag, `pool $${Math.floor(n.pool)}`, false);
     this.flag.clear();
     this.flag.fillStyle(0x222222, 1).fillRect(-1.5 * d, 0, 3 * d, 50 * d);
     this.flag.fillStyle(n.color, 1).fillTriangle(1.5 * d, 0, 1.5 * d, 18 * d, 30 * d, 9 * d);
@@ -173,7 +173,7 @@ export class BaseScene extends Phaser.Scene {
         body.innerHTML = `${unitCards()}${queue()}
           <div class="row" style="margin-top:8px"><button class="btn primary" data-collect ${ready ? '' : 'disabled'}>Collect finished units${ready ? ` (${ready})` : ''}</button>
           <button class="btn" data-speed ${n.jobs.some((j) => !j.collected && j.readyAt > sim.now) ? '' : 'disabled'}>Speed up 1h · $${RULES.SPEEDUP_PER_HOUR}</button></div>
-          <div class="note">Training burns coin (0.01% of supply per unit) and takes an hour of game time. You can only train as many units as your coin holding allows (0.05% of supply each). Bruiser beats trickster, trickster beats sniper, sniper beats bruiser. Speed-ups only save time, they never add strength.</div>`;
+          ${n.coin < sim.slot() * (n.trained + 5) ? '<div class="note" style="color:var(--gold)">Holding cap reached: you cannot train more until you hold more coin (Shop, Get play coin).</div>' : ''}<div class="note">Training burns coin (0.01% of supply per unit) and takes an hour of game time. You can only train as many units as your coin holding allows (0.05% of supply each). Bruiser beats trickster, trickster beats sniper, sniper beats bruiser. Speed-ups only save time, they never add strength.</div>`;
       } else if (tab === 'build') {
         const row = (wall) => { const lv = wall ? n.wall : n.tower, cost = sim.buildCost(lv); return `<div class="card"><img src="art/trim/${wall ? 'b_wall' : 'b_tower'}.png" alt=""/><div class="grow"><b>${wall ? 'Wall' : 'Guard tower'} <span class="cnt">level ${lv}/${RULES.MAX_LEVEL}</span></b><small>+10% defense per level · next costs ${fmtCoin(cost)} coin</small></div><button class="btn small" data-bd="${wall ? 'w' : 't'}" ${lv >= RULES.MAX_LEVEL || n.coin < cost ? 'disabled' : ''}>Build</button></div>`; };
         body.innerHTML = `${row(true)}${row(false)}<div class="note">Building burns coin. Each level costs more than the last. Walls and towers only add defense.</div>`;
