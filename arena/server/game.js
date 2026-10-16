@@ -44,6 +44,35 @@ export function clearLine(x1, y1, x2, y2) {
 }
 
 
+/** how far a ray from (ox, oy) at angle a travels before the first wall, at most `max` */
+export function rayWall(ox, oy, a, max) {
+  const dx = Math.cos(a), dy = Math.sin(a);
+  let best = max;
+  for (const [wx, wy, ww, wh] of WALLS) {
+    let t0 = 0, t1 = best, miss = false;
+    for (const [o, d, lo, hi] of [[ox, dx, wx, wx + ww], [oy, dy, wy, wy + wh]]) {
+      if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { miss = true; break; } continue; }
+      let a1 = (lo - o) / d, a2 = (hi - o) / d;
+      if (a1 > a2) [a1, a2] = [a2, a1];
+      t0 = Math.max(t0, a1); t1 = Math.min(t1, a2);
+      if (t0 > t1) { miss = true; break; }
+    }
+    if (!miss && t0 < best) best = t0;
+  }
+  return best;
+}
+
+/** where a ray first meets a circle (centre cx, cy, radius r), or Infinity when it misses */
+export function rayCircle(ox, oy, a, cx, cy, r) {
+  const dx = Math.cos(a), dy = Math.sin(a), fx = cx - ox, fy = cy - oy;
+  const t = fx * dx + fy * dy;
+  if (t < 0) return Infinity;
+  const d2 = fx * fx + fy * fy - t * t;
+  if (d2 > r * r) return Infinity;
+  return Math.max(0, t - Math.sqrt(r * r - d2));
+}
+
+
 // ---- navigation: a coarse grid over the map, blocked where a player's circle could not stand; bots walk a breadth-first path ----
 const CELL = 40, GW = Math.ceil(MAP.w / CELL), GH = Math.ceil(MAP.h / CELL);
 const blocked = new Uint8Array(GW * GH);
@@ -213,11 +242,28 @@ export class Match {
       p.cd = Math.max(0, p.cd - dt);
       if (live && inp.fire && p.cd === 0) {
         const w = WEAPONS[p.weapon]; p.cd = w.gap;
-        for (let i = 0; i < w.pellets; i++) {
-          const a = p.aim + rnd(-w.spread, w.spread);
-          this.bullets.push({ x: p.x + Math.cos(p.aim) * 20, y: p.y + Math.sin(p.aim) * 20, vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed, team: p.team, owner: p.id, life: w.life, dmg: w.dmg });
-        }
+        this.shoot(p, w);
       }
+    }
+  }
+
+  /** a shot lands the instant it is fired (first person): each pellet is a ray that stops at the first wall or enemy */
+  shoot(p, w) {
+    const range = w.speed * w.life;
+    for (let i = 0; i < w.pellets; i++) {
+      const a = p.aim + rnd(-w.spread, w.spread);
+      let hitD = rayWall(p.x, p.y, a, range), hit = null;
+      for (const q of this.players.values()) {
+        if (!q.alive || q.team === p.team) continue;
+        const d = rayCircle(p.x, p.y, a, q.x, q.y, R.RADIUS + 3);
+        if (d < hitD) { hitD = d; hit = q; }
+      }
+      const ex = p.x + Math.cos(a) * hitD, ey = p.y + Math.sin(a) * hitD;
+      this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, ex, ey, hit: hit ? 1 : 0 });
+      if (!hit) continue;
+      hit.hp -= w.dmg;
+      if (hit.hp <= 0) { hit.alive = false; p.kills += 1; this.events.push({ type: 'kill', by: p.id, victim: hit.id, x: hit.x, y: hit.y }); }
+      else this.events.push({ type: 'hit', by: p.id, victim: hit.id, x: ex, y: ey });
     }
   }
 

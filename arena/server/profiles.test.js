@@ -43,6 +43,7 @@ test('weapons differ in play: a shotgun fires six pellets, a sniper one hard bul
   m.phase = 'live'; m.timer = 60; a.x = 100; a.y = 500; b.x = 1500; b.y = 100;
   a.input = { dx: 0, dy: 0, aim: 0, fire: true }; b.input = { dx: 0, dy: 0, aim: 3, fire: true };
   m.step(1 / 30);
-  assert.equal(m.bullets.filter((x) => x.owner === 'a').length, 6); assert.equal(m.bullets.filter((x) => x.owner === 'b').length, 1);
-  assert.equal(m.bullets.find((x) => x.owner === 'b').dmg, WEAPONS.sniper.dmg);
+  const shots = m.events.filter((e) => e.type === 'shot');
+  assert.equal(shots.filter((x) => x.by === 'a').length, 6); assert.equal(shots.filter((x) => x.by === 'b').length, 1);
+  assert.equal(WEAPONS.sniper.pellets, 1); assert.ok(WEAPONS.sniper.dmg > WEAPONS.shotgun.dmg * 3);
 });
