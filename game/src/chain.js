@@ -21,14 +21,15 @@ const unpack = (key) => {
 };
 
 export async function loadLive(base = '') {
-  let cfg;
-  try {
-    const r = await fetch(`${base}deployment.json`, { cache: 'no-store' });
-    if (!r.ok) return null;
-    cfg = await r.json();
-  } catch (_) {
-    return null;
+  // deployment.json is a local dev chain's record (never committed); without it the game reads the VYRE testnet's record
+  let cfg = null;
+  for (const name of ['deployment.json', 'deployment.testnet.json']) {
+    try {
+      const r = await fetch(`${base}${name}`, { cache: 'no-store' });
+      if (r.ok && (r.headers.get('content-type') || '').includes('json')) { cfg = await r.json(); break; }
+    } catch (_) { /* try the next */ }
   }
+  if (!cfg) return null;
   try {
     const provider = new JsonRpcProvider(cfg.rpc, cfg.chainId, { staticNetwork: true });
     const lands = new Contract(cfg.lands, abi, provider);

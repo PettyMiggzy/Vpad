@@ -59,7 +59,7 @@ export class MapScene extends Phaser.Scene {
     const ui = this.cameras.add(0, 0, this.scale.width, this.scale.height);
     const hud = [
       this.add.text(16, 14, 'VYRE BAD LANDS', { color: '#b6ff00', fontSize: '22px', fontStyle: 'bold' }),
-      this.add.text(16, 44, this.world.live ? `LIVE · read from the contracts on ${this.world.rpc} (a test chain)` : 'PREVIEW · the map is real (the contract\'s own terrain); the nations and wars are made up', { color: this.world.live ? '#b6ff00' : '#ffd24a', fontSize: '12px' }),
+      this.add.text(16, 44, this.world.live ? `LIVE · read from the contracts on ${this.world.rpc} (a test chain)${this.world.nations.length ? '' : ' · no lands claimed yet'}` : 'PREVIEW · the map is real (the contract\'s own terrain); the nations and wars are made up', { color: this.world.live ? '#b6ff00' : '#ffd24a', fontSize: '12px' }),
       this.add.text(16, 64, 'drag to move · wheel to zoom · click a nation', { color: '#9aa', fontSize: '12px' }),
       this.add.text(16, this.scale.height - 40, 'lime border: coast (premium)   gold border: mountain pass (premium)   red glow: war', { color: '#cfe', fontSize: '12px' }),
     ];
