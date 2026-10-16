@@ -78,6 +78,8 @@ change to the code and the words, not a setting. In order:
 
 1. **An SDK release** that carries the new network's definition and addresses (the launchpad's contracts, the outbox for moves out,
    the networks USDC can come from), vendored in `vendor/` as today.
+   (WARHEADZ's own build replaces the SDK's test-network addresses with the redeployed stack's in `src/lib/deployment.ts`, imported
+   first in `src/main.tsx`; drop that file once the SDK carries them.)
 2. **The network itself, chosen in one place:** `VYRE_CHAIN` and `ARC_CHAIN` in `src/lib/chain.ts`. Every other file reads them from
    there: the launchpad's addresses (`addresses()` in `src/lib/market.ts`, used by the trade button, Create, Manage, the tax split's
    list of refused addresses and the docs' contract table), the network a wallet is switched to before a send, the Arc side of
