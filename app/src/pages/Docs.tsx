@@ -162,7 +162,7 @@ const ARTICLES: Article[] = [
       },
       {
         id: 'one-side', title: 'Honest limits',
-        body: <p>Because the exchange is open, someone can open a side pool for a token elsewhere and trade around its tax. The tax applies to trades in the token’s own pool.</p>,
+        body: <p>On this testnet deployment a launch token can only be held by wallets and by the contracts the pad approves, so a second pool or a wrapper contract cannot hold or move it, and the tax applies to trades in the token’s own pool. The flip side: a smart-contract wallet cannot hold a launch token unless its code has been approved.</p>,
       },
     ],
   },
@@ -211,7 +211,7 @@ const ARTICLES: Article[] = [
       },
       {
         id: 'promoters', title: 'Promoters',
-        body: <p>A wallet can name the promoter who brought it, once. When it trades through WARHEADZ (or any app using the app router), that promoter is paid 30% of the platform fee in the same transaction, in USDC. Promoters are paid only after signing up and being approved (<Ext to="https://vyrechain.com/promote/">sign up here</Ext>), and the program isn’t available in the UK, the EU, Australia or Singapore. On the testnet it all runs on test USDC.</p>,
+        body: <p>A wallet can name the promoter who brought it, once. When it trades through WARHEADZ (or any app using the app router), that promoter is paid 30% of the platform fee in the same transaction, in USDC. Promoters are paid only after being approved. The program is closed to new sign-ups for now: promoters who are already approved keep their link and their share. It isn’t available in the UK, the EU, Australia or Singapore. On the testnet it all runs on test USDC.</p>,
       },
     ],
   },
@@ -219,7 +219,7 @@ const ARTICLES: Article[] = [
     slug: 'contracts',
     title: 'Smart contracts',
     sections: [
-      { id: 'addresses', title: 'Testnet addresses', body: <><p>These are the testnet deployment’s contracts (VYRE Testnet, chain 7357). Click an address to read the verified source on the explorer. Mainnet gets its own deployment.</p><ContractTable /></> },
+      { id: 'addresses', title: 'Testnet addresses', body: <><p>These are the testnet deployment’s contracts (VYRE Testnet, chain 7357). Click an address to see it on the explorer. The source code is not published there yet. Mainnet gets its own deployment.</p><ContractTable /></> },
       {
         id: 'review-status', title: 'Review status',
         body: <p>The contracts have a large test suite (including trade-by-trade comparisons with Uniswap’s own v3 contracts) and have been through review rounds by the network’s operator, who deployed them. They have <b>not</b> had an outside audit yet. Treat the testnet accordingly.</p>,

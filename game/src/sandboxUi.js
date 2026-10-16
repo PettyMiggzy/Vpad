@@ -35,6 +35,8 @@ export function checkStale(sim) {
   if (!sim.stale && sim.storedRev() > sim.rev) sim.stale = true;
   if (!sim.stale || sim.reloading) return;
   sim.reloading = true;
+  // a window that has no nation yet has nothing to lose: it just picks up the other window's game
+  if (!sim.player) { try { window.location.reload(); } catch (_) { /* ignore */ } return; }
   // never reload by itself: two windows would send each other round in circles. This one stops saving and waits to be told.
   const root = document.createElement('div');
   root.className = 'modal';

@@ -410,3 +410,12 @@ test('R7 computer nations keep raiding each other over a month', () => {
   }
   assert.ok(raids >= 40, `only ${raids} raids in 12 months`);
 });
+
+test('R7 a window still on the founding screen never takes the save from the one that is playing', () => {
+  const store = withStore();
+  const a = new Sim(previewWorld()); const b = new Sim(previewWorld());   // two fresh windows
+  b.save();                                                                 // the idle one saves first
+  found(a); a.save();
+  assert.equal(a.stale, undefined); assert.ok(new Sim(previewWorld()).player);
+  delete globalThis.localStorage;
+});

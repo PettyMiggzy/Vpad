@@ -23,8 +23,8 @@ interface Art { id: string; bg: [string, string, number]; glows: { x: number; y:
 function draw(seed: string): Art {
   const r = rng(seed);
   const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
-  const h1 = pick([166, 176, 186, 196, 206, 218, 232, 248]);
-  const h2 = pick([262, 276, 290, 304, 150, 160]);
+  const h1 = pick([72, 82, 92, 102, 112, 122, 132, 42]);
+  const h2 = pick([18, 28, 52, 62, 140, 150]);
   const hsl = (h: number, s: number, l: number, a = 1) => `hsla(${h}, ${s}%, ${l}%, ${a})`;
   const cx = 50 + (r() - 0.5) * 12, cy = 50 + (r() - 0.5) * 12;
   const n = pick([3, 4, 5, 6, 6, 7, 8]);

@@ -110,6 +110,7 @@ export class Sim {
   }
   save() {
     if (this.wiped) return true;             // a wiped game is not written back by the page-hide handlers
+    if (!this.player && !this.notes.length) return true;   // a window still on the founding screen has nothing to keep, and must not take the save from the window that is playing
     if (this.stale) return false;
     try {
       const cur = this.storedRev();
