@@ -30,6 +30,7 @@ export class MapScene extends Phaser.Scene {
     this.shimmer = this.add.image(0, 0, 'shimmer').setOrigin(0).setDepth(1).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0.8);
     this.tweens.add({ targets: this.shimmer, x: { from: -5, to: 5 }, y: { from: 3, to: -3 }, alpha: { from: 0.45, to: 0.95 }, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
 
+    this.findBattlefields();
     this.placeProps();
     this.drawTerritories();
     this.buildNations();
@@ -65,6 +66,7 @@ export class MapScene extends Phaser.Scene {
         const t = this.world.terrain(tx, ty);
         const owned = this.owner.has(`${tx},${ty}`);
         const nearOwned = owned || [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].some(([dx, dy]) => this.owner.has(`${tx + dx},${ty + dy}`));
+        if (this.fieldTiles.has(`${tx},${ty}`)) { if (r1 < 0.2) put(`rock${pick([2, 3, 6], r4)}`, cx + jx, cy + jy + 10, TILE * 0.4); continue; }
         const lush = lushAtPx(cx, cy);
         const forest = noise(tx * 0.31 + 11, ty * 0.31 + 4);
         const nm = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => terr(tx + dx, ty + dy) === MOUNTAIN).length;
@@ -236,13 +238,51 @@ export class MapScene extends Phaser.Scene {
     this.walkers.push(w);
   }
 
+  // A war is fought on flat open ground, never on a mountain or in a lake: the contract only says which two nations are at war, so the
+  // spot is the clearest open tile (no water, mountain or owned plot around it) nearest the middle of the two capitals.
+  findBattlefields() {
+    const { R } = this.grid;
+    this.fieldTiles = new Set();
+    this.fields = new Map();
+    const t = (x, y) => (Math.abs(x) > R || Math.abs(y) > R ? WATER : this.world.terrain(x, y));
+    const clear = (x, y) => {
+      if (this.owner.has(`${x},${y}`)) return false;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const k = t(x + dx, y + dy);
+        if (k === WATER || k === MOUNTAIN) return false;
+        if (this.owner.has(`${x + dx},${y + dy}`) && (dx || dy)) return false;
+      }
+      return true;
+    };
+    const taken = [];
+    for (const war of this.world.wars) {
+      const [mx, my] = war.at;
+      let best = null;
+      for (let y = -R + 1; y <= R - 1; y++) for (let x = -R + 1; x <= R - 1; x++) {
+        if (!clear(x, y)) continue;
+        if (taken.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) < 3)) continue;
+        const d = Math.hypot(x - mx, y - my);
+        if (!best || d < best.d) best = { d, x, y };
+      }
+      const at = best ? [best.x, best.y] : war.at;
+      taken.push(at);
+      this.fields.set(war, at);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) this.fieldTiles.add(`${at[0] + dx},${at[1] + dy}`);
+    }
+  }
+
   buildWars() {
     this.warFx = [];
     this.warSpots = [];
     this.impactSparks = this.add.particles(0, 0, 'spark', { speed: { min: 40, max: 150 }, angle: { min: 200, max: 340 }, gravityY: 220, lifespan: 480, scale: { start: 1, end: 0 }, tint: [0xffe066, 0xff7a2a, 0xffffff], emitting: false, blendMode: 'ADD' }).setDepth(9000);
     for (const war of this.world.wars) {
       const a = this.world.nations.find((n) => n.name === war.a), b = this.world.nations.find((n) => n.name === war.b);
-      const X = this.px(war.at[0]) + TILE / 2, Y = this.px(war.at[1]) + TILE / 2;
+      const at = this.fields.get(war) || war.at;
+      const X = this.px(at[0]) + TILE / 2, Y = this.px(at[1]) + TILE / 2;
+      // a trampled, scorched battlefield under the fight
+      const field = this.add.graphics().setDepth(6);
+      field.fillStyle(0x3a2a1a, 0.5).fillEllipse(X, Y + TILE * 0.35, TILE * 2.6, TILE * 1.5);
+      field.fillStyle(0x15100a, 0.35).fillEllipse(X, Y + TILE * 0.4, TILE * 1.6, TILE * 0.9);
       const ring = this.add.image(X, Y + TILE * 0.2, 'glow').setTint(0xff2020).setScale(TILE * 2.6 / 128).setAlpha(0.55).setBlendMode(Phaser.BlendModes.ADD).setDepth(1990);
       this.tweens.add({ targets: ring, alpha: 0.12, scale: TILE * 3.2 / 128, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
       const fighters = [];
