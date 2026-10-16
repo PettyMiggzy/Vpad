@@ -63,6 +63,7 @@ export class MapScene extends Phaser.Scene {
         }
         const t = this.world.terrain(tx, ty);
         const owned = this.owner.has(`${tx},${ty}`);
+        const nearOwned = owned || [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].some(([dx, dy]) => this.owner.has(`${tx + dx},${ty + dy}`));
         const lush = lushAtPx(cx, cy);
         const forest = noise(tx * 0.31 + 11, ty * 0.31 + 4);
         const nm = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => terr(tx + dx, ty + dy) === MOUNTAIN).length;
@@ -84,6 +85,7 @@ export class MapScene extends Phaser.Scene {
           continue;
         }
         // land
+        if (nearOwned) { if (!owned && r1 < 0.12) put(`flora${pick([7, 8, 11, 14], r4)}`, cx + jx, cy + jy + 14, TILE * 0.45); continue; }
         if (owned) { if (r1 < 0.1) put(`rock${pick([0, 1, 4, 6, 9], r4)}`, cx + jx, cy + jy + 12, TILE * 0.4); continue; }
         if (t === PASS) { if (r1 < 0.4) put(`rock${pick([4, 6, 9], r4)}`, cx + jx, cy + jy + 12, TILE * (0.45 + r2 * 0.3)); continue; }
         if (t === COAST) {
@@ -132,62 +134,105 @@ export class MapScene extends Phaser.Scene {
   }
 
   // ---- nations: capital hall, flag, label, buildings on other plots, wandering units ----
+  // ---- nations: a settlement laid out around the capital plot (hall in the middle, towers at the corners, walls along the front),
+  // barracks and vault on the next plots, tents and a campfire on the rest, and the army on a parade ground in front ----
   buildNations() {
     this.walkers = [];
     this.labels = [];
     this.nationObjects = new Map();
-    const bkeys = ['barracks', 'guardtower', 'vault', 'wall'];
+    const T = TILE;
     for (const n of this.world.nations) {
       const objs = [];
       const [cx, cy] = n.plots[0];
-      const X = this.px(cx) + TILE / 2, Y = this.px(cy) + TILE / 2;
-      const hall = this.add.image(X, Y + TILE * 0.42, 'townhall').setOrigin(0.5, 0.88).setDepth(2000 + Y + 40);
-      hall.setScale((TILE * 2.2) / hall.width);
+      const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
+      const D = (y) => 2000 + y;
+      const put = (key, x, y, w, depth = null) => {
+        const s = this.add.image(x, y, key).setOrigin(0.5, 1);
+        s.setScale(w / s.width).setDepth(depth ?? D(y));
+        objs.push(s);
+        return s;
+      };
+      // a swept dirt yard under the compound, so it sits on the ground instead of floating
+      const yard = this.add.graphics().setDepth(6);
+      yard.fillStyle(0x6b5238, 0.55).fillEllipse(X, Y + T * 0.55, T * 2.3, T * 1.5);
+      yard.fillStyle(n.color, 0.1).fillEllipse(X, Y + T * 0.55, T * 2.3, T * 1.5);
+      objs.push(yard);
       // capital glow so it reads from far away
-      const glow = this.add.image(X, Y, 'glow').setTint(n.color).setAlpha(0.5).setScale(TILE / 36).setBlendMode(Phaser.BlendModes.ADD).setDepth(7);
-      this.tweens.add({ targets: glow, alpha: 0.2, scale: TILE / 28, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-      // flag
-      const pole = this.add.graphics().setDepth(2000 + Y + 41);
-      pole.lineStyle(3, 0x222222, 1).lineBetween(X + TILE * 0.9, Y + TILE * 0.2, X + TILE * 0.9, Y - TILE * 0.75);
-      const flag = this.add.graphics().setDepth(2000 + Y + 42);
-      flag.fillStyle(n.color, 1).fillTriangle(0, 0, 0, 18, 28, 9);
-      flag.lineStyle(1.5, 0x000000, 0.6).strokeTriangle(0, 0, 0, 18, 28, 9);
-      flag.setPosition(X + TILE * 0.9 + 1.5, Y - TILE * 0.75);
-      this.tweens.add({ targets: flag, scaleX: { from: 1, to: 0.8 }, skewY: 0, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-      objs.push(hall, glow, pole, flag);
-      // buildings by what the nation has: wall and tower counts decide
+      const glow = this.add.image(X, Y, 'glow').setTint(n.color).setAlpha(0.4).setScale(T * 2.2 / 128).setBlendMode(Phaser.BlendModes.ADD).setDepth(7);
+      this.tweens.add({ targets: glow, alpha: 0.15, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      objs.push(glow);
+      // walls along the front (two segments, then two behind), towers at the corners: one each for what the nation has built
+      const wallAt = [[-0.42, 1.0], [0.42, 1.0], [-0.42, 0.1], [0.42, 0.1]];
+      for (let i = 0; i < Math.min(4, n.wall); i++) put('t_wall', X + wallAt[i][0] * T, Y + wallAt[i][1] * T, T * 0.78);
+      const towerAt = [[-0.88, 0.95], [0.88, 0.95], [-0.88, 0.2], [0.88, 0.2]];
+      for (let i = 0; i < Math.min(4, n.tower); i++) put('t_guardtower', X + towerAt[i][0] * T, Y + towerAt[i][1] * T, T * 0.4);
+      // the hall
+      put('t_townhall', X, Y + T * 0.62, T * 1.35);
+      // flag on the hall's right shoulder
+      const pole = this.add.graphics().setDepth(D(Y + T * 0.7));
+      pole.lineStyle(2.5, 0x2a2a2a, 1).lineBetween(X + T * 0.62, Y + T * 0.05, X + T * 0.62, Y - T * 0.75);
+      const flag = this.add.graphics().setDepth(D(Y + T * 0.71));
+      flag.fillStyle(n.color, 1).fillTriangle(0, 0, 0, 14, 22, 7);
+      flag.lineStyle(1.2, 0x000000, 0.6).strokeTriangle(0, 0, 0, 14, 22, 7);
+      flag.setPosition(X + T * 0.62 + 1.2, Y - T * 0.75);
+      this.tweens.add({ targets: flag, scaleX: { from: 1, to: 0.78 }, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      objs.push(pole, flag);
+      // the other plots: barracks, then the vault, then tents and a campfire
       n.plots.slice(1).forEach(([x, y], i) => {
-        const bx = this.px(x) + TILE / 2, by = this.px(y) + TILE / 2;
-        const k = bkeys[(i + (n.wall + n.tower)) % bkeys.length];
-        const b = this.add.image(bx + TILE * 0.18, by + TILE * 0.18, k).setOrigin(0.5, 0.85).setDepth(2000 + by + 40);
-        b.setScale((TILE * 1.05) / b.width);
-        objs.push(b);
+        const bx = this.px(x) + T / 2, by = this.px(y) + T * 0.82;
+        if (i === 0) put('t_barracks', bx, by, T * 0.95);
+        else if (i === 1) put('t_vault', bx, by, T * 0.7);
+        else put(i % 2 ? 'ruin2' : 'ruin0', bx, by, T * (i % 2 ? 0.55 : 0.9));
       });
       // name tag (kept readable at any zoom in update())
-      const label = this.add.text(X, Y - TILE * 0.95, n.name, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: '#ffffff', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
-      const chip = this.add.rectangle(X, Y - TILE * 0.95 + 2, 0, 0, n.color, 1).setDepth(9499);
+      const label = this.add.text(X, Y - T * 1.0, n.name, { fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: '800', color: '#ffffff', stroke: '#000000', strokeThickness: 4, resolution: 2 }).setOrigin(0.5, 1).setDepth(9500);
+      const chip = this.add.rectangle(X, Y - T * 1.0 + 2, 0, 0, n.color, 1).setDepth(9499);
       label.chip = chip; label.n = n;
       this.labels.push(label);
       objs.push(label, chip);
       this.nationObjects.set(n, objs);
-      // little fighters wandering the home plots
-      const count = Math.min(4, 2 + Math.floor(n.plots.length / 2));
+      // the army: small figures on the parade ground, more of them for a bigger army
+      const total = n.units.reduce((a, b2) => a + b2, 0);
+      const count = 2 + Math.min(4, Math.floor(total / 90));
       for (let i = 0; i < count; i++) this.addWalker(n, i);
-      // click target
-      const zone = this.add.zone(X, Y, TILE * 2.2, TILE * 2.2).setDepth(9600);
-      zone.nation = n;
     }
+  }
+
+  // somewhere a figure may stand: the ground in front of the capital's walls, or the lower half of the nation's other plots; never on
+  // water or mountain, never inside the compound
+  yardPoint(n) {
+    const T = TILE, { R } = this.grid;
+    const [cx, cy] = n.plots[0];
+    const X = this.px(cx) + T / 2, Y = this.px(cy) + T / 2;
+    const ok = (x, y) => {
+      const tx = Math.floor(x / T) - R - MARGIN, ty = Math.floor(y / T) - R - MARGIN;
+      if (Math.abs(tx) > R || Math.abs(ty) > R) return false;
+      const t = this.world.terrain(tx, ty);
+      return t !== WATER && t !== MOUNTAIN;
+    };
+    for (let tries = 0; tries < 14; tries++) {
+      let x, y;
+      if (n.plots.length > 1 && Math.random() < 0.45) {
+        const [px, py] = n.plots[1 + Math.floor(Math.random() * (n.plots.length - 1))];
+        x = this.px(px) + T * (0.15 + Math.random() * 0.7); y = this.px(py) + T * (0.85 + Math.random() * 0.12);
+      } else {
+        x = X + (Math.random() - 0.5) * T * 2.3; y = Y + T * (1.6 + Math.random() * 0.4);
+      }
+      if (ok(x, y)) return [x, y];
+    }
+    return [X, Y + T * 1.65];
   }
 
   addWalker(n, i) {
     const keys = ['bruiser', 'sniper', 'trickster', 'defender'];
     const key = i === 0 ? n.emblem : keys[(keys.indexOf(n.emblem) + i) % 4];
-    const [px, py] = n.plots[i % n.plots.length];
-    const gx = this.px(px) + TILE * (0.25 + Math.random() * 0.5), gy = this.px(py) + TILE * (0.4 + Math.random() * 0.5);
-    const shadow = this.add.image(gx, gy, 'blob').setScale(0.85, 0.34).setAlpha(0.85);
-    const spr = this.add.image(gx, gy, key).setOrigin(0.5, 0.85);
-    spr.setScale((TILE * 1.9) / spr.width);
-    const w = { n, spr, shadow, gx, gy, tx: gx, ty: gy, wait: Math.random() * 2, phase: Math.random() * 6, base: spr.scaleX };
+    const [gx, gy] = this.yardPoint(n);
+    const sw = TILE * 0.62;
+    const shadow = this.add.image(gx, gy, 'blob');
+    const spr = this.add.image(gx, gy, `t_${key}`).setOrigin(0.5, 1);
+    spr.setScale(sw / spr.width);
+    shadow.setScale(sw / 128 * 1.1, sw / 128 * 0.4).setAlpha(0.85);
+    const w = { n, spr, shadow, gx, gy, tx: gx, ty: gy, wait: Math.random() * 2, phase: Math.random() * 6, base: spr.scaleX, sh: sw / 128 };
     this.walkers.push(w);
   }
 
@@ -201,9 +246,9 @@ export class MapScene extends Phaser.Scene {
       const fighters = [];
       [[a, -1], [b, 1]].forEach(([n, side]) => {
         if (!n) return;
-        const sh = this.add.image(X + side * 17, Y + 16, 'blob').setScale(0.4, 0.16);
-        const s = this.add.image(X + side * 17, Y + 16, n.emblem).setOrigin(0.5, 0.85).setFlipX(side < 0);
-        s.setScale((TILE * 0.85) / s.width).setDepth(2000 + Y + 18);
+        const sh = this.add.image(X + side * 17, Y + 19, 'blob').setScale(0.4, 0.15);
+        const s = this.add.image(X + side * 17, Y + 20, `t_${n.emblem}`).setOrigin(0.5, 1).setFlipX(side < 0);
+        s.setScale((TILE * 0.7) / s.width).setDepth(2000 + Y + 18);
         sh.setDepth(2000 + Y + 10);
         fighters.push({ s, sh, side, x: X + side * 17, y: Y + 16 });
         this.tweens.add({ targets: s, x: X + side * 6, duration: 170, yoyo: true, repeat: -1, repeatDelay: 450 + (side > 0 ? 260 : 0), delay: side > 0 ? 340 : 0, ease: 'Quad.out' });
@@ -255,7 +300,7 @@ export class MapScene extends Phaser.Scene {
     cam.setBounds(-900, -900, size + 1800, size + 1800);
     cam.setBackgroundColor(0x07262d);
     this.minZoom = () => Math.min(this.scale.width, this.scale.height) / size * 0.92;
-    const startZoom = Math.max(this.minZoom(), Math.min(this.scale.width, this.scale.height) / (TILE * 11), 0.9 * DPR());
+    const startZoom = Math.max(this.minZoom(), Math.min(this.scale.width, this.scale.height) / (TILE * 11), 1.1 * DPR());
     cam.setZoom(startZoom);
     const first = this.world.nations[0];
     if (first) cam.centerOn(this.px(first.plots[0][0]) + TILE / 2, this.px(first.plots[0][1]) + TILE / 2);
@@ -395,21 +440,20 @@ export class MapScene extends Phaser.Scene {
       let walking = false;
       if (d > 2) {
         walking = true;
-        const sp = 30 * dt;
+        const sp = 22 * dt;
         w.gx += (dx / d) * sp; w.gy += (dy / d) * sp;
         if (Math.abs(dx) > 1) w.spr.setFlipX(dx < 0);
       } else if (w.wait <= 0) {
-        const [px, py] = w.n.plots[Math.floor(Math.random() * w.n.plots.length)];
-        w.tx = this.px(px) + TILE * (0.15 + Math.random() * 0.7); w.ty = this.px(py) + TILE * (0.35 + Math.random() * 0.55);
+        [w.tx, w.ty] = this.yardPoint(w.n);
         w.wait = 1.5 + Math.random() * 3;
       }
       w.phase += dt * (walking ? 9 : 2.2);
       const step = Math.sin(w.phase);
-      const hop = walking ? Math.abs(step) * 9 : 0;
+      const hop = walking ? Math.abs(step) * 4 : 0;
       const landing = walking ? Math.max(0, -Math.cos(w.phase * 2)) : 0;           // squash as each foot lands
-      const squash = walking ? 1 - landing * 0.07 + (hop / 9) * 0.05 : 1 + Math.sin(w.phase) * 0.025;
-      w.spr.setPosition(w.gx, w.gy - hop).setScale(w.base * (2 - squash), w.base * squash).setAngle(walking ? step * 5 : 0).setDepth(2000 + w.gy);
-      w.shadow.setPosition(w.gx, w.gy + 1).setScale(0.85 * (1 - hop / 40), 0.34 * (1 - hop / 40)).setDepth(2000 + w.gy - 1);
+      const squash = walking ? 1 - landing * 0.07 + (hop / 4) * 0.05 : 1 + Math.sin(w.phase) * 0.025;
+      w.spr.setPosition(w.gx, w.gy - hop).setScale(w.base * (2 - squash), w.base * squash).setAngle(walking ? step * 4 : 0).setDepth(2000 + w.gy);
+      w.shadow.setPosition(w.gx, w.gy - 1).setScale(w.sh * 1.1 * (1 - hop / 40), w.sh * 0.4 * (1 - hop / 40)).setDepth(2000 + w.gy - 1);
     }
     for (const wf of this.warFx) for (const f of wf.fighters) { f.sh.x = f.s.x; }
   }
