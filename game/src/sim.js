@@ -22,8 +22,21 @@ export const R = {
 const KEY = 'badlands.sandbox.v2';
 export const SPEEDS = [1, 60, 600];
 export const UNIT = ['Bruiser', 'Sniper', 'Trickster', 'Defender'];
+const EMBLEMS = ['bruiser', 'sniper', 'trickster', 'defender'];
 export const COLORS = [0xffc145, 0x46d39a, 0x4cc9f0, 0xff6f91, 0xa78bfa, 0xff8a4c, 0xe8ff5a, 0xffffff];
 
+const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+const int = (v) => Number.isInteger(v);
+const validNation = (n) => !!n && typeof n.name === 'string' && n.name.length > 0 && Array.isArray(n.plots) && n.plots.length > 0 && n.plots.every((p) => Array.isArray(p) && int(p[0]) && int(p[1]))
+  && Array.isArray(n.units) && n.units.length === 4 && n.units.every((u) => int(u) && u >= 0) && Array.isArray(n.jobs)
+  && n.jobs.every((j) => j && int(j.id) && int(j.unit) && j.unit >= 0 && j.unit <= 3 && int(j.count) && j.count > 0 && fin(j.readyAt) && typeof j.collected === 'boolean')
+  && [n.wall, n.tower].every((v) => int(v) && v >= 0 && v <= R.MAX_LEVEL) && [n.pool, n.pot, n.protectedUntil, n.nextRaidAt, n.coin].every(fin) && n.pool >= 0 && n.pot >= 0
+  && typeof n.isPlayer === 'boolean' && fin(n.color) && typeof n.emblem === 'string';
+function validSave(s) {
+  return !!s && s.v === 2 && fin(s.clock) && SPEEDS.includes(s.speed) && Array.isArray(s.log) && Array.isArray(s.nations) && s.nations.length > 0 && s.nations.every(validNation)
+    && s.nations.filter((n) => n.isPlayer).length <= 1 && (s.nations.some((n) => n.isPlayer) ? s.nations.find((n) => n.isPlayer).name === s.playerName : true)
+    && (s.notes === undefined || Array.isArray(s.notes));
+}
 const dist = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
 const rnd = (n) => Math.floor(Math.random() * n);
 
@@ -41,6 +54,7 @@ export class Sim {
       this.clock = 1000 * H; this.speed = 60; this.log = []; this.notes = []; this.faucetAt = {}; this.playerName = null; this.aiAt = this.clock;
       this.nations = world.nations.map((n, i) => this.makeAI(n, i));
     }
+    try { if (typeof window !== 'undefined') { const keep = () => this.save(); window.addEventListener('pagehide', keep); document.addEventListener('visibilitychange', () => { if (document.hidden) keep(); }); } } catch (_) { /* not a browser */ }
     world.nations = this.nations;
     world.sandbox = true;
     world.live = false;
@@ -50,7 +64,12 @@ export class Sim {
 
   // ---- saving ----
   read() {
-    try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); return s && s.v === 2 ? s : null; } catch (_) { return null; }
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (validSave(s)) return s;
+      if (s) this.reset(); // a save that does not make sense is thrown away, never trusted
+      return null;
+    } catch (_) { return null; }
   }
   save() {
     try {
@@ -68,23 +87,25 @@ export class Sim {
       coin: R.SUPPLY, trained: 0, aggression: 0.35 + Math.random() * 0.4, burned: 0, usdc: 0,
     };
   }
+  get emblems() { return EMBLEMS; }
   clockStart() { return 1000 * H; }
 
   // ---- the clock ----
   /** advances the game clock by the real time since the last call, scaled by the speed; runs the other nations; returns new log entries */
   tick() {
     const nowReal = Date.now();
-    const dt = Math.min(5000, nowReal - this.lastReal);
+    const dt = Math.max(0, Math.min(5000, nowReal - this.lastReal));
     this.lastReal = nowReal;
     const before = this.log.length;
     this.clock += dt * this.speed;
     for (const n of this.nations) this.finishJobs(n);
     if (this.clock - this.aiAt >= 3 * H) { const steps = Math.min(8, Math.floor((this.clock - this.aiAt) / (3 * H))); this.aiAt += steps * 3 * H; for (let i = 0; i < steps; i++) this.aiTurn(); }
     this.wars = null;
+    if (nowReal - (this.lastSave || 0) > 5000) { this.lastSave = nowReal; this.save(); }
     return this.log.slice(before);
   }
   get now() { return this.clock; }
-  setSpeed(x) { this.speed = x; this.save(); }
+  setSpeed(x) { if (!SPEEDS.includes(x)) return; this.speed = x; this.save(); }
 
   // ---- queries ----
   get player() { return this.nations.find((n) => n.isPlayer) || null; }
@@ -97,7 +118,7 @@ export class Sim {
   buildCost(level) { return (R.SUPPLY * R.BUILD_COST_BPS * (level + 1)) / 10000; }
   protectedLeft(n) { return Math.max(0, n.protectedUntil - this.clock); }
   cooldownLeft(n) { return Math.max(0, n.nextRaidAt - this.clock); }
-  strength(n) { return n.units[0] * 100 + n.units[1] * 100 + n.units[2] * 100 + n.units[3] * 250; }
+  strength(n) { return n.units[0] * 100 + n.units[1] * 100 + n.units[2] * 100 + n.units[3] * 150; }
   canFound(x, y) {
     if (!this.buildable(x, y) || this.owner(x, y)) return false;
     return !this.nations.some((n) => n.plots.some((p) => dist(p, [x, y]) < 3));
@@ -117,7 +138,9 @@ export class Sim {
   // ---- founding ----
   claim(name, emblem, color, x, y) {
     if (this.player) throw new Error('you already have a nation');
-    name = String(name || '').trim().toUpperCase().replace(/[^A-Z0-9 ]/g, '').slice(0, 12);
+    name = String(name || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').trim().replace(/ +/g, ' ').slice(0, 12).trim();
+    this.need(int(x) && int(y), 'bad plot');
+    this.need(this.emblems.includes(emblem) && fin(color), 'bad champion or colour');
     if (name.length < 2) throw new Error('give your nation a name (2 to 12 letters)');
     if (this.byName(name)) throw new Error('that name is taken');
     if (!this.canFound(x, y)) throw new Error('that plot is not open (water, mountain, taken or too close to another nation)');
@@ -138,7 +161,7 @@ export class Sim {
   need(cond, msg) { if (!cond) throw new Error(msg); }
   train(unit, count) {
     const p = this.player; this.need(p, 'no nation');
-    count = Math.floor(count); this.need(count > 0 && unit >= 0 && unit <= 3, 'bad order');
+    this.need(int(count) && count > 0 && int(unit) && unit >= 0 && unit <= 3, 'bad order');
     this.need(p.trained + count <= Math.floor(p.coin / this.slot()), `holding too small: you can train ${Math.max(0, Math.floor(p.coin / this.slot()) - p.trained)} more (hold more coin)`);
     p.trained += count;
     p.coin -= this.unitCost() * count; p.burned += this.unitCost() * count;
@@ -162,11 +185,13 @@ export class Sim {
     return total;
   }
   pay(p, usdc, poolBps = R.POOL_BPS) {
+    this.need(fin(usdc) && usdc >= 0, 'bad amount');
     this.need(p.usdc >= usdc, `not enough play USDC (need ${usdc}, have ${Math.floor(p.usdc)}): get more in the Shop`);
     p.usdc -= usdc; p.pool += (usdc * poolBps) / 10000;
   }
   speedUp(hours) {
     const p = this.player; this.need(p, 'no nation');
+    this.need(int(hours) && hours > 0, 'speed up by a whole number of hours');
     const job = p.jobs.filter((j) => !j.collected && j.readyAt > this.clock).sort((a, b) => b.readyAt - a.readyAt)[0];
     this.need(job, 'no training to speed up');
     const left = job.readyAt - this.clock, cut = Math.min(left, hours * H), billed = Math.ceil(cut / H);
@@ -188,6 +213,7 @@ export class Sim {
   }
   buyShield(hours) {
     const p = this.player; this.need(p, 'no nation');
+    this.need(int(hours) && hours > 0, 'buy a whole number of hours');
     const base = Math.max(this.clock, p.protectedUntil), target = base + hours * H;
     this.need(target <= this.clock + R.MAX_SHIELD, 'a shield can reach at most 72 hours ahead');
     this.pay(p, hours * R.SHIELD_PER_HOUR);
@@ -196,21 +222,31 @@ export class Sim {
     this.save();
   }
   canExpand(x, y) {
-    const p = this.player; if (!p || p.plots.length >= R.MAX_PLOTS) return false;
+    const p = this.player; if (!p || p.plots.length >= R.MAX_PLOTS || !int(x) || !int(y)) return false;
     if (!this.buildable(x, y) || this.owner(x, y)) return false;
     return p.plots.some(([a, b]) => Math.abs(a - x) + Math.abs(b - y) === 1);
   }
+  plotCost(x, y) {
+    const p = this.player, base = R.PLAIN_PLOT * 2 ** (p.plots.length - 1);   // doubles with every plot owned
+    return this.kind(x, y) !== LAND && base < R.PREMIUM_PLOT ? R.PREMIUM_PLOT : base;
+  }
   expand(x, y) {
     const p = this.player; this.need(p, 'no nation');
+    this.need(int(x) && int(y), 'bad plot');
     this.need(p.plots.length < R.MAX_PLOTS, 'the most plots a nation can hold is 16');
+    this.need(p.coin >= (R.SUPPLY * R.COMMANDER_BPS) / 10000, 'you need more coin to take land (commander holding)');
     this.need(this.canExpand(x, y), 'a new plot must be open land touching yours');
-    this.pay(p, this.kind(x, y) === LAND ? R.PLAIN_PLOT : R.PREMIUM_PLOT, R.LAND_POOL_BPS);
+    const burn = (R.SUPPLY * R.BUILD_COST_BPS * p.plots.length) / 10000;
+    this.need(p.coin - burn >= 0, 'not enough coin to burn for this plot');
+    this.pay(p, this.plotCost(x, y), R.LAND_POOL_BPS);
+    p.coin -= burn; p.burned += burn;
     p.plots.push([x, y]);
     this.logEvent({ kind: 'info', text: `Took the plot at ${x}, ${y}.` });
     this.save();
   }
   faucet(what) {
     const p = this.player; this.need(p, 'no nation');
+    this.need(what === 'coin' || what === 'usdc', 'unknown faucet');
     const last = this.faucetAt[what] || 0;
     this.need(Date.now() - last > R.FAUCET_WAIT, `wait ${Math.ceil((R.FAUCET_WAIT - (Date.now() - last)) / 1000)} s`);
     this.faucetAt[what] = Date.now();
@@ -226,6 +262,7 @@ export class Sim {
     return best;
   }
   plan(a, d, send) {
+    this.need(Array.isArray(send) && send.length === 3 && send.every((v) => int(v) && v >= 0), 'a raid order is three whole numbers');
     const ap = this.approach(a, d);
     const onPass = this.kind(ap.tp[0], ap.tp[1]) === PASS;
     const r = powers(send, d.units, d.wall, d.tower, onPass);
@@ -262,10 +299,10 @@ export class Sim {
   }
   // when a nation's buyback pot reaches a step, it buys its own coin back and burns it (the real contract does this through a keeper)
   settlePot(n) {
-    if (n.pot < R.BUYBACK_STEP) return 0;
-    const spent = n.pot; n.pot = 0; n.burned += spent * 1_000_000;
-    this.logEvent({ kind: 'info', text: `${n.name}'s buyback pot reaches $${spent.toFixed(0)}: its coin is bought back and burned.` });
-    return spent;
+    let spentTotal = 0;
+    while (n.pot >= R.BUYBACK_STEP) { n.pot -= R.BUYBACK_STEP; spentTotal += R.BUYBACK_STEP; n.burned += R.BUYBACK_STEP * 1_000_000; }
+    if (spentTotal) this.logEvent({ kind: 'info', text: `${n.name}'s buyback pot spends $${spentTotal.toFixed(0)}: its coin is bought back and burned.` });
+    return spentTotal;
   }
 
   // ---- the other nations ----
@@ -299,5 +336,11 @@ export class Sim {
 }
 
 const snap = (n, units) => ({ name: n.name, color: n.color, emblem: n.emblem, units: units.slice(), wall: n.wall, tower: n.tower, isPlayer: n.isPlayer });
-export const fmtLeft = (ms) => { const h = ms / H; if (h >= 1) return `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m`; const m = ms / 60000; return m >= 1 ? `${Math.ceil(m)}m` : `${Math.ceil(ms / 1000)}s`; };
-export const fmtCoin = (c) => (c >= 1e9 ? `${(c / 1e9).toFixed(2)}B` : c >= 1e6 ? `${(c / 1e6).toFixed(c >= 1e8 ? 0 : 1)}M` : c >= 1e3 ? `${Math.round(c / 1e3)}K` : `${Math.round(c)}`);
+export const fmtLeft = (ms) => { const h = ms / H; if (h >= 1) { const m = Math.floor(ms / 60000); return `${Math.floor(m / 60)}h ${m % 60}m`; } const m = ms / 60000; return m >= 1 ? `${Math.ceil(m)}m` : `${Math.ceil(ms / 1000)}s`; };
+export const fmtCoin = (c) => {
+  const u = (v, d) => { const f = v.toFixed(d); return f; };
+  if (c >= 999_950_000) return `${u(c / 1e9, 2)}B`;
+  if (c >= 999_500) return `${u(c / 1e6, c >= 1e8 ? 0 : 1)}M`;
+  if (c >= 1e3) return `${Math.round(c / 1e3)}K`;
+  return `${Math.round(c)}`;
+};

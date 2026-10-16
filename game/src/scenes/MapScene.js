@@ -528,8 +528,8 @@ export class MapScene extends Phaser.Scene {
       const sim = this.sim;
       if (this.pick) { confirmClaim(this, tx, ty); return; }
       if (sim.player && sim.canExpand(tx, ty)) {
-        const cost = t === 0 ? 5 : 20;
-        this.sheet.open(`<h2>Take this plot?</h2><div class="sub">next to your land · plot ${tx}, ${ty}</div><div class="note" style="margin-top:0">Costs $${cost} play USDC (half of it joins your war pool).</div><div class="row"><button class="btn primary" data-go>Take it · $${cost}</button><button class="btn" data-close>Close</button></div>`, {
+        const cost = sim.plotCost(tx, ty);
+        this.sheet.open(`<h2>Take this plot?</h2><div class="sub">next to your land · plot ${tx}, ${ty}</div><div class="note" style="margin-top:0">Costs $${cost} play USDC (half of it joins your war pool) and burns coin. Each plot costs double the last. You need a commander's coin holding.</div><div class="row"><button class="btn primary" data-go>Take it · $${cost}</button><button class="btn" data-close>Close</button></div>`, {
           go: () => { try { sim.expand(tx, ty); this.sheet.close(); this.scene.restart(); } catch (e) { toast(e.message); } },
         });
         return;

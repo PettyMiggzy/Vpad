@@ -40,7 +40,7 @@ export class BootScene extends Phaser.Scene {
     if (!world) {
       // no real nations yet (or ?play): the play-test sandbox, the game's rules with play money, saved in this browser
       world = previewWorld();
-      if (!forcePreview) new Sim(world);
+      if (!forcePreview) { try { new Sim(world); } catch (e) { console.warn('sandbox save unusable, starting fresh', e); try { localStorage.removeItem('badlands.sandbox.v2'); } catch (_) { /* ignore */ } world = previewWorld(); new Sim(world); } }
     }
     this.registry.set('world', world);
     if (new URLSearchParams(window.location.search).has('logo')) {
