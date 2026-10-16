@@ -3,7 +3,7 @@ import { LAND, WATER, MOUNTAIN, COAST, PASS } from '../terrain.js';
 import { TILE, MARGIN, noise, lushAtPx } from '../worldgen.js';
 import { mountSheet } from '../ui.js';
 import { ATTACK, impactMs, attackMs } from '../anim.js';
-import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts } from '../sandboxUi.js';
+import { mountHud, openOnboarding, confirmClaim, plannerHtml, bindPlanner, toast, openBattle, clearToasts, refreshPlanner } from '../sandboxUi.js';
 import { fmtLeft } from '../sim.js';
 
 const DPR = () => window.__dpr || 1;
@@ -523,6 +523,7 @@ export class MapScene extends Phaser.Scene {
       if (p && e.b === p.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => openBattle({ report: e.report, back: 'map' }) });
     }
     this.sbx?.refresh();
+    refreshPlanner();
   }
 
   showNationSandbox(n) {

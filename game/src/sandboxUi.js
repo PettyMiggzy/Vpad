@@ -49,7 +49,7 @@ export function mountHud(scene) {
     q('[data-usdc]').textContent = p ? `$${Math.floor(p.usdc)}` : '-';
     q('[data-clock]').textContent = gameClock(sim);
     q('[data-speed]').textContent = `${sim.speed}×`;
-    const ready = sim.readyJobs().length;
+    const ready = sim.readyJobs().reduce((t, j) => t + j.count, 0);
     const r = q('[data-ready]'); r.hidden = !ready; r.textContent = ready;
     q('[data-base]').disabled = !p;
   };
@@ -69,7 +69,7 @@ export function openLog(scene) {
     replay: (b) => { const e = sim.log[Number(b.dataset.replay)]; if (e && e.report) openBattle({ report: e.report, back: 'map' }); },
   });
 }
-const gameAgo = (sim, t) => { const d = sim.now - t; return d < 90 * 1000 * 60 ? `${Math.max(1, Math.round(d / 60000))} min ago` : `${Math.round(d / H)} h ago`; };
+const gameAgo = (sim, t) => { const d = sim.now - t; return d < 90 * 60000 ? `${Math.max(1, Math.round(d / 60000))} min ago` : d < 48 * H ? `${Math.round(d / H)} h ago` : `${Math.round(d / (24 * H))} days ago`; };
 
 export function openNations(scene) {
   const sim = scene.sim;
@@ -125,6 +125,7 @@ export function openOnboarding(scene) {
   document.body.appendChild(root);
   root.querySelectorAll('[data-em]').forEach((b) => b.addEventListener('click', () => { emblem = b.dataset.em; root.querySelectorAll('[data-em]').forEach((x) => x.classList.toggle('on', x === b)); }));
   root.querySelectorAll('[data-col]').forEach((b) => b.addEventListener('click', () => { color = Number(b.dataset.col); root.querySelectorAll('[data-col]').forEach((x) => x.classList.toggle('on', x === b)); }));
+  root.querySelector('[data-name]').addEventListener('keydown', (e) => { if (e.key === 'Enter') root.querySelector('[data-next]').click(); });
   root.querySelector('[data-next]').addEventListener('click', () => {
     const name = cleanName(root.querySelector('[data-name]').value);
     const err = root.querySelector('[data-err]');
@@ -182,6 +183,10 @@ export function plannerHtml(sim, a, d) {
     <button class="btn danger" data-launch>Launch the raid</button></div>`;
 }
 
+let activePlanner = null;
+/** re-evaluates the open raid planner (cooldowns and protection end with the clock, not only when a slider moves) */
+export function refreshPlanner() { if (activePlanner && activePlanner.root.isConnected) activePlanner.calc(); else activePlanner = null; }
+
 export function bindPlanner(root, sim, a, d, onReport) {
   const send = () => [0, 1, 2].map((i) => Number(root.querySelector(`[data-send="${i}"]`).value));
   const calc = () => {
@@ -197,5 +202,6 @@ export function bindPlanner(root, sim, a, d, onReport) {
   root.querySelector('[data-launch]').addEventListener('click', () => {
     try { onReport(sim.raid(a, d, send())); } catch (e) { toast(e.message); }
   });
+  activePlanner = { root, calc };
   calc();
 }

@@ -107,7 +107,7 @@
     .sbx-rail button { position: relative; width: 56px; height: 56px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; backdrop-filter: blur(6px); }
     .sbx-rail b { font-size: 20px; line-height: 1; } .sbx-rail span { font-size: 10px; color: var(--muted); } .sbx-rail button[disabled] { opacity: .4; }
     .sbx-rail em { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--lime); color: #071000; font-style: normal; font-weight: 900; font-size: 12px; display: grid; place-items: center; padding: 0 5px; }
-    .toasts { position: fixed; left: 0; right: 0; bottom: calc(18px + var(--safe-b)); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 6; pointer-events: none; padding: 0 12px; }
+    .toasts { position: fixed; left: 0; right: 0; top: calc(112px + var(--safe-t)); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 6; pointer-events: none; padding: 0 12px; }
     .toast { pointer-events: auto; max-width: 520px; background: rgba(10,16,8,.96); border: 1px solid var(--lime); border-radius: 14px; padding: 10px 14px; font-size: 14px; display: flex; gap: 12px; align-items: center; box-shadow: 0 8px 30px rgba(0,0,0,.6); transition: opacity .6s; }
     .toast.out { opacity: 0; } .toast button { border: 0; background: var(--lime); color: #071000; font-weight: 800; border-radius: 10px; padding: 8px 12px; min-height: 36px; }
     .modal { position: fixed; inset: 0; background: rgba(3,6,3,.88); z-index: 8; display: grid; place-items: center; padding: 14px; overflow-y: auto; touch-action: pan-y; }

@@ -33,8 +33,10 @@ export class BootScene extends Phaser.Scene {
     this.makeSprites();
     makeAnims(this);
     setBoot('reading the chain', 0.45);
-    const live = await loadLive(import.meta.env.BASE_URL);
-    const forcePreview = new URLSearchParams(window.location.search).has('preview');
+    const params0 = new URLSearchParams(window.location.search);
+    const forcePreview = params0.has('preview');
+    // ?play and ?preview never wait on the chain; otherwise the chain gets 8 seconds, then the play test starts (a slow or dead RPC must not hold a tester on the loading screen)
+    const live = (params0.has('play') || forcePreview) ? null : await Promise.race([loadLive(import.meta.env.BASE_URL).catch(() => null), new Promise((res) => setTimeout(() => res(null), 8000))]);
     const params = new URLSearchParams(window.location.search);
     let world = forcePreview ? previewWorld() : (live && live.nations.length && !params.has('play') ? live : null);
     if (!world) {

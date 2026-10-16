@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { powers, UNIT_NAMES } from '../combat.js';
 import { fmtLeft, fmtCoin, UNIT as UNITN, R as RULES } from '../sim.js';
-import { plannerHtml, bindPlanner, toast, gameClock, openBattle, clearToasts } from '../sandboxUi.js';
+import { plannerHtml, bindPlanner, toast, gameClock, openBattle, clearToasts, refreshPlanner } from '../sandboxUi.js';
 import { train, collectReady, buildDefense, readNation, buyShield, speedUpLatest, raidNation, expandNation } from '../chain.js';
 
 const DPR = () => window.__dpr || 1;
@@ -121,6 +121,7 @@ export class BaseScene extends Phaser.Scene {
         const fresh = this.sim.tick();
         for (const e of fresh) if (e.kind === 'raid') { const me = this.nation; if (e.b === me.name) toast(`${e.a} raided you: ${e.success ? 'they broke through' : 'you held'}.`, { label: 'Watch', run: () => openBattle({ report: e.report, back: 'map' }) }); }
         this.sbxPanel.strip();
+        refreshPlanner();
         const rd = this.sim.readyJobs().length;
         if (fresh.some((e) => e.kind === 'raid') || rd !== this.sbxPanel.ready) { this.sbxPanel.ready = rd; this.layout(); this.sbxPanel.render(); }
       }
@@ -169,7 +170,7 @@ export class BaseScene extends Phaser.Scene {
     const render = () => {
       this.layout();
       if (tab === 'army') {
-        const ready = sim.readyJobs().length;
+        const ready = sim.readyJobs().reduce((t, j) => t + j.count, 0);
         body.innerHTML = `${unitCards()}${queue()}
           <div class="row" style="margin-top:8px"><button class="btn primary" data-collect ${ready ? '' : 'disabled'}>Collect finished units${ready ? ` (${ready})` : ''}</button>
           <button class="btn" data-speed ${n.jobs.some((j) => !j.collected && j.readyAt > sim.now) ? '' : 'disabled'}>Speed up 1h · $${RULES.SPEEDUP_PER_HOUR}</button></div>
