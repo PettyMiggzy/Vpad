@@ -1,4 +1,4 @@
-// The home page: King of the Hill (the launch most recently to the milestone) with its contenders, the top launches
+// The home page: King of the Bad Lands (the launch most recently to the milestone) with its contenders, the top launches
 // by liquidity, then every launch under Trending, New (not yet at the milestone) or Graduated, sorted by last trade,
 // market cap, creation or the day's volume, as cards or a table. A search from the header can narrow it (?q=).
 import { useEffect, useMemo, useRef, useState } from 'react';

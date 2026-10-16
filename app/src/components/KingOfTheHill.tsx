@@ -1,4 +1,4 @@
-// The top of the home page: King of the Hill (the launch that most recently reached the milestone) with its price,
+// The top of the home page: King of the Bad Lands (the launch that most recently reached the milestone) with its price,
 // volume, holders and recent price; the contenders, the four launches closest to it; and the top four by USDC in
 // their pools.
 import { change, iso, price, tokenText, usd, usdOf } from '../lib/format';
@@ -39,7 +39,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
   return (
     <section className="koth" aria-labelledby="koth-title">
       <div className="koth-head">
-        <h2 id="koth-title" className="koth-title"><Crown />King of the Hill</h2>
+        <h2 id="koth-title" className="koth-title"><Crown />King of the Bad Lands</h2>
         <span className="muted small">Most recent to {MILESTONE_TEXT}</span>
       </div>
       {king ? (
@@ -63,7 +63,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
       ) : status !== 'ok' ? (
         <p className="koth-empty">{pending(status)}</p>
       ) : (
-        <p className="koth-empty">No king right now. The next token to reach {MILESTONE_TEXT} of USDC bought in takes the hill.</p>
+        <p className="koth-empty">No king right now. The next token to reach {MILESTONE_TEXT} of USDC bought in takes the crown.</p>
       )}
     </section>
   );

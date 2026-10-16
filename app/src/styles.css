@@ -163,7 +163,7 @@ table.tokens td.down { color: var(--sell); font-weight: 700; }
 .menu.drawer a:hover, .menu.drawer a[aria-current="page"] { background: var(--accent-faint); color: var(--accent); text-decoration: none; }
 .menu.drawer hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; width: auto; }
 
-/* Home: King of the Hill and top by market cap, then the feed */
+/* Home: King of the Bad Lands and top by market cap, then the feed */
 .block { display: block; }
 .home-top { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 28px; align-items: start; padding-bottom: 28px; border-bottom: 1px solid var(--line-2); }
 .home-left { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; min-width: 0; } /* one column no wider than the page, whatever a ticker's length */
