@@ -12,4 +12,4 @@ The first-person arena in three.js. The rules (movement, height, shots, grenades
 - Speed: soldiers in the crowd use lighter models, soldiers out of view are not drawn or animated, and Graphics (Auto/High/Mid/Low in the menu) steps detail down by itself when the frame rate is poor.
 - Soldiers, weapons and map props are generated 3D models: pictures made with the image service, turned into textured models (soldiers rigged on a 24-bone humanoid skeleton with shared animation clips) and compressed (`gltf-transform optimize`, webp 1024, meshopt). Files in `public/models`. A map loads only the props, textures and sky it uses.
 - Ground, wall and deck textures and the sky panoramas (which also light the scene) are Poly Haven, CC0 (see `public/CREDITS.txt`).
-- Not done: talking to the match server (needs it hosted), team-coloured soldiers, more characters, mobile performance tuning on real phones.
+- The match connection is `src/net.js` (`connect`). The page does not call it yet. Also not done: team-coloured soldiers, more characters, mobile performance tuning on real phones.
