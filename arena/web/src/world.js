@@ -12,16 +12,19 @@ export const THEMES = {
   cargo: {
     hdr: 'industrial_sunset_puresky', ground: 'asphalt_02', gtile: 7, wall: 'concrete_wall_008', metal: 'corrugated_iron', deck: 'metal_plate', roof: 'concrete_floor_worn_001',
     sun: 3.8, sunColor: 0xffb070, env: 0.55, exposure: 0.9, fogNear: 70, fogFar: 240, hazeLum: 0.22, night: false,
+    grade: { sat: 1.1, contrast: 1.1, vig: 0.34, grain: 0.022, shadow: [0.93, 0.99, 1.07], high: [1.07, 1.0, 0.9] },
     props: ['container_blue', 'container_grey', 'container_orange', 'container_red', 'crate_wood', 'crate_steel', 'barrel_blue', 'barrel_red', 'barrier_concrete', 'sandbags', 'pallet_boxes', 'lamp_flood', 'water_tower', 'truck_cargo', 'forklift', 'pickup_truck', 'fence_chainlink', 'pipe_rack', 'watchtower', 'tires'],
   },
   dust: {
     hdr: 'qwantani_noon_puresky', ground: 'sand_01', gtile: 8, wall: 'large_sandstone_blocks', metal: 'rusty_metal_02', deck: 'concrete_floor_worn_001', roof: 'concrete_floor_worn_001',
     sun: 3.0, sunColor: 0xfff0d8, env: 1.5, exposure: 0.95, fogNear: 80, fogFar: 280, hazeLum: 0.55, night: false,
+    grade: { sat: 1.12, contrast: 1.06, vig: 0.28, grain: 0.016, shadow: [0.96, 0.99, 1.05], high: [1.05, 1.0, 0.94] },
     props: ['adobe_house_a', 'adobe_house_b', 'market_stall', 'car_wreck', 'rock_large', 'fountain_dry', 'crate_wood', 'barrel_red', 'barrel_blue', 'sandbags', 'tree_dead', 'water_tower', 'pickup_truck', 'hesco', 'tires', 'shed_metal'],
   },
   refinery: {
     hdr: 'dikhololo_night', ground: 'concrete_floor_02', gtile: 6, wall: 'concrete_wall_008', metal: 'rusty_metal_02', deck: 'metal_plate', roof: 'concrete_floor_worn_001',
     sun: 1.5, sunColor: 0x9fb8ff, env: 1.2, exposure: 1.25, fogNear: 45, fogFar: 170, hazeLum: 0.025, night: true,
+    grade: { sat: 1.05, contrast: 1.14, vig: 0.42, grain: 0.03, shadow: [0.9, 0.98, 1.12], high: [1.1, 1.02, 0.88] },
     props: ['tank_vertical', 'tank_horizontal', 'pipe_rack', 'generator', 'shed_metal', 'crate_steel', 'barrel_red', 'barrel_blue', 'barrier_concrete', 'lamp_flood', 'water_tower', 'watchtower', 'truck_cargo', 'fence_chainlink', 'pallet_boxes'],
   },
 };
@@ -96,6 +99,28 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
     sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.04; sun.shadow.radius = 2;
   }
   group.add(sun);
+
+  // ---- floating dust: tiny specks drifting in the light, which gives the air depth ----
+  let motes = null;
+  if (quality === 'high') {
+    const N = 520, pos = new Float32Array(N * 3), seed = new Float32Array(N);
+    for (let i = 0; i < N; i++) { pos[i * 3] = R() * W; pos[i * 3 + 1] = 0.3 + R() * 7; pos[i * 3 + 2] = R() * H; seed[i] = R() * 6.28; }
+    const g = keep(new THREE.BufferGeometry()); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const cv = document.createElement('canvas'); cv.width = cv.height = 32; const cg = cv.getContext('2d');
+    const gr = cg.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); cg.fillStyle = gr; cg.fillRect(0, 0, 32, 32);
+    const dotTex = new THREE.CanvasTexture(cv);
+    const mat = new THREE.PointsMaterial({ size: 0.07, map: dotTex, transparent: true, opacity: th.night ? 0.22 : 0.42, depthWrite: false, color: th.sunColor, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false });
+    motes = new THREE.Points(g, mat); motes.frustumCulled = false; group.add(motes); own.push(dotTex, mat);
+    motes.userData = { seed, base: pos.slice() };
+  }
+  const tick = (t) => {
+    if (!motes) return;
+    const p = motes.geometry.attributes.position, { seed, base } = motes.userData;
+    for (let i = 0; i < seed.length; i++) {
+      p.array[i * 3] = base[i * 3] + Math.sin(t * 0.15 + seed[i]) * 1.4; p.array[i * 3 + 1] = base[i * 3 + 1] + Math.sin(t * 0.22 + seed[i] * 2) * 0.6; p.array[i * 3 + 2] = base[i * 3 + 2] + Math.cos(t * 0.13 + seed[i]) * 1.4;
+    }
+    p.needsUpdate = true;
+  };
 
   // ---- materials ----
   const matCache = new Map();
@@ -260,5 +285,5 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
     for (const l of lights) l.dispose?.();
     envTex.dispose();
   };
-  return { sun, lights, dispose, theme: th, group };
+  return { sun, lights, dispose, theme: th, group, tick };
 }

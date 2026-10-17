@@ -230,7 +230,7 @@ export class Ui {
     <label>Bot skill (practice)</label>
     <select id="vy-diff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select>
     <label>Graphics</label>
-    <select id="vy-gfx"><option value="auto">Auto (drops detail if slow)</option><option value="high">High</option><option value="mid">Medium</option><option value="low">Low (fastest)</option></select>
+    <select id="vy-gfx"><option value="auto">Auto (drops detail if slow)</option><option value="ultra">Ultra (a powerful computer)</option><option value="high">High</option><option value="mid">Medium</option><option value="low">Low (fastest)</option></select>
     <label>Seats per side (humans and bots together)</label>
     <select id="vy-seats">${SEATS.map((n) => `<option${n === DEFAULT_SEATS ? ' selected' : ''}>${n}</option>`).join('')}</select>
     <button class="go" id="vy-go2" style="margin-top:18px">PLAY</button>

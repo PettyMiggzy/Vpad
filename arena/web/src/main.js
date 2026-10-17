@@ -5,6 +5,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { makeGradePass, applyGrade } from './post.js';
 import { Match, MAPS, R, floorAt, clearLine } from '../../server/game.js';
 import { REWARD, WEAPONS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
@@ -24,7 +26,7 @@ import { serverUrl, reachable, playerId, pullProfile, mirrorShop, diagnose } fro
 const qs = new URLSearchParams(location.search);
 const dbg = qs.get('dbg') || '';
 // graphics level: 3 high, 2 mid, 1 low, 0 minimum. 'auto' starts high (mid on phones) and steps down by itself when the frame rate is poor.
-const LEVELS = { high: 3, mid: 2, low: 1, min: 0 };
+const LEVELS = { ultra: 4, high: 3, mid: 2, low: 1, min: 0 };
 let gfxMode = qs.get('q') || (() => { try { return localStorage.getItem('vyre.arena.gfx') || 'auto'; } catch { return 'auto'; } })();
 if (gfxMode !== 'auto' && !(gfxMode in LEVELS)) gfxMode = 'auto';
 let level = gfxMode === 'auto' ? (matchMedia('(pointer: coarse)').matches ? 2 : 3) : LEVELS[gfxMode];
@@ -63,12 +65,24 @@ async function setMap(id, say) {
 await setMap('cargo', (d, n) => { bootmsg.textContent = `building the map ${d}/${n}`; });
 ready = true;
 
-const DPR = [0.75, 1, 1.25, 1.75], SHADOW = [0, 0, 1024, 2048];
-let composer = null, bloomPass = null;
-function makeComposer(samples) {
+const DPR = [0.75, 1, 1.25, 1.75, 2], SHADOW = [0, 0, 1024, 2048, 4096];
+let composer = null, bloomPass = null, gradePass = null, gtaoPass = null;
+function makeComposer(samples, ultra) {
   const c = new EffectComposer(renderer, new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType, samples }));
   c.addPass(new RenderPass(scene, camera));
+  gtaoPass = null;
+  if (ultra) {
+    // ambient occlusion: the soft darkening where things meet (under crates, in corners, at the feet of a wall)
+    const w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
+    gtaoPass = new GTAOPass(scene, camera, w, h);
+    gtaoPass.updateGtaoMaterial({ radius: 0.7, distanceExponent: 1.6, thickness: 1.2, scale: 1.15, samples: 16, distanceFallOff: 1, screenSpaceRadius: false });
+    gtaoPass.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: 16 });
+    gtaoPass.blendIntensity = 0.95;
+    c.addPass(gtaoPass);
+  }
   bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.36, 0.5, 0.94); c.addPass(bloomPass);
+  gradePass = makeGradePass(); c.addPass(gradePass);
+  if (worldH?.theme?.grade) applyGrade(gradePass, worldH.theme.grade, level < 3);
   c.addPass(new OutputPass());
   return c;
 }
@@ -86,12 +100,13 @@ function applyWorld() {
     sun.castShadow = level >= 2;
   } else if (sun) sun.castShadow = false;
   for (const lt of worldH?.lights ?? []) lt.visible = level >= 2;
+  if (gradePass && worldH?.theme?.grade) applyGrade(gradePass, worldH.theme.grade, level < 3);
 }
 /** one level of detail: resolution, shadows, glow, extra lights */
 function applyLevel(l) {
-  level = Math.max(0, Math.min(3, l));
+  level = Math.max(0, Math.min(4, l));
   renderer.shadowMap.enabled = level >= 2;
-  if (level >= 2) { if (composer) composer.dispose?.(); composer = makeComposer(level >= 3 ? 4 : 0); } else if (composer) { composer.dispose?.(); composer = null; }
+  if (level >= 2) { if (composer) composer.dispose?.(); composer = makeComposer(level >= 3 ? 4 : 0, level >= 4); } else if (composer) { composer.dispose?.(); composer = null; }
   applyWorld();
   resize();
 }
@@ -613,6 +628,8 @@ function frame(now) {
   boomT = Math.max(0, boomT - dt); boomLight.intensity = boomT > 0 ? 90 * (boomT / 0.35) : 0;
 
   updateZone(t);
+  if (gradePass) gradePass.uniforms.time.value = t;
+  worldH?.tick?.(t);
   draw();
 
   hudT -= dt;
