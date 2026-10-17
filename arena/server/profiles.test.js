@@ -11,7 +11,7 @@ const pid = (n) => `abcdef0123456789abcdef01234567${String(n).padStart(2, '0')}`
 
 test('a new profile has the free items and the starting coins; bad ids get nothing', () => {
   const p = getProfile(pid(1));
-  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'pistol', armor: 'none', boots: 'standard', camo: 'woodland' });
+  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'pistol', mod: 'nomod', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' });
   assert.equal(getProfile('../etc/passwd'), null); assert.equal(validPid('x'), false);
 });
 test('buying costs coins once, cannot overspend, and equips what you buy', () => {

@@ -260,5 +260,5 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
     for (const l of lights) l.dispose?.();
     envTex.dispose();
   };
-  return { sun, dispose, theme: th, group };
+  return { sun, lights, dispose, theme: th, group };
 }

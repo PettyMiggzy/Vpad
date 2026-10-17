@@ -16,15 +16,20 @@ function shadeProp(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow =
 export const GUN_FILE = { pistol: 'a', smg: 'j', rifle: 'd', shotgun: 'l', sniper: 'e' };
 
 export async function loadAssets(onProgress = () => {}) {
-  const A = { hero: {}, clips: null, gunsH: {}, props: {}, tex: {}, hdr: {} };
+  const A = { hero: {}, heroLo: {}, clips: null, gunsH: {}, gunsLo: {}, props: {}, tex: {}, hdr: {} };
   const jobs = [];
   let done = 0;
   const add = (p) => { jobs.push(p); p.then(() => onProgress(done += 1, jobs.length)); return p; };
   // the generated 3D soldiers (one rig, shared animation clips) and the generated weapons
   for (const c of ['frog', 'bulldog']) add(load(`${BASE}models/hero/${c}.glb`).then((g) => { shade(g.scene); A.hero[c] = g; }));
-  add(load(`${BASE}models/hero/clips.glb`).then((g) => { A.clips = g.animations; }));
+  // lighter copies for the crowd: only your own arms and weapon need every triangle
+  for (const c of ['frog', 'bulldog']) add(load(`${BASE}models/hero/${c}_lo.glb`).then((g) => { shade(g.scene); A.heroLo[c] = g; }));
+  for (const w of ['pistol', 'smg', 'rifle', 'shotgun', 'sniper']) add(load(`${BASE}models/hero/gun_${w}_lo.glb`).then((g) => { shade(g.scene); A.gunsLo[w] = g; }));
+  const clipSets = [];
+  for (const f of ['clips', 'clips2']) add(load(`${BASE}models/hero/${f}.glb`).then((g) => { clipSets[f === 'clips' ? 0 : 1] = g.animations; }));
   for (const w of ['pistol', 'smg', 'rifle', 'shotgun', 'sniper']) add(load(`${BASE}models/hero/gun_${w}.glb`).then((g) => { shade(g.scene); A.gunsH[w] = g; }));
   await Promise.all(jobs);
+  A.clips = clipSets.flat();
   return A;
 }
 

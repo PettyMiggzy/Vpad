@@ -14,10 +14,10 @@ export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _o = new THREE.Matrix4(), _e = new THREE.Euler();
 
 export class Unit {
-  constructor(A, team, weapon, color, seed) {
+  constructor(A, team, weapon, color, seed, full = false) {
     this.team = team; this.weapon = weapon;
     const names = POOL[team];
-    const src = A.hero[names[(typeof seed === 'number' ? seed : 0) % names.length]];
+    const nm = names[(typeof seed === 'number' ? seed : 0) % names.length], src = full ? A.hero[nm] : A.heroLo[nm];
     this.root = new THREE.Group();
     this.body = SkeletonUtils.clone(src.scene);
     this.root.add(this.body);
@@ -30,7 +30,7 @@ export class Unit {
     this.body.scale.multiplyScalar(this.scale);
     this.body.position.y = -box.min.y * this.scale;
     // weapon
-    const gunSrc = A.gunsH[weapon];
+    const gunSrc = full ? A.gunsH[weapon] : A.gunsLo[weapon];
     this.gun = new THREE.Group();
     const g = gunSrc.scene.clone(true);
     const gb = new THREE.Box3().setFromObject(g), gs = gb.getSize(new THREE.Vector3()), gc = gb.getCenter(new THREE.Vector3());
@@ -50,10 +50,11 @@ export class Unit {
     this.acts = {};
     for (const c of A.clips) {
       const a = this.mixer.clipAction(c);
-      if (c.name.startsWith('Shot_and_Fall')) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
+      if (c.name.startsWith('Shot_and_')) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
+      if (c.name === 'Gunshot_Reaction' || c.name === 'Standing_Reload' || c.name === 'Crouch_Pull_and_Throw') { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
       this.acts[c.name] = a;
     }
-    this.cur = null; this.dead = false; this.dieT = 0; this.flash = 0;
+    this.cur = null; this.dead = false; this.dieT = 0; this.flash = 0; this.ovr = null; this.dieClip = ['Shot_and_Fall_Backward', 'Shot_and_Fall_Forward', 'Shot_and_Slow_Fall_Backward'][Math.floor(Math.random() * 3)];
     this.play('Idle'); this.mixer.setTime(Math.random() * 3);
   }
   play(name, fade = 0.18) {
@@ -66,22 +67,42 @@ export class Unit {
   /** speed in metres a second, back true when moving away from where it faces */
   update(dt, speed, firing, alive, t, back = false) {
     if (!alive) {
-      if (!this.dead) { this.dead = true; this.dieT = 0; this.cur = null; for (const a of Object.values(this.acts)) a.stop(); this.play('Shot_and_Fall_Backward', 0.05); }
+      if (!this.dead) { this.dead = true; this.dieT = 0; this.cur = null; for (const a of Object.values(this.acts)) a.stop(); this.play(this.acts[this.dieClip] ? this.dieClip : 'Shot_and_Fall_Backward', 0.05); }
       this.dieT += dt; this.mixer.update(dt);
       this.ring.visible = false; this.mark.visible = false; this.syncGun(); this.gun.visible = this.dieT < 2.5;
       return;
     }
     if (this.dead) { this.dead = false; for (const a of Object.values(this.acts)) a.stop(); this.cur = null; this.ring.visible = true; this.mark.visible = true; this.gun.visible = true; }
-    this.play(speed < 0.35 ? 'Idle' : back ? 'Walk_Backward_While_Shooting' : speed < 3.2 ? 'Walk_Forward_While_Shooting' : 'Run_and_Shoot');
+    if (this.ovr) { this.ovr.t -= dt; if (this.ovr.t <= 0) this.ovr = null; }
+    if (this.ovr) this.play(this.ovr.clip);
+    else this.play(speed < 0.35 ? 'Idle' : back ? 'Walk_Backward_While_Shooting' : speed < 3.2 ? 'Walk_Forward_While_Shooting' : 'Run_and_Shoot');
     this.mixer.update(dt);
     this.syncGun();
     this.mark.position.y = UNIT_H + 0.45 + Math.sin(t * 3 + this.root.id) * 0.05; this.mark.rotation.y = t * 2;
+  }
+  /** a short action over the walking: 'reload' or 'throw' */
+  act(kind) {
+    const clip = kind === 'throw' ? 'Crouch_Pull_and_Throw' : 'Standing_Reload', a = this.acts[clip];
+    if (!a) return;
+    this.ovr = { clip, t: Math.min(kind === 'throw' ? 1.1 : 1.8, a.getClip().duration) };
+  }
+  /** a flinch when hit (skipped while another action is running) */
+  hit() {
+    if (this.dead || this.ovr || !this.acts.Gunshot_Reaction) return;
+    this.ovr = { clip: 'Gunshot_Reaction', t: Math.min(0.5, this.acts.Gunshot_Reaction.getClip().duration) };
   }
   /** first person: freeze the shooting stance (arms raised on the weapon) at one moment of the clip */
   freezeAim(name = 'Walk_Forward_While_Shooting', at = 0.8) {
     for (const a of Object.values(this.acts)) a.stop();
     const a = this.acts[name]; a.reset().setEffectiveWeight(1).play(); a.paused = true; a.time = at; this.cur = name; this.mixer.update(0);
     this.ring.visible = false; this.mark.visible = false;
+  }
+  /** first person: hold one clip of the action animations at a given moment (the arms follow it) */
+  pose(name, time) {
+    const a = this.acts[name]; if (!a) return false;
+    if (this.cur !== name) { for (const x of Object.values(this.acts)) x.stop(); a.reset().setEffectiveWeight(1).play(); a.paused = true; this.cur = name; }
+    a.time = Math.min(time, a.getClip().duration - 0.001); this.mixer.update(0);
+    return true;
   }
   /** the weapon sits at the right hand and always points the way the soldier faces (independent of how the bone is turned) */
   syncGun(kMul = 1) {

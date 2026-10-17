@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Match, R, MAPS, floorAt, pushOut, tryMove, raySolids, rayCircle, clearLine, navPath } from './game.js';
+import { Match, R, MAPS, floorAt, pushOut, tryMove, raySolids, rayCircle, clearLine, navPath, statsOf } from './game.js';
 import { STEP } from './maps.js';
-import { GRENADE } from './items.js';
+import { GRENADE, WEAPONS } from './items.js';
 
 const T = [{ name: 'A' }, { name: 'B' }];
 const run = (m, seconds) => { for (let i = 0; i < seconds * 60; i++) m.step(1 / 60); };
@@ -147,9 +147,59 @@ test('grenades: they fly, bounce, burst after the fuse, hurt enemies in range wi
   // a wall between the burst and a player blocks it
   const mp = MAPS.cargo, c = mp.solids.find((s) => s.kind === 'container' && s.top === 2.7);
   const [m2, q] = setup('cargo', [['a', 0, 200, 150], ['v', 1, c.x + c.w / 2, c.y + c.h + 30]]);
-  m2.nades.push({ x: c.x + c.w / 2, y: c.y - 30, z: 0.2, vx: 0, vy: 0, vz: 0, fuse: 0.01, owner: 'a', team: 0, id: 99 });
+  m2.nades.push({ x: c.x + c.w / 2, y: c.y - 30, z: 0.2, vx: 0, vy: 0, vz: 0, fuse: 0.01, owner: 'a', team: 0, id: 99, radius: GRENADE.radius, dmg: GRENADE.dmg });
   m2.step(1 / 60);
   assert.equal(q.v.hp, q.v.hpMax, 'behind a container the blast does nothing');
   assert.ok(rayCircle(0, 0, 1, 0, 100, 0, 10) === 90 && rayCircle(0, 0, 1, 0, 100, 30, 10) === Infinity);
   assert.ok(STEP > 0);
+});
+
+test('magazines: a weapon empties, reloads for its time, and cannot fire meanwhile; a full one does not reload', () => {
+  const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 2600, 1800]]);
+  const a = p.a; a.weapon = 'pistol'; a.ammo = 2; a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true };
+  let shots = 0; const ev = [];
+  for (let i = 0; i < 30; i++) { m.step(1 / 60); ev.push(...m.events); }
+  shots = ev.filter((e) => e.type === 'shot').length;
+  assert.equal(shots, 2, 'two rounds, two shots');
+  assert.equal(a.ammo, 0);
+  assert.ok(ev.some((e) => e.type === 'reload' && e.by === 'a'), 'an empty magazine starts a reload by itself when the trigger is held');
+  assert.ok(a.rl > 0, 'reloading');
+  const before = ev.length; a.input.fire = true;
+  for (let i = 0; i < 60; i++) { m.step(1 / 60); ev.push(...m.events); }
+  assert.equal(ev.slice(before).filter((e) => e.type === 'shot').length, 0, 'no shots while reloading');
+  for (let i = 0; i < 60 * 2; i++) { m.step(1 / 60); ev.push(...m.events); }
+  assert.ok(a.ammo >= 0 && a.rl === 0, 'the reload finished');
+  assert.ok(ev.some((e) => e.type === 'shot' && e.by === 'a') && ev.filter((e) => e.type === 'shot').length > 2, 'firing resumes with a full magazine');
+  // a full magazine ignores a reload request
+  const [m2, q] = setup('cargo', [['c', 0, 200, 150]]);
+  q.c.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, reload: true };
+  m2.step(1 / 60);
+  assert.equal(q.c.rl, 0);
+});
+
+test('shop gear changes the fight: a helmet cuts head-shot damage, mods change the gun, kits change the grenades, nothing unknown sneaks in', () => {
+  const s = statsOf({ weapon: 'rifle', mod: 'extmag', helmet: 'helmet2', grenade: 'heavy3', armor: 'elite' });
+  assert.equal(s.magSize, 45); assert.equal(s.headMul, 1.25); assert.equal(s.nadeCount, 3); assert.equal(s.hpMax, 200);
+  assert.ok(s.nadeRadius > 1 && s.nadeDmg > 1);
+  assert.equal(statsOf({ weapon: 'rifle', mod: 'quickmag' }).reloadTime, WEAPONS.rifle.reload * 0.65);
+  assert.ok(statsOf({ weapon: 'rifle', mod: 'grip' }).spreadMul < 1); assert.ok(statsOf({ weapon: 'rifle', mod: 'barrel' }).rangeMul > 1);
+  const bad = statsOf({ weapon: 'rifle', mod: 'nuke', helmet: 'crown', grenade: 'x' });
+  assert.equal(bad.mod, 'nomod'); assert.equal(bad.headMul, 2); assert.equal(bad.nadeCount, GRENADE.count);
+  // the same sniper head shot: a bare head takes double, a heavy helmet far less
+  const hs = (helmet) => {
+    const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 500, 150]]);
+    Object.assign(p.a, statsOf({ weapon: 'sniper' }), { weapon: 'sniper' }); Object.assign(p.b, statsOf({ weapon: 'pistol', helmet }), { hp: 1000 });
+    p.a.ammo = 5; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50), fire: true };
+    m.step(1 / 60); return 1000 - p.b.hp;
+  };
+  assert.equal(hs('nohelm'), 120); assert.ok(hs('helmet2') < 80);
+  // a heavy grenade reaches further than a plain one
+  const reach = (kit) => {
+    const [m, p] = setup('cargo', [['a', 0, 200, 150], ['v', 1, 1000, 1000]]);
+    Object.assign(p.a, statsOf({ grenade: kit }));
+    p.v.hp = 1000; p.a.x = 1000 - 345; p.a.y = 1000;
+    m.nades.push({ x: p.a.x + 0, y: 1000, z: 0.2, vx: 0, vy: 0, vz: 0, fuse: 0.01, owner: 'a', team: 0, id: 7, radius: GRENADE.radius * p.a.nadeRadius, dmg: GRENADE.dmg * p.a.nadeDmg });
+    m.step(1 / 60); return 1000 - p.v.hp;
+  };
+  assert.equal(reach('frag2'), 0); assert.ok(reach('heavy3') > 0, 'the bigger blast reaches 345 px');
 });
