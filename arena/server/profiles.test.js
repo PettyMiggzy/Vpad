@@ -14,7 +14,8 @@ test('a new profile has the free items and the starting coins; bad ids get nothi
   assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'pistol', mod: 'nomod', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' });
   assert.equal(getProfile('../etc/passwd'), null); assert.equal(validPid('x'), false);
 });
-test('buying costs coins once, cannot overspend, and equips what you buy', () => {
+test('buying costs coins once, cannot overspend, and equips what you buy', async () => {
+  const { grantXp: gx, } = await import('./profiles.js'); const { xpForLevel: xl } = await import('./progress.js'); gx(pid(2), xl(2));
   assert.equal(buy(pid(2), 'smg').coins, START_COINS - WEAPONS.smg.cost);
   assert.equal(getProfile(pid(2)).loadout.weapon, 'smg');
   assert.ok(buy(pid(2), 'smg').error, 'no second purchase');
@@ -46,4 +47,40 @@ test('weapons differ in play: a shotgun fires six pellets, a sniper one hard bul
   const shots = m.events.filter((e) => e.type === 'shot');
   assert.equal(shots.filter((x) => x.by === 'a').length, 6); assert.equal(shots.filter((x) => x.by === 'b').length, 1);
   assert.equal(WEAPONS.sniper.pellets, 1); assert.ok(WEAPONS.sniper.dmg > WEAPONS.shotgun.dmg * 3);
+});
+
+const { levelOf, xpForLevel, lockedReason, masteryOf, MASTERY, freshClasses } = await import('./progress.js');
+const { classOp, grantXp } = await import('./profiles.js');
+test('levels climb with experience and gate the shop; a locked item cannot be bought or equipped', () => {
+  assert.equal(levelOf(0), 1); assert.equal(levelOf(xpForLevel(5)), 5); assert.equal(levelOf(xpForLevel(5) - 1), 4); assert.equal(levelOf(1e9), 30);
+  const p = getProfile(pid(10)); p.coins = 5000;
+  assert.match(buy(pid(10), 'dmr').error, /level 12/, 'the marksman rifle waits for level 12');
+  assert.match(buy(pid(10), 'smg').error, /level 2/);
+  grantXp(pid(10), xpForLevel(12));
+  assert.ok(!buy(pid(10), 'dmr').error, 'bought once unlocked'); assert.equal(getProfile(pid(10)).loadout.weapon, 'dmr');
+  const q = getProfile(pid(11)); q.owned.push('lmg'); q.loadout.weapon = 'lmg';       // a tampered profile naming gear above its level
+  assert.equal(loadoutFor(pid(11)).weapon, 'pistol', 'a match gets the free weapon');
+  grantXp(pid(12), xpForLevel(2));
+  assert.equal(buy(pid(12), 'light').coins, START_COINS - ARMOR.light.cost, 'the light vest is armour (it once clashed with the light boots)');
+});
+test('earned items: gold needs a mastered weapon, obsidian needs level 20', () => {
+  const p = getProfile(pid(13));
+  assert.match(lockedReason(p, 'gold'), /150 kills/); assert.match(lockedReason(p, 'obsidian'), /level 20/);
+  p.weaponKills = { rifle: MASTERY[2] }; assert.equal(lockedReason(p, 'gold'), null);
+  grantXp(pid(13), xpForLevel(20)); assert.equal(lockedReason(p, 'obsidian'), null);
+  assert.equal(masteryOf(0), 0); assert.equal(masteryOf(20), 1); assert.equal(masteryOf(150), 3);
+});
+test('five classes: save the loadout, switch between them, rename; what is no longer allowed falls back to free gear', () => {
+  const p = getProfile(pid(14)); p.coins = 5000;
+  assert.equal(p.classes.length, 5);
+  grantXp(pid(14), xpForLevel(5)); buy(pid(14), 'smg'); buy(pid(14), 'extmag'); buy(pid(14), 'light');
+  assert.ok(!classOp(pid(14), 'save', 0).error); assert.equal(p.classes[0].loadout.weapon, 'smg');
+  equip(pid(14), 'pistol'); equip(pid(14), 'nomod');
+  assert.ok(!classOp(pid(14), 'save', 1).error);
+  classOp(pid(14), 'select', 0); assert.equal(p.loadout.weapon, 'smg'); assert.equal(p.loadout.mod, 'extmag'); assert.equal(p.activeClass, 0);
+  classOp(pid(14), 'select', 1); assert.equal(p.loadout.weapon, 'pistol');
+  assert.equal(classOp(pid(14), 'rename', 2, 'Sniper <b>').classes[2].name, 'Sniper b');
+  assert.ok(classOp(pid(14), 'select', 9).error); assert.ok(classOp(pid(14), 'rename', 0, '   ').error);
+  p.classes[3].loadout.weapon = 'dmr';                // a class naming a weapon that is not owned
+  classOp(pid(14), 'select', 3); assert.equal(p.loadout.weapon, 'pistol');
 });

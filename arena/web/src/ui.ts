@@ -2,7 +2,8 @@
 // The page around the 3D view: the menu with the loadout shop, the scoreboard, health, kill feed, banners, name tags and the touch controls.
 // All of it is ordinary HTML laid over the canvas, so it stays sharp and works with a thumb.
 import { CATALOG, SLOTS } from '../../server/items.js';
-import { buy, equip, type Profile } from './profile.js';
+import { buy, equip, level, levelProgress, classSave, classSelect, classRename, type Profile } from './profile.js';
+import { lockedReason, masteryOf, levelOf, xpForLevel, MAX_LEVEL } from '../../server/progress.js';
 import { SEATS, DEFAULT_SEATS } from './config.js';
 import { MAP_LIST } from './world.js';
 
@@ -10,7 +11,7 @@ type Item = { slot: string; name: string; cost: number; blurb: string };
 const items = CATALOG as unknown as Record<string, Item>;
 const TAB_NAMES: Record<string, string> = { weapon: 'Weapon', mod: 'Gun mods', armor: 'Armour', helmet: 'Helmet', boots: 'Boots', grenade: 'Grenades', camo: 'Camo' };
 
-export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string; gfx: string; names: [string, string]; mode: 'practice' | 'challenge'; difficulty: number }
+export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string; gfx: string; names: [string, string]; mode: 'practice' | 'challenge'; difficulty: number; objective: 'elim' | 'zone' }
 export interface BoardRow { name: string; team: number; kills: number; deaths: number; bot: boolean; me: boolean; alive: boolean }
 export interface LeaderData { teams: Record<string, { w: number; l: number }>; players: Record<string, { kills: number; deaths: number; matches: number; wins: number }> }
 export interface UiOptions {
@@ -70,7 +71,11 @@ const CSS = `
 #vy-nade.on { background: rgba(182,255,0,.7); }
 #vy-reload { right: calc(34px + env(safe-area-inset-right)); bottom: calc(142px + env(safe-area-inset-bottom)); width: 66px; height: 66px; font-size: 10px; background: rgba(60,120,210,.42); border: 3px solid rgba(130,185,255,.85); }
 #vy-reload.on { background: rgba(130,185,255,.7); }
-#vy-scope { right: calc(124px + env(safe-area-inset-right)); bottom: calc(110px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); display: none; }
+#vy-jump { right: calc(36px + env(safe-area-inset-right)); bottom: calc(222px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 10px; background: rgba(255,210,74,.28); border: 3px solid rgba(255,210,74,.8); }
+#vy-knife { right: calc(126px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); }
+#vy-swap { right: calc(210px + env(safe-area-inset-right)); bottom: calc(112px + env(safe-area-inset-bottom)); width: 54px; height: 54px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); }
+#vy-jump.on, #vy-knife.on, #vy-swap.on { background: rgba(255,255,255,.45); }
+#vy-scope { right: calc(124px + env(safe-area-inset-right)); bottom: calc(186px + env(safe-area-inset-bottom)); width: 54px; height: 54px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); display: none; }
 #vy-scope.on { background: rgba(255,255,255,.4); }
 body.touch #vy-me { left: 50%; transform: translateX(-108%); bottom: calc(8px + env(safe-area-inset-bottom)); width: min(180px, 26vw); }
 body.touch #vy-me b { font-size: 22px; } body.touch #vy-me small { display: none; }
@@ -99,6 +104,7 @@ body.touch #vy-gun small { display: none; } body.touch #vy-gun b { font-size: 24
 @keyframes vymedal { 0% { opacity: 0; transform: translateX(-50%) scale(.6); } 12% { opacity: 1; transform: translateX(-50%) scale(1.1); } 80% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; transform: translateX(-50%) translateY(-14px); } }
 #vy-map { position: absolute; left: calc(60px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); width: 168px; height: 105px; border: 1px solid var(--line); border-radius: 10px; background: rgba(4,8,4,.55); }
 @media (min-width: 900px) { #vy-map { left: calc(12px + env(safe-area-inset-left)); width: 216px; height: 135px; } }
+#vy-zone { position: absolute; left: 50%; top: calc(76px + env(safe-area-inset-top)); transform: translateX(-50%); width: min(300px, 60vw); height: 14px; background: rgba(0,0,0,.6); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; } #vy-zone .l, #vy-zone .r { position: absolute; top: 0; bottom: 0; width: 0; } #vy-zone .l { right: 50%; } #vy-zone .r { left: 50%; } #vy-zone span { position: absolute; inset: 0; display: grid; place-items: center; font: 800 9px system-ui; letter-spacing: .12em; color: #fff; text-shadow: 0 1px 3px #000; } #vy-zone::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.5); }
 #vy-pause .btns { display: flex; gap: 10px; justify-content: center; margin-top: 18px; } #vy-pause button { border: 0; border-radius: 12px; padding: 12px 20px; font-size: 15px; font-weight: 900; cursor: pointer; background: var(--lime); color: #071000; } #vy-pause button.leave { background: transparent; color: #ff8a70; border: 1px solid #ff8a70; }
 #vy-menu .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } #vy-menu .mode { border: 2px solid var(--line); border-radius: 12px; padding: 10px; background: #0d160a; cursor: pointer; text-align: center; font-weight: 800; font-size: 13px; } #vy-menu .mode small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; margin-top: 3px; line-height: 1.3; } #vy-menu .mode.on { border-color: var(--lime); box-shadow: 0 0 14px rgba(182,255,0,.35); } #vy-menu .mode.off { opacity: .45; cursor: not-allowed; }
 #vy-menu .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -113,6 +119,12 @@ body.touch #vy-gun small { display: none; } body.touch #vy-gun b { font-size: 24
 #vy-menu input, #vy-menu select { width: 100%; background: #0d160a; color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 16px; }
 #vy-menu .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } #vy-menu .team { border: 2px solid var(--line); border-radius: 14px; padding: 12px; text-align: center; font-weight: 900; cursor: pointer; background: #0d160a; } #vy-menu .team.on { border-color: var(--c); box-shadow: 0 0 18px var(--c); } #vy-menu .team small { display: block; color: var(--muted); font-weight: 600; margin-top: 3px; }
 #vy-menu .maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } #vy-menu .map { border: 2px solid var(--line); border-radius: 12px; padding: 10px 8px; background: #0d160a; cursor: pointer; text-align: center; font-size: 13px; } #vy-menu .map.on { border-color: var(--lime); box-shadow: 0 0 14px rgba(182,255,0,.4); } #vy-menu .map small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; line-height: 1.3; }
+#vy-menu .lv { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; } #vy-menu .lv b { color: var(--lime); letter-spacing: .08em; font-size: 15px; } #vy-menu .lv span { color: var(--muted); font-size: 12px; }
+#vy-menu .xpbar { height: 8px; border-radius: 5px; background: #0d160a; border: 1px solid var(--line); overflow: hidden; margin-top: 4px; } #vy-menu .xpbar i { display: block; height: 100%; background: linear-gradient(90deg, #7ac900, var(--lime)); }
+#vy-menu .classes { display: flex; flex-wrap: wrap; gap: 6px; } #vy-menu .cls { padding: 8px 10px; border-radius: 10px; border: 2px solid var(--line); background: #0d160a; font-weight: 800; font-size: 12px; cursor: pointer; } #vy-menu .cls.on { border-color: var(--lime); box-shadow: 0 0 10px rgba(182,255,0,.35); }
+#vy-menu .clsb { border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 900; font-size: 12px; cursor: pointer; background: var(--lime); color: #071000; } #vy-menu .clsb.alt { background: transparent; color: var(--lime); border: 1px solid var(--lime); }
+#vy-menu .it.lock { opacity: .6; } #vy-menu .stars { color: #ffd24a; letter-spacing: 1px; } #vy-menu .it i { color: #ffb070; font-style: normal; }
+#vy-hints { position: absolute; left: calc(12px + env(safe-area-inset-left)); bottom: calc(70px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.55); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 12px; line-height: 1.55; display: none; } #vy-hints.on { display: block; } #vy-hints kbd { background: #1c2a14; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; font: 800 11px system-ui; color: var(--lime); margin-right: 4px; }
 #vy-menu .tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; } #vy-menu .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0d160a; font-weight: 800; font-size: 13px; cursor: pointer; } #vy-menu .tab.on { background: var(--lime); color: #071000; border-color: var(--lime); }
 #vy-menu .items { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; } #vy-menu .it { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); background: #0d160a; border-radius: 12px; padding: 8px 10px; } #vy-menu .it b { display: block; font-size: 14px; } #vy-menu .it small { color: var(--muted); font-size: 11px; }
 #vy-menu .it button { border: 0; border-radius: 9px; padding: 8px 12px; font-weight: 900; font-size: 13px; cursor: pointer; background: var(--lime); color: #071000; min-width: 78px; } #vy-menu .it button.eq { background: transparent; color: var(--lime); border: 1px solid var(--lime); } #vy-menu .it button:disabled { opacity: .45; }
@@ -136,6 +148,9 @@ export class Ui {
   nadeTouch = false;
   reloadTouch = false;
   zoomTouch = false;
+  jumpTouch = false;
+  knifeTouch = false;
+  swapTouch = false;
   sprintTouch = false;
   easy = true;
   tipsPending = false;
@@ -149,12 +164,12 @@ export class Ui {
 <div id="vy-hud" hidden>
   <div id="vy-hurt"></div>
   <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span data-tn="0">${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span data-tn="1">${b}</span><div class="pips" data-pips="1"></div></div></div>
-  <div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
+  <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
   <div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><b data-ammo style="font-size:26px"></b><br><span data-gun></span><small data-nades></small><small data-coins></small></div>
   <div id="vy-tags"></div>
-  <div id="vy-touch" hidden><div id="vy-pad"><i></i></div><div class="vy-tb" id="vy-scope">ZOOM</div><div class="vy-tb" id="vy-reload">RELOAD</div><div class="vy-tb" id="vy-nade">GRENADE</div><div class="vy-tb" id="vy-fire">FIRE</div></div>
+  <div id="vy-touch" hidden><div id="vy-pad"><i></i></div><div class="vy-tb" id="vy-scope">ZOOM</div><div class="vy-tb" id="vy-jump">JUMP</div><div class="vy-tb" id="vy-knife">KNIFE</div><div class="vy-tb" id="vy-swap">SWAP</div><div class="vy-tb" id="vy-reload">RELOAD</div><div class="vy-tb" id="vy-nade">GRENADE</div><div class="vy-tb" id="vy-fire">FIRE</div></div>
 </div>
 <div id="vy-rotate"><div><span class="ph">&#128241;</span>Turn your phone sideways<small>The game plays in landscape.</small></div></div>
 <div id="vy-tips" hidden><div class="card"><h2>HOW TO PLAY ON A PHONE</h2><ul><li><b>Left thumb</b>: move. Push the stick all the way out to sprint.</li><li><b>Right thumb</b>: drag anywhere to look around.</li><li><b>FIRE</b>: the big red button. You can hold it and drag to aim at the same time.</li><li><b>Easy aim</b> is on: it helps line up your shots and fires when you are on target.</li><li>Tap the scoreboard at the top to see everyone. The II button pauses.</li></ul><button id="vy-tipsok">GOT IT, PLAY</button></div></div>
@@ -167,6 +182,8 @@ export class Ui {
     <label>Your name</label><input id="vy-name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
     <label>Match type</label>
     <div class="modes"><div class="mode on" data-mode="practice">Practice<small>Against bots, any time. Does not count on the ranked board.</small></div><div class="mode ${o.challengeLive ? '' : 'off'}" data-mode="challenge">Challenge a team<small>${o.challengeLive ? 'Waits for a player on each side. Counts.' : 'Needs the hosted match server. Not live yet.'}</small></div></div>
+    <label>Game type</label>
+    <select id="vy-obj"><option value="elim">Elimination: knock out the other team</option><option value="zone">Hold the Zone: own the middle, or knock them out</option></select>
     <label>Team names (a token each)</label>
     <div class="two"><input id="vy-ta" type="text" maxlength="12" value="${a}" autocomplete="off" /><input id="vy-tb" type="text" maxlength="12" value="${b}" autocomplete="off" /></div>
     <label>Your team (a token)</label>
@@ -174,6 +191,9 @@ export class Ui {
       <div class="team on" data-team="0" style="--c:${ca}"><span data-tc="0">${a}</span><small>tap to join</small></div>
       <div class="team" data-team="1" style="--c:${cb}"><span data-tc="1">${b}</span><small>tap to join</small></div>
     </div>
+    <div id="vy-level"></div>
+    <label>Your classes (saved loadouts)</label>
+    <div class="classes" id="vy-classes"></div>
     <label>Loadout shop <span id="vy-coins" style="float:right;color:var(--lime);letter-spacing:0;font-size:14px;font-weight:800"></span></label>
     <div class="tabs" id="vy-tabs"></div>
     <div class="items" id="vy-items"></div>
@@ -189,11 +209,11 @@ export class Ui {
     <button class="go" id="vy-go">PLAY</button>
     <div class="err" id="vy-err"></div>
     <details id="vy-lb"><summary>LEADERBOARD</summary><div id="vy-lbbody"></div></details>
-    <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button. Grenade: G or the NADE button. Reload: R. Sprint: Shift (no firing while sprinting). Scoreboard: hold Tab. Esc pauses and lets you leave the match.</div>
+    <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button. Grenade: G or the GRENADE button. Knife: F. Reload: R. Swap gun: Q. Jump: Space. Sprint: Shift (no firing while sprinting). Scoreboard: hold Tab. Esc pauses and lets you leave the match.</div>
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -207,7 +227,7 @@ export class Ui {
     this.el['vy-go'].addEventListener('click', () => {
       const name = (this.el['vy-name'] as HTMLInputElement).value.replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12) || 'Player';
       try { localStorage.setItem('vyre.arena.name', name); } catch { /* ignore */ }
-      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS, map: this.mapId, names: this.names(), mode: this.mode, difficulty: Number((this.el['vy-diff'] as HTMLSelectElement).value) || 0, gfx: (this.el['vy-gfx'] as HTMLSelectElement).value });
+      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS, map: this.mapId, names: this.names(), mode: this.mode, difficulty: Number((this.el['vy-diff'] as HTMLSelectElement).value) || 0, objective: (this.el['vy-obj'] as HTMLSelectElement).value === 'zone' ? 'zone' : 'elim', gfx: (this.el['vy-gfx'] as HTMLSelectElement).value });
     });
     this.el['vy-pause'].addEventListener('click', (e) => { if ((e.target as HTMLElement).id !== 'vy-leave') this.o.onResume(); });
     this.el['vy-leave'].addEventListener('click', (e) => { e.stopPropagation(); this.o.onLeave(); });
@@ -218,6 +238,7 @@ export class Ui {
     }));
     for (const k of ['vy-ta', 'vy-tb']) this.el[k].addEventListener('input', () => { const n = this.names(); this.setTeams(n, true); });
     this.el['vy-lb'].addEventListener('toggle', () => this.renderBoard());
+    this.el['vy-tipsok'].addEventListener('click', () => { this.el['vy-tips'].hidden = true; try { if (this.touch) localStorage.setItem('vyre.arena.tips', '1'); } catch { /* ignore */ } this.o.onResume(); });
     this.renderShop();
     if (this.touch) this.wireTouch();
   }
@@ -262,20 +283,38 @@ export class Ui {
     const m = this.el['vy-medal']; m.textContent = text; m.style.color = color; m.classList.remove('on'); void m.offsetWidth; m.classList.add('on');
   }
   lowHealth(frac: number): void { this.el['vy-low'].style.opacity = frac < 0.35 ? String(Math.min(1, (0.35 - frac) / 0.25)) : '0'; }
+  /** the tug-of-war bar for Hold the Zone: each team's bar grows out from the middle */
+  setZone(on: boolean, p0: number, p1: number, in0: number, in1: number, colors: readonly string[]): void {
+    const z = this.el['vy-zone']; z.hidden = !on; if (!on) return;
+    const l = z.querySelector('.l') as HTMLElement, r = z.querySelector('.r') as HTMLElement, tx = z.querySelector('span') as HTMLElement;
+    l.style.width = `${p0 * 50}%`; l.style.background = colors[0]; r.style.width = `${p1 * 50}%`; r.style.background = colors[1];
+    tx.textContent = in0 && in1 ? 'ZONE CONTESTED' : in0 || in1 ? 'ZONE BEING HELD' : 'HOLD THE ZONE';
+  }
   /** the line at the bottom while spectating, null hides it */
   spec(text: string | null, sub = ''): void { const e = this.el['vy-spec']; e.classList.toggle('on', !!text); if (text) e.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`; }
 
   // ---- menu and shop ----
   renderShop(): void {
-    const p = this.o.profile;
+    const p = this.o.profile, L = level(p);
     this.el['vy-coins'].textContent = `${p.coins} coins`;
+    // level and experience
+    const into = p.xp - xpForLevel(L), span = L >= MAX_LEVEL ? 1 : xpForLevel(L + 1) - xpForLevel(L);
+    this.el['vy-level'].innerHTML = `<div class="lv"><b>LEVEL ${L}</b><span>${L >= MAX_LEVEL ? 'max' : `${into} / ${span} XP`}</span></div><div class="xpbar"><i style="width:${Math.round(levelProgress(p) * 100)}%"></i></div>`;
+    // the five saved classes
+    this.el['vy-classes'].innerHTML = p.classes.map((c, i) => `<div class="cls${i === p.activeClass ? ' on' : ''}" data-cls="${i}">${c.name}</div>`).join('') +
+      `<button class="clsb" data-clsdo="save">Save gear to ${p.classes[p.activeClass].name}</button><button class="clsb alt" data-clsdo="rename">Rename</button>`;
+    this.el['vy-classes'].querySelectorAll<HTMLElement>('.cls').forEach((c) => c.addEventListener('click', () => { classSelect(p, Number(c.dataset.cls)); this.o.save(); this.el['vy-err'].textContent = ''; this.renderShop(); }));
+    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="save"]')!.addEventListener('click', () => { classSave(p, p.activeClass); this.o.save(); this.el['vy-err'].textContent = `Saved to ${p.classes[p.activeClass].name}`; });
+    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="rename"]')!.addEventListener('click', () => { const n = window.prompt('Name this class', p.classes[p.activeClass].name); if (n !== null) { const r = classRename(p, p.activeClass, n); this.el['vy-err'].textContent = r.error || ''; this.o.save(); this.renderShop(); } });
     this.el['vy-tabs'].innerHTML = (SLOTS as string[]).map((s) => `<div class="tab${s === this.tab ? ' on' : ''}" data-tab="${s}">${TAB_NAMES[s]}</div>`).join('');
     this.el['vy-tabs'].querySelectorAll<HTMLElement>('.tab').forEach((t) => t.addEventListener('click', () => { this.tab = t.dataset.tab || 'weapon'; this.renderShop(); }));
-    const rows = Object.entries(items).filter(([, it]) => it.slot === this.tab);
+    const rows = Object.entries(items).filter(([, it]) => it.slot === this.tab).sort((a, b) => a[1].cost - b[1].cost);
     this.el['vy-items'].innerHTML = rows.map(([id, it]) => {
-      const owned = p.owned.includes(id), on = p.loadout[it.slot] === id;
-      const btn = on ? '<button class="eq" disabled>Equipped</button>' : owned ? `<button class="eq" data-do="equip" data-id="${id}">Equip</button>` : `<button data-do="buy" data-id="${id}"${p.coins < it.cost ? ' disabled' : ''}>${it.cost} coins</button>`;
-      return `<div class="it"><div><b>${it.name}</b><small>${it.blurb}</small></div>${btn}</div>`;
+      const owned = p.owned.includes(id), on = p.loadout[it.slot] === id, lock = lockedReason(p, id);
+      const btn = on ? '<button class="eq" disabled>Equipped</button>' : lock && !owned ? `<button disabled title="${lock}">${lock.replace('Reach level ', 'Lv ').replace(/^Master.*/, 'Earn it').replace(/^Reach level 20.*/, 'Lv 20')}</button>` : owned ? `<button class="eq" data-do="equip" data-id="${id}">Equip</button>` : `<button data-do="buy" data-id="${id}"${p.coins < it.cost ? ' disabled' : ''}>${it.cost ? `${it.cost} coins` : 'Take it'}</button>`;
+      const kills = p.weaponKills[id] ?? 0, stars = it.slot === 'weapon' ? masteryOf(kills) : 0;
+      const sub = it.slot === 'weapon' ? `${it.blurb} &middot; <span class="stars">${'&#9733;'.repeat(stars)}${'&#9734;'.repeat(3 - stars)}</span> ${kills} kills` : lock && !owned ? `${it.blurb} &middot; <i>${lock}</i>` : it.blurb;
+      return `<div class="it${lock && !owned ? ' lock' : ''}"><div><b>${it.name}</b><small>${sub}</small></div>${btn}</div>`;
     }).join('');
     this.el['vy-items'].querySelectorAll<HTMLElement>('button[data-do]').forEach((b) => b.addEventListener('click', () => {
       const r = b.dataset.do === 'buy' ? buy(p, b.dataset.id || '') : equip(p, b.dataset.id || '');
@@ -285,8 +324,20 @@ export class Ui {
     }));
   }
   showMenu(on: boolean): void { this.el['vy-menu'].hidden = !on; this.el.hud.hidden = on; if (on) { this.renderShop(); this.renderBoard(); this.spec(null); this.scoreboard(false, [], this.names(), [0, 0]); this.showPause(false); } }
+  /** the key list at the bottom left on a computer: shown for a while at the start, H toggles it */
+  hints(show: boolean): void { if (!this.touch) this.el['vy-hints'].classList.toggle('on', show); }
   /** the phone how-to card, the first time only; returns true when it was shown (the match waits behind it) */
-  showTips(): boolean { if (!this.touch || !this.tipsPending) return false; this.tipsPending = false; this.el['vy-tips'].hidden = false; return true; }
+  showTips(): boolean {
+    if (!this.touch) {
+      let seen = false; try { seen = localStorage.getItem('vyre.arena.tips.desk') === '1'; } catch { /* ignore */ }
+      if (seen) return false;
+      this.el['vy-tips'].querySelector('h2')!.textContent = 'HOW TO PLAY';
+      this.el['vy-tips'].querySelector('ul')!.innerHTML = '<li><b>WASD</b> move, <b>mouse</b> aim, <b>click</b> fire, <b>right click</b> zoom in.</li><li><b>G</b> throws a grenade, <b>F</b> is the knife for close range (from behind it kills), <b>R</b> reloads, <b>Q</b> swaps to your pistol and back.</li><li><b>Space</b> jumps (you can hop over low cover), <b>Shift</b> sprints (you cannot shoot while sprinting).</li><li><b>Tab</b> shows the scoreboard, <b>Esc</b> pauses, <b>H</b> hides the key list.</li><li>In <b>Hold the Zone</b>, stand in the glowing circle with no enemy in it to fill your bar.</li>';
+      try { localStorage.setItem('vyre.arena.tips.desk', '1'); } catch { /* ignore */ }
+      this.el['vy-tips'].hidden = false; return true;
+    }
+    if (!this.tipsPending) return false; this.tipsPending = false; this.el['vy-tips'].hidden = false; return true;
+  }
   showPause(on: boolean): void { this.el['vy-pause'].hidden = !on; }
   menuOpen(): boolean { return !this.el['vy-menu'].hidden; }
 
@@ -302,7 +353,7 @@ export class Ui {
   setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0, ammo = 0, mag = 0, reloading = false): void {
     this.q('[data-hp]').textContent = String(Math.max(0, Math.ceil(hp)));
     (this.q('#vy-me .hp i')).style.width = `${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%`;
-    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = gun; this.el['vy-scope'].style.display = this.touch && gun === 'sniper' ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : `${ammo} / ${mag}`; this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
+    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = (items[gun]?.name ?? gun); this.el['vy-scope'].style.display = this.touch && gun === 'sniper' ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : `${ammo} / ${mag}`; this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
   }
   banner(title: string, sub = '', ms = 2200): void {
     const b = this.el['vy-banner']; b.innerHTML = `${title}${sub ? `<small>${sub}</small>` : ''}`; b.classList.add('on');
@@ -338,13 +389,12 @@ export class Ui {
     // the how-to card, once
     let seen = false; try { seen = localStorage.getItem('vyre.arena.tips') === '1'; } catch { /* ignore */ }
     this.tipsPending = !seen;
-    this.el['vy-tipsok'].addEventListener('click', () => { this.el['vy-tips'].hidden = true; try { localStorage.setItem('vyre.arena.tips', '1'); } catch { /* ignore */ } this.o.onResume(); });
     const mb = this.el['vy-menubtn']; mb.style.display = 'grid'; mb.addEventListener('click', () => this.o.onPause());
     (this.el.hud.querySelector('.bar') as HTMLElement).style.pointerEvents = 'auto'; (this.el.hud.querySelector('.bar') as HTMLElement).addEventListener('click', () => this.o.onScore());
     const pad = this.el['vy-pad'], knob = pad.firstElementChild as HTMLElement, R = 62;
     let mv: { id: number; x0: number; y0: number } | null = null, lk: { id: number; x: number; y: number } | null = null, fp: { id: number; x: number; y: number } | null = null;
     const root = document.body;
-    const SKIP = '#vy-fire,#vy-nade,#vy-reload,#vy-scope,#vy-menubtn,#vy-menu,#vy-pause,#vy-tips,.bar';
+    const SKIP = '#vy-fire,#vy-nade,#vy-reload,#vy-scope,#vy-jump,#vy-knife,#vy-swap,#vy-menubtn,#vy-menu,#vy-pause,#vy-tips,.bar';
     root.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest(SKIP)) return;
       if (e.clientX < innerWidth * 0.42 && !mv) { mv = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; pad.classList.add('moved', 'live'); pad.style.left = `${e.clientX}px`; pad.style.top = `${e.clientY}px`; pad.style.bottom = 'auto'; }
@@ -372,6 +422,6 @@ export class Ui {
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); b.classList.add('on'); b.setPointerCapture(e.pointerId); });
       const off = () => { set(false); b.classList.remove('on'); }; b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
     };
-    hold('vy-nade', (v) => { this.nadeTouch = v; }); hold('vy-reload', (v) => { this.reloadTouch = v; }); hold('vy-scope', (v) => { this.zoomTouch = v; });
+    hold('vy-nade', (v) => { this.nadeTouch = v; }); hold('vy-reload', (v) => { this.reloadTouch = v; }); hold('vy-scope', (v) => { this.zoomTouch = v; }); hold('vy-jump', (v) => { this.jumpTouch = v; }); hold('vy-knife', (v) => { this.knifeTouch = v; }); hold('vy-swap', (v) => { this.swapTouch = v; });
   }
 }

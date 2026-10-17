@@ -6,7 +6,8 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import express from 'express';
 import { Match, cleanName } from './game.js';
 import { CATALOG, REWARD } from './items.js';
-import { getProfile, view, buy, equip, loadoutFor, award, validPid } from './profiles.js';
+import { getProfile, view, buy, equip, loadoutFor, award, grantXp, classOp, validPid } from './profiles.js';
+import { XP } from './progress.js';
 
 const TICK = 1000 / 30;     // the simulation steps 30 times a second
 const SEND_EVERY = 2;       // and a snapshot goes out every second step: 15 a second
@@ -60,10 +61,10 @@ class MatchRoom extends Room {
   /** coins for kills, round wins and match wins go to the profiles of the humans who earned them (bots earn nothing) */
   reward(e) {
     const m = this.match;
-    if (e.type === 'kill') { const pid = this.pids.get(e.by); if (pid) award(pid, REWARD.kill); }
+    if (e.type === 'kill') { const pid = this.pids.get(e.by); if (pid && e.by !== e.victim) { award(pid, REWARD.kill); grantXp(pid, XP.kill + (e.head ? XP.head : 0) + (e.melee ? XP.melee : 0) + (e.nade ? XP.nade : 0), e.nade || e.melee ? null : e.weapon); } }
     const team = e.type === 'roundEnd' ? e.winner : e.type === 'match' ? e.winner : null;
     if ((e.type === 'roundEnd' || e.type === 'match') && (team === 0 || team === 1)) {
-      for (const [sid, pid] of this.pids) if (m.players.get(sid)?.team === team) award(pid, e.type === 'match' ? REWARD.match : REWARD.round);
+      for (const [sid, pid] of this.pids) if (m.players.get(sid)?.team === team) { award(pid, e.type === 'match' ? REWARD.match : REWARD.round); grantXp(pid, e.type === 'match' ? XP.match : XP.round); }
     }
   }
 
@@ -86,6 +87,7 @@ const api = (app) => {
   const send = (res, r) => res.status(r.error ? 400 : 200).json(r);
   app.get('/api/profile', (req, res) => { const p = getProfile(String(req.query.pid || '')); if (!p) return res.status(400).json({ error: 'bad id' }); res.json({ ...view(p), catalog: CATALOG }); });
   app.post('/api/buy', (req, res) => send(res, buy(String(req.body?.pid || ''), String(req.body?.item || ''))));
+  app.post('/api/class', (req, res) => send(res, classOp(String(req.body?.pid || ''), String(req.body?.op || ''), Number(req.body?.i), req.body?.name)));
   app.post('/api/equip', (req, res) => send(res, equip(String(req.body?.pid || ''), String(req.body?.item || ''))));
 };
 const server = new Server({ transport: new WebSocketTransport(), express: api });

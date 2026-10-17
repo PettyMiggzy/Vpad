@@ -1,14 +1,14 @@
 // The arena rules, with no network code in them so they can be tested on their own: two teams (one per token), a map with walls, ramps and
 // high decks, hitscan shooting (head, body, cover you can shoot over), grenades, bots that fill empty seats, and rounds (first to two takes the match).
 // Positions are pixels (50 to the metre), heights are metres.
-import { WEAPONS, ARMOR, BOOTS, FREE, GRENADE, MODS, HELMETS, KITS } from './items.js';
+import { WEAPONS, ARMOR, BOOTS, FREE, GRENADE, MODS, HELMETS, KITS, MELEE } from './items.js';
 import { MAPS, STEP } from './maps.js';
 export { MAPS };
 // the retired top-down client still reads the flat wall list of the first map
 export const MAP = { w: MAPS.cargo.w, h: MAPS.cargo.h };
 export const WALLS = MAPS.cargo.solids.map((s) => [s.x, s.y, s.w, s.h]);
 const M = 50;
-export const R = { RADIUS: 15, SPEED: 200, HP: 100, ROUND_SECONDS: 120, WIN_ROUNDS: 2, EYE: 1.6, BODY: 1.85, HEAD: 1.68, DROP: 1.3, FALL: 12, GRAV: 15 };
+export const R = { RADIUS: 15, SPEED: 200, HP: 100, ROUND_SECONDS: 120, WIN_ROUNDS: 2, EYE: 1.6, BODY: 1.85, HEAD: 1.68, DROP: 1.3, FALL: 12, GRAV: 15, JUMP: 5.48, REGEN_AFTER: 5, REGEN_RATE: 14, ZONE_SECONDS: 25, UAV_SECONDS: 12, BOOST_SECONDS: 8 };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -148,7 +148,7 @@ export function statsOf(l = {}) {
     weapon, armor, boots, mod, helmet, kit, camo: typeof l.camo === 'string' ? l.camo : FREE.camo,
     hpMax: ARMOR[armor].hp, speedMul: ARMOR[armor].speed * BOOTS[boots].speed * HELMETS[helmet].speed,
     headMul: HELMETS[helmet].head, dmgMul: md.dmg ?? 1, spreadMul: md.spread ?? 1, rangeMul: md.range ?? 1,
-    magSize: Math.max(1, Math.round(w.mag * (md.mag ?? 1))), reloadTime: w.reload * (md.reload ?? 1),
+    magMul: md.mag ?? 1, reloadMul: md.reload ?? 1, magSize: Math.max(1, Math.round(w.mag * (md.mag ?? 1))), reloadTime: w.reload * (md.reload ?? 1),
     nadeCount: KITS[kit].count, nadeRadius: KITS[kit].radius, nadeDmg: KITS[kit].dmg,
   };
 }
@@ -156,15 +156,20 @@ export const cleanName = (v) => String(v ?? '').replace(/[^A-Za-z0-9 ]/g, '').re
 export const cleanColor = (v) => (Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : 0xb6ff00);
 export const cleanSkin = (v) => (Number.isInteger(v) && v >= 0 && v <= 5 ? v : 0);
 
+/** magazine size and reload time of any weapon for a player, with their mod */
+const magFor = (p, weapon) => Math.max(1, Math.round(WEAPONS[weapon].mag * p.magMul));
+const reloadFor = (p, weapon) => WEAPONS[weapon].reload * p.reloadMul;
+
 export class Match {
   /** teams: two { name, color }; perSide: seats per team (humans and bots together); map: an id or a map */
-  constructor({ teams, perSide = 8, bots = true, map = 'cargo', mode = 'practice', difficulty = 1 }) {
+  constructor({ teams, perSide = 8, bots = true, map = 'cargo', mode = 'practice', difficulty = 1, objective = 'elim' }) {
     this.difficulty = [0, 1, 2].includes(difficulty) ? difficulty : 1;   // bots: 0 easy, 1 normal, 2 hard
     this.mode = mode === 'challenge' ? 'challenge' : 'practice';   // practice starts at once against bots and never counts; a challenge waits for a human on each side, is one match, and counts
     this.map = typeof map === 'string' ? (MAPS[map] || MAPS.cargo) : map;
     this.teams = teams; this.perSide = Math.max(1, Math.min(32, perSide)); this.useBots = bots;
     this.players = new Map(); this.nades = []; this.nextId = 1;
     this.score = [0, 0]; this.round = 0; this.phase = 'lobby'; this.timer = 6; this.winner = null; this.roundWinner = null;
+    this.objective = objective === 'zone' ? 'zone' : 'elim'; this.zoneP = [0, 0]; this.zoneIn = [0, 0]; this.uav = [0, 0];
     this.events = []; this.rv = 0;   // rv counts every change of who is in the match, so the room knows when to send the roster again
   }
 
@@ -194,8 +199,11 @@ export class Match {
 
   makePlayer(id, team, name, loadout, bot) {
     const st = statsOf(loadout);
-    return { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, alive: false, kills: 0, deaths: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
-      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
+    const p = { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, alive: false, kills: 0, deaths: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
+      primary: st.weapon, slot: 0, stash: 0, swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, moveMul: st.speedMul,
+      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
+    p.stash = magFor(p, 'pistol');
+    return p;
   }
 
   spawn(p) {
@@ -203,7 +211,9 @@ export class Match {
     const sp = list[idx % list.length] || [this.map.w / 2, this.map.h / 2];
     let x = sp[0] + rnd(-12, 12), y = sp[1] + rnd(-12, 12);
     [x, y] = pushOut(this.map, x, y, 0);
-    Object.assign(p, { x, y, z: floorAt(this.map, x, y), hp: p.hpMax, alive: true, cd: 0, nadeCd: 0, grenades: p.nadeCount, ammo: p.magSize, rl: 0, aim: p.team === 0 ? 0 : Math.PI, pitch: 0 });
+    Object.assign(p, { x, y, z: floorAt(this.map, x, y), hp: p.hpMax, alive: true, cd: 0, nadeCd: 0, grenades: p.nadeCount, rl: 0, aim: p.team === 0 ? 0 : Math.PI, pitch: 0,
+      weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false });
+    p.ammo = p.magSize; p.stash = magFor(p, 'pistol');
   }
 
   fillBots() {
@@ -211,7 +221,7 @@ export class Match {
     for (const t of [0, 1]) {
       while (this.count(t) < this.perSide) {
         const id = `bot${this.nextId++}`;
-        const gear = { weapon: Object.keys(WEAPONS)[(this.nextId * 7) % 5], armor: Object.keys(ARMOR)[this.nextId % 3], boots: Object.keys(BOOTS)[(this.nextId + 1) % 3], camo: ['woodland', 'desert', 'arctic', 'night', 'toxic'][this.nextId % 5],
+        const gear = { weapon: Object.keys(WEAPONS)[(this.nextId * 7) % Object.keys(WEAPONS).length], armor: Object.keys(ARMOR)[this.nextId % 3], boots: Object.keys(BOOTS)[(this.nextId + 1) % 3], camo: ['woodland', 'desert', 'arctic', 'night', 'toxic'][this.nextId % 5],
           mod: Object.keys(MODS)[(this.nextId * 3) % 6], helmet: Object.keys(HELMETS)[(this.nextId + 2) % 3], grenade: Object.keys(KITS)[(this.nextId * 5) % 4] };
         const p = this.makePlayer(id, t, ['Rex', 'Nova', 'Bolt', 'Kilo', 'Zed', 'Echo', 'Ghost', 'Viper', 'Rook', 'Axel', 'Dusk', 'Lynx'][this.nextId % 12], gear, true);
         this.players.set(id, p); this.rv++;
@@ -221,20 +231,20 @@ export class Match {
   }
 
   startRound() {
-    this.round += 1; this.phase = 'countdown'; this.timer = 3; this.nades = []; this.roundWinner = null;
+    this.round += 1; this.phase = 'countdown'; this.timer = 3; this.nades = []; this.roundWinner = null; this.zoneP = [0, 0]; this.zoneIn = [0, 0]; this.uav = [0, 0];
     this.fillBots();
-    for (const p of this.players.values()) { p.brain.perch = null; p.alive = false; }
+    for (const p of this.players.values()) { p.brain.perch = null; p.brain.goZone = undefined; p.alive = false; }
     for (const p of this.players.values()) this.spawn(p);
     this.events.push({ type: 'round', n: this.round });
   }
 
   aliveCount(team) { let n = 0; for (const p of this.players.values()) if (p.team === team && p.alive) n++; return n; }
 
-  endRound(winner) {
+  endRound(winner, reason = 'elimination') {
     this.phase = 'roundover'; this.timer = 4; this.roundWinner = winner;
     if (winner === 0 || winner === 1) this.score[winner] += 1;
     if (this.score[0] >= R.WIN_ROUNDS || this.score[1] >= R.WIN_ROUNDS) { this.phase = 'matchover'; this.timer = 10; this.winner = this.score[0] >= R.WIN_ROUNDS ? 0 : 1; this.events.push({ type: 'match', winner: this.winner, ranked: this.mode === 'challenge' }); }
-    else this.events.push({ type: 'roundEnd', winner });
+    else this.events.push({ type: 'roundEnd', winner, reason });
   }
 
   restartMatch() { this.score = [0, 0]; this.round = 0; this.winner = null; for (const p of this.players.values()) { p.kills = 0; p.deaths = 0; } this.startRound(); }
@@ -262,13 +272,26 @@ export class Match {
     this.timer -= dt;
     this.think(dt, true);
     this.moveNades(dt);
+    this.uav = this.uav.map((t) => Math.max(0, t - dt));
     const a = this.aliveCount(0), b = this.aliveCount(1);
-    if (a === 0 || b === 0) this.endRound(a === b ? -1 : a > b ? 0 : 1);
+    const zoneWin = this.objective === 'zone' && this.map.zone ? this.updateZone(dt) : null;
+    if (zoneWin !== null) this.endRound(zoneWin, 'zone');
+    else if (a === 0 || b === 0) this.endRound(a === b ? -1 : a > b ? 0 : 1);
+    else if (this.timer <= 0 && this.objective === 'zone' && Math.abs(this.zoneP[0] - this.zoneP[1]) > 0.02) this.endRound(this.zoneP[0] > this.zoneP[1] ? 0 : 1, 'zone');
     else if (this.timer <= 0) {
       // time is up: the team with more players standing, then more health, wins the round
       const hp = (t) => [...this.players.values()].filter((p) => p.team === t && p.alive).reduce((s, p) => s + p.hp, 0);
       this.endRound(a !== b ? (a > b ? 0 : 1) : hp(0) === hp(1) ? -1 : hp(0) > hp(1) ? 0 : 1);
     }
+  }
+
+  /** hold the zone: a team with players in it and none of the other team's fills its bar; a winner when a bar is full */
+  updateZone(dt) {
+    const z = this.map.zone, n = [0, 0];
+    for (const p of this.players.values()) if (p.alive && Math.hypot(p.x - z.x, p.y - z.y) <= z.r && Math.abs(p.z - (z.z ?? 0)) < 1.4) n[p.team]++;
+    this.zoneIn = n;
+    for (const t of [0, 1]) if (n[t] > 0 && n[1 - t] === 0) this.zoneP[t] = Math.min(1, this.zoneP[t] + dt / R.ZONE_SECONDS);
+    return this.zoneP[0] >= 1 ? 0 : this.zoneP[1] >= 1 ? 1 : null;
   }
 
   think(dt, live) {
@@ -280,20 +303,76 @@ export class Match {
       const len = Math.hypot(dx, dy); if (len > 1) { dx /= len; dy /= len; }
       if (Number.isFinite(inp.aim)) p.aim = inp.aim;
       if (Number.isFinite(inp.pitch)) p.pitch = clamp(inp.pitch, -1.4, 1.4);
-      // sprinting: faster, but only forward-ish movement counts and you cannot fire or throw while doing it
+      p.cd = Math.max(0, p.cd - dt); p.nadeCd = Math.max(0, p.nadeCd - dt); p.swapT = Math.max(0, p.swapT - dt); p.meleeCd = Math.max(0, p.meleeCd - dt);
+      p.hurtT += dt; p.boostT = Math.max(0, p.boostT - dt);
+      let w = WEAPONS[p.weapon];
+      // sprinting: faster, but only movement counts and you cannot fire or throw while doing it
       p.sprinting = !!inp.sprint && len > 0.3;
-      const sp = R.SPEED * p.speedMul * (p.sprinting ? 1.32 : 1);
-      const [nx, ny, f] = tryMove(this.map, p.x, p.y, p.z, p.x + dx * sp * dt, p.y + dy * sp * dt);
-      p.x = nx; p.y = ny; p.z = f >= p.z ? f : Math.max(f, p.z - R.FALL * dt);
-      p.cd = Math.max(0, p.cd - dt); p.nadeCd = Math.max(0, p.nadeCd - dt);
-      const w = WEAPONS[p.weapon];
+      const sp = R.SPEED * p.speedMul * (w.move ?? 1) * (p.sprinting ? 1.32 : 1) * (p.boostT > 0 ? 1.22 : 1);
+      const [nx, ny] = tryMove(this.map, p.x, p.y, p.z, p.x + dx * sp * dt, p.y + dy * sp * dt);
+      p.x = nx; p.y = ny;
+      const f = floorAt(this.map, nx, ny);       // the true floor here (a blocked move reports your own height, which is not it)
+      // height: a jump is a ballistic arc (about a metre: enough to hop over low cover, never off a deck); otherwise follow the floor
+      if (live && inp.jump && !p.air && p.z <= f + 0.03) { p.air = true; p.vz = R.JUMP; this.events.push({ type: 'jump', by: p.id }); }
+      if (p.air) {
+        p.vz -= R.GRAV * dt; p.z += p.vz * dt;
+        if (p.vz <= 0 && p.z <= f) { p.z = f; p.vz = 0; p.air = false; this.events.push({ type: 'land', by: p.id }); }
+      } else p.z = f >= p.z ? f : Math.max(f, p.z - R.FALL * dt);
+      // health comes back a little at a time once you have been out of a fight for a few seconds
+      if (p.hp < p.hpMax && p.hurtT > R.REGEN_AFTER) p.hp = Math.min(p.hpMax, p.hp + R.REGEN_RATE * dt);
+      // the sidearm: swap between the primary and the pistol (what is in each magazine is kept)
+      if (live && inp.swap && p.swapT === 0 && p.primary !== 'pistol') {
+        const next = p.slot === 0 ? 'pistol' : p.primary;
+        [p.ammo, p.stash] = [p.stash, p.ammo]; p.slot = 1 - p.slot; p.weapon = next; p.rl = 0; p.burstLeft = 0;
+        p.magSize = magFor(p, next); p.reloadTime = reloadFor(p, next); p.swapT = 0.38; p.cd = Math.max(p.cd, 0.2);
+        this.events.push({ type: 'swap', by: p.id, weapon: next }); w = WEAPONS[next];
+      }
       if (p.rl > 0) { p.rl = Math.max(0, p.rl - dt); if (p.rl === 0) p.ammo = p.magSize; }
-      else if (live && (inp.reload || (inp.fire && p.ammo <= 0)) && p.ammo < p.magSize) { p.rl = p.reloadTime; this.events.push({ type: 'reload', by: p.id }); }
-      if (live && inp.fire && p.cd === 0 && p.rl === 0 && !p.sprinting) {
-        if (p.ammo > 0) { p.ammo -= 1; p.cd = w.gap; this.shoot(p, w); } else { p.cd = 0.3; this.events.push({ type: 'dry', by: p.id }); }
+      else if (live && p.swapT === 0 && (inp.reload || (inp.fire && p.ammo <= 0)) && p.ammo < p.magSize) { p.rl = p.reloadTime * (p.boostT > 0 ? 0.5 : 1); this.events.push({ type: 'reload', by: p.id }); }
+      // the knife
+      if (live && inp.melee && p.meleeCd === 0 && p.swapT === 0) { p.meleeCd = MELEE.gap; p.cd = Math.max(p.cd, 0.35); p.rl = 0; p.burstLeft = 0; this.melee(p); }
+      // firing: a burst weapon queues its rounds, the rest fire one round a trigger pull
+      const canFire = live && p.rl === 0 && p.swapT === 0 && !p.sprinting && p.meleeCd < MELEE.gap - 0.3;
+      if (canFire && p.burstLeft > 0 && p.cd === 0) {
+        if (p.ammo > 0) { p.ammo -= 1; p.burstLeft -= 1; p.cd = p.burstLeft > 0 ? w.gap : w.burstGap; this.shoot(p, w); } else p.burstLeft = 0;
+      } else if (canFire && inp.fire && p.cd === 0) {
+        if (p.ammo > 0) {
+          if (w.burst) { p.burstLeft = Math.min(w.burst, p.ammo); p.ammo -= 1; p.burstLeft -= 1; p.cd = w.gap; this.shoot(p, w); }
+          else { p.ammo -= 1; p.cd = w.gap; this.shoot(p, w); }
+        } else { p.cd = 0.3; this.events.push({ type: 'dry', by: p.id }); }
       }
       if (live && inp.nade && p.nadeCd === 0 && p.grenades > 0 && !p.sprinting) { p.grenades -= 1; p.nadeCd = 1.0; this.throwNade(p); inp.nade = false; }
     }
+  }
+
+  /** a kill, from a shot, a blast or the knife: counts it, runs the streak rewards, tells everyone */
+  kill(by, victim, extra = {}) {
+    victim.alive = false; victim.deaths += 1; victim.streak = 0; victim.boostT = 0; victim.burstLeft = 0;
+    if (by && by.id !== victim.id) {
+      by.kills += 1; by.streak += 1;
+      if (by.streak === 3) { this.uav[by.team] = R.UAV_SECONDS; this.events.push({ type: 'streak', by: by.id, kind: 'uav' }); }
+      if (by.streak === 5) { by.boostT = R.BOOST_SECONDS; this.events.push({ type: 'streak', by: by.id, kind: 'boost' }); }
+    }
+    this.events.push({ type: 'kill', by: by ? by.id : null, victim: victim.id, x: victim.x, y: victim.y, ...extra });
+  }
+
+  /** the knife: the nearest enemy within reach and in front; from behind it is a kill */
+  melee(p) {
+    let best = null, bd = MELEE.range;
+    for (const q of this.players.values()) {
+      if (!q.alive || q.team === p.team) continue;
+      const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy);
+      if (d > bd || Math.abs(q.z - p.z) > 1.2) continue;
+      if (d > 8 && Math.cos(Math.atan2(dy, dx) - p.aim) < MELEE.arc) continue;
+      if (!clearLine(this.map, p.x, p.y, p.z + 1.0, q.x, q.y, q.z + 1.0)) continue;
+      best = q; bd = d;
+    }
+    this.events.push({ type: 'melee', by: p.id, hit: best ? best.id : null, x: p.x, y: p.y });
+    if (!best) return;
+    const behind = Math.cos(best.aim - p.aim) > 0.3;    // they face the same way we do: we are at their back
+    best.hp -= behind ? MELEE.back : MELEE.dmg; best.hurtT = 0;
+    if (best.hp <= 0) this.kill(p, best, { melee: 1, back: behind ? 1 : 0 });
+    else this.events.push({ type: 'hit', by: p.id, victim: best.id, x: best.x, y: best.y, z: best.z + 1, melee: 1 });
   }
 
   /** a shot lands the instant it is fired: each pellet is a ray that stops at the first solid, the ground or an enemy (head, body) */
@@ -314,8 +393,8 @@ export class Match {
       const ex = p.x + dx * hitD, ey = p.y + dy * hitD, ez = eye + slope * hitD;
       this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0 });
       if (!hit) continue;
-      hit.hp -= w.dmg * p.dmgMul * (head ? hit.headMul : 1);
-      if (hit.hp <= 0) { hit.alive = false; hit.deaths += 1; p.kills += 1; this.events.push({ type: 'kill', by: p.id, victim: hit.id, x: hit.x, y: hit.y, head: head ? 1 : 0 }); }
+      hit.hp -= w.dmg * p.dmgMul * (head ? hit.headMul : 1); hit.hurtT = 0;
+      if (hit.hp <= 0) this.kill(p, hit, { head: head ? 1 : 0, weapon: p.weapon });
       else this.events.push({ type: 'hit', by: p.id, victim: hit.id, x: ex, y: ey, z: ez, head: head ? 1 : 0 });
     }
   }
@@ -362,8 +441,8 @@ export class Match {
       if (dist > n.radius) continue;
       const dmg = n.dmg * (1 - dist / n.radius) * (q.id === n.owner ? 0.5 : 1);
       if (dmg < 1) continue;
-      q.hp -= dmg;
-      if (q.hp <= 0) { q.alive = false; q.deaths += 1; if (owner && q.id !== owner.id) owner.kills += 1; this.events.push({ type: 'kill', by: n.owner, victim: q.id, x: q.x, y: q.y, nade: 1 }); }
+      q.hp -= dmg; q.hurtT = 0;
+      if (q.hp <= 0) this.kill(owner ?? null, q, { nade: 1 });
       else this.events.push({ type: 'hit', by: n.owner, victim: q.id, x: q.x, y: q.y, z: q.z + 1, nade: 1 });
     }
   }
@@ -378,7 +457,8 @@ export class Match {
       b.target = target?.id ?? null; b.retarget = rnd(0.5, 1.2) * ([1.6, 1, 0.6][this.difficulty]);
     }
     target = b.target ? this.players.get(b.target) : null;
-    const inp = p.input; inp.fire = false; inp.dx = 0; inp.dy = 0; inp.nade = false; inp.reload = false;
+    const inp = p.input; inp.fire = false; inp.dx = 0; inp.dy = 0; inp.nade = false; inp.reload = false; inp.melee = false; inp.swap = false; inp.jump = false; inp.sprint = false;
+    if (b.goZone === undefined) b.goZone = Math.random() < 0.7;
     if (!target) return;
     const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
     const see = clearLine(this.map, p.x, p.y, p.z + R.EYE, target.x, target.y, target.z + 1.3);
@@ -402,6 +482,19 @@ export class Match {
         return;
       }
     }
+    // out of rounds in the primary with a loaded pistol: swap, it is quicker than a reload
+    if (p.ammo === 0 && p.slot === 0 && p.primary !== 'pistol' && p.stash > 0 && see) inp.swap = true;
+    // hold the zone: most bots go to it when nobody is in sight, and stay near its middle
+    if (this.objective === 'zone' && this.map.zone && b.goZone && !see) {
+      const zn = this.map.zone, dzn = Math.hypot(zn.x - p.x, zn.y - p.y);
+      if (dzn > zn.r * 0.55) {
+        if (!b.path || b.path.length === 0 || b.pathAt <= 0) { b.path = navPath(this.map, p.x, p.y, p.z, zn.x, zn.y, zn.z ?? 0); b.pathAt = rnd(0.8, 1.4); }
+        while (b.path.length > 1 && Math.hypot(b.path[0][0] - p.x, b.path[0][1] - p.y) < 26) b.path.shift();
+        const wp = b.path[0] || [zn.x, zn.y], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
+        inp.dx = Math.cos(wa); inp.dy = Math.sin(wa); inp.aim = wa; inp.pitch = 0; inp.sprint = true;
+      } else { inp.dx = -Math.sin(ang) * b.strafe * 0.35; inp.dy = Math.cos(ang) * b.strafe * 0.35; }
+      return;
+    }
     const stand = Math.min(reach * 0.45, 900);
     if (d > stand || !see) {
       // walk the path round the walls (re-found every so often, or when the old one is used up)
@@ -418,6 +511,7 @@ export class Match {
       if (od > 0 && od < 55) { inp.dx += (ox / od) * (55 - od) / 28; inp.dy += (oy / od) * (55 - od) / 28; }
     }
     inp.dx *= 0.9; inp.dy *= 0.9;
+    if (see && d < 80 && Math.random() < 0.5) inp.melee = true;
     if (see && d < reach * 0.85 && Math.random() < DF.fire) inp.fire = true;
     // a grenade now and then at an enemy that is far but in sight
     if (see && d > 500 && d < 1000 && p.grenades > 0 && Math.random() < 0.0015) inp.nade = true;
@@ -425,9 +519,9 @@ export class Match {
 
   snapshot() {
     return {
-      mode: this.mode, ph: this.phase, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
+      mode: this.mode, obj: this.objective, uv: this.uav.map((t) => Math.ceil(t)), zn: this.objective === 'zone' && this.map.zone ? [this.map.zone.x, this.map.zone.y, this.map.zone.r, this.map.zone.z ?? 0, +this.zoneP[0].toFixed(3), +this.zoneP[1].toFixed(3), this.zoneIn[0], this.zoneIn[1]] : null, ph: this.phase, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
       al: [this.aliveCount(0), this.aliveCount(1)], n: [this.count(0), this.count(1)],
-      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths]),
+      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0]),
       g: this.nades.map((n) => [n.id, Math.round(n.x), Math.round(n.y), +n.z.toFixed(2)]),
       ev: this.events,
     };

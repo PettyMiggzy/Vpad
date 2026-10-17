@@ -242,3 +242,121 @@ test('sprinting is faster, and you cannot fire or throw while you sprint; bot di
   assert.ok(m.events.some((e) => e.type === 'shot'), 'firing works again when you stop');
   assert.equal(new Match({ teams: T, difficulty: 9 }).difficulty, 1); assert.equal(new Match({ teams: T, difficulty: 2 }).difficulty, 2);
 });
+
+// ---- depth: jump and vault, regen, sidearm, knife, burst, streak rewards, the zone ----
+const input = (o = {}) => ({ dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, ...o });
+const stepN = (m, n) => { const ev = []; for (let i = 0; i < n; i++) { m.step(1 / 60); ev.push(...m.events); } return ev; };
+
+test('a jump clears low cover that blocks a walker, lands again, and cannot carry you off a deck', () => {
+  const mp = MAPS.cargo, sb = mp.solids.find((s) => s.kind === 'sandbag');          // 3.5 m long, 0.9 m thick, 1.1 m high
+  const cross = (jump) => {
+    const [m, p] = setup('cargo', [['a', 0, sb.x + sb.w / 2, sb.y - 20], ['z', 1, 3100, 1900]]);
+    p.a.aim = Math.PI / 2; p.a.input = input({ dx: 0, dy: 1, aim: Math.PI / 2, jump });
+    stepN(m, 70); return p.a;
+  };
+  const walker = cross(false), jumper = cross(true);
+  assert.ok(walker.y < sb.y, 'a walker is stopped by the sandbags');
+  assert.ok(jumper.y > sb.y + sb.h, `a jumper is over them (y ${jumper.y}, wall ends ${sb.y + sb.h})`);
+  const [m2, q] = setup('cargo', [['b', 0, 600, 1000], ['z', 1, 3100, 1900]]);
+  q.b.input = input({ jump: true }); const ev = stepN(m2, 3);
+  assert.ok(ev.some((e) => e.type === 'jump') && q.b.air, 'it leaves the ground');
+  q.b.input = input(); const ev2 = stepN(m2, 60);
+  assert.ok(ev2.some((e) => e.type === 'land') && q.b.z === 0 && !q.b.air, 'and comes down');
+  // on a high deck, jumping off the open edge is still refused (a drop over the limit)
+  const deck = mp.solids.find((s) => s.walk && s.top > 4);
+  const [m3, r] = setup('cargo', [['c', 0, deck.x + deck.w - 40, deck.y + deck.h / 2, deck.top], ['z', 1, 3100, 1900]]);
+  r.c.input = input({ dx: 1, jump: true }); stepN(m3, 60);
+  assert.ok(r.c.z > 4, `still up on the deck (z ${r.c.z})`);
+});
+
+test('health regenerates after five calm seconds, not before', () => {
+  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  p.a.hp = 50; p.a.hurtT = 0; p.a.input = input();
+  stepN(m, 60 * 4); assert.equal(p.a.hp, 50, 'nothing in the first four seconds');
+  stepN(m, 60 * 4); assert.ok(p.a.hp > 50 + 14 * 2.5, `regenerating (${p.a.hp})`);
+  stepN(m, 60 * 10); assert.equal(p.a.hp, p.a.hpMax, 'and stops at full');
+  // a hit starts the wait again
+  const [m2, q] = setup('cargo', [['x', 0, 400, 1000], ['y', 1, 700, 1000]]);
+  q.x.hp = 60; q.x.hurtT = 6; q.y.input = input({ aim: Math.PI, fire: true }); q.y.weapon = 'pistol'; q.y.ammo = 12;
+  m2.step(1 / 60); assert.equal(q.x.hurtT, 0, 'being shot resets the clock');
+});
+
+test('the sidearm: swap keeps each magazine, takes a moment, and does nothing when the primary is the pistol', () => {
+  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  Object.assign(p.a, statsOf({ weapon: 'rifle' }), { primary: 'rifle', weapon: 'rifle', slot: 0, ammo: 10, stash: 12 });
+  p.a.input = input({ swap: true }); const ev = stepN(m, 1);
+  assert.ok(ev.some((e) => e.type === 'swap' && e.weapon === 'pistol'));
+  assert.equal(p.a.weapon, 'pistol'); assert.equal(p.a.ammo, 12); assert.equal(p.a.stash, 10); assert.equal(p.a.magSize, WEAPONS.pistol.mag);
+  p.a.input = input({ fire: true }); const ev2 = stepN(m, 6);
+  assert.equal(ev2.filter((e) => e.type === 'shot').length, 0, 'no shot while the swap is running');
+  p.a.input = input({ swap: true }); p.a.swapT = 0; stepN(m, 1);
+  assert.equal(p.a.weapon, 'rifle'); assert.equal(p.a.ammo, 10, 'the rifle magazine was kept');
+  const [m2, q] = setup('cargo', [['b', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  q.b.input = input({ swap: true }); stepN(m2, 3); assert.equal(q.b.weapon, 'pistol'); assert.equal(q.b.slot, 0, 'a pistol primary has nothing to swap to');
+});
+
+test('the knife: reach and arc, 55 from the front, a kill from behind, nothing behind a wall', () => {
+  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['f', 1, 470, 1000], ['far', 1, 900, 1000]]);
+  p.f.aim = Math.PI;                                   // faces us
+  p.a.input = input({ melee: true }); const ev = stepN(m, 1);
+  assert.ok(ev.some((e) => e.type === 'melee' && e.hit === 'f'));
+  assert.equal(p.f.hpMax - p.f.hp, 55); assert.equal(p.far.hp, p.far.hpMax);
+  p.a.input = input(); stepN(m, 60);
+  p.f.aim = 0; p.f.hp = p.f.hpMax;                     // now they face away from us
+  p.a.input = input({ melee: true }); const ev2 = stepN(m, 1);
+  assert.ok(ev2.some((e) => e.type === 'kill' && e.melee === 1 && e.back === 1), 'a stab in the back kills');
+  p.a.input = input(); stepN(m, 60);
+  const [m2, q] = setup('cargo', [['c', 0, 400, 1000], ['d', 1, 470, 1000]]);
+  q.d.aim = Math.PI; q.c.aim = Math.PI;                // c looks away from d
+  q.c.input = input({ melee: true, aim: Math.PI }); stepN(m2, 1); assert.equal(q.d.hp, q.d.hpMax, 'outside the arc, no hit');
+});
+
+test('a burst weapon fires its rounds per pull; an automatic fires on every gap', () => {
+  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  Object.assign(p.a, statsOf({ weapon: 'burst' }), { primary: 'burst', weapon: 'burst', ammo: 30 });
+  p.a.input = input({ fire: true }); const ev = stepN(m, 20);       // a third of a second: one burst is done, the next waits
+  assert.equal(ev.filter((e) => e.type === 'shot').length, 3, 'three rounds in the first burst');
+  const ev2 = stepN(m, 60); assert.ok(ev2.filter((e) => e.type === 'shot').length >= 3, 'and again while the trigger is held');
+  for (const id of ['revolver', 'burst', 'lmg', 'autosg', 'dmr']) assert.ok(WEAPONS[id].mag > 0 && WEAPONS[id].dmg > 0, id);
+});
+
+test('streaks: three kills give the team a drone for twelve seconds, five give the shooter a boost, dying clears the streak', () => {
+  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['e1', 1, 2000, 200], ['e2', 1, 2000, 300], ['e3', 1, 2000, 400], ['e4', 1, 2000, 500], ['e5', 1, 2000, 600]]);
+  const ev = [];
+  for (const k of ['e1', 'e2', 'e3', 'e4', 'e5']) { p[k].hp = 0; m.kill(p.a, p[k]); ev.push(...m.events); m.events = []; }
+  assert.ok(ev.some((e) => e.type === 'streak' && e.kind === 'uav')); assert.equal(m.uav[0], R.UAV_SECONDS); assert.equal(m.uav[1], 0);
+  assert.ok(ev.some((e) => e.type === 'streak' && e.kind === 'boost')); assert.ok(p.a.boostT > 0);
+  assert.equal(p.a.streak, 5);
+  m.kill(p.e1, p.a); assert.equal(p.a.streak, 0); assert.equal(p.a.boostT, 0);
+  assert.equal(m.snapshot().uv[0], R.UAV_SECONDS);
+});
+
+test('hold the zone: alone in it you fill your bar, contested nobody does, a full bar wins the round', () => {
+  const z = MAPS.cargo.zone;
+  const m = new Match({ teams: T, perSide: 2, bots: false, map: 'cargo', objective: 'zone' });
+  const a = m.addPlayer('a', { name: 'a', team: 0 }), b = m.addPlayer('b', { name: 'b', team: 1 });
+  m.phase = 'live'; m.timer = 200;
+  Object.assign(a, { x: z.x, y: z.y }); Object.assign(b, { x: 200, y: 200 }); a.input = input(); b.input = input();
+  stepN(m, 60 * 5); assert.ok(Math.abs(m.zoneP[0] - 5 / R.ZONE_SECONDS) < 0.02, `five seconds alone: ${m.zoneP[0]}`);
+  Object.assign(b, { x: z.x + 30, y: z.y }); const before = m.zoneP[0]; stepN(m, 60 * 4);
+  assert.equal(m.zoneP[0], before, 'contested: no progress'); assert.equal(m.snapshot().zn[7], 1);
+  Object.assign(b, { x: 200, y: 200 }); b.alive = true; const ev = stepN(m, 60 * 25);
+  assert.ok(ev.some((e) => e.type === 'roundEnd' || e.type === 'match'), 'the round ended');
+  const re = ev.find((e) => e.type === 'roundEnd'); assert.equal(re.winner, 0); assert.equal(re.reason, 'zone'); assert.equal(m.score[0], 1);
+  assert.equal(new Match({ teams: T, bots: false }).snapshot().zn, null, 'no zone in elimination');
+});
+
+for (const id of Object.keys(MAPS)) {
+  test(`map ${id}: bots alone play Hold the Zone: they go to it, fill the bar, rounds end, nothing breaks`, () => {
+    const m = new Match({ teams: T, perSide: 6, bots: true, map: id, objective: 'zone' });
+    m.startRound();
+    let reasons = 0, ends = 0, peak = 0, bad = false, melee = 0, jumps = 0;
+    for (let i = 0; i < 60 * 420; i++) {
+      m.step(1 / 60);
+      for (const e of m.events) { if (e.type === 'roundEnd' || e.type === 'match') { ends++; if (e.reason === 'zone') reasons++; } if (e.type === 'melee') melee++; if (e.type === 'jump') jumps++; }
+      peak = Math.max(peak, m.zoneP[0], m.zoneP[1]);
+      if (i % 240 === 0) for (const p of m.players.values()) if (![p.x, p.y, p.z, p.hp].every(Number.isFinite)) bad = true;
+    }
+    assert.ok(!bad); assert.ok(ends >= 3, `rounds ended: ${ends}`); assert.ok(peak > 0.25, `the bots held the zone long enough to matter (peak ${peak.toFixed(2)})`);
+  });
+}

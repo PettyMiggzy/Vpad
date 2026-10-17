@@ -4,7 +4,7 @@ import { Unit } from './units.js';
 
 // how much bigger than life each weapon is drawn in the hands, so it fills the view like a real shooter's
 
-const GUN_K = { pistol: 0.78, smg: 0.95, rifle: 1, shotgun: 1, sniper: 0.95 };
+const GUN_K = { pistol: 0.78, smg: 0.95, rifle: 1, shotgun: 1, sniper: 0.95, revolver: 0.8, burst: 1, lmg: 0.95, autosg: 1, dmr: 0.95 };
 
 export class ViewModel {
   constructor(A) {
@@ -29,12 +29,14 @@ export class ViewModel {
     this.muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd870).multiplyScalar(2.4), toneMapped: false, transparent: true, opacity: 0.95 }));
     this.muzzle.visible = false; this.scene.add(this.muzzle);
     this.weapon = weapon;
-    this.oneHand = weapon === 'pistol';
+    this.oneHand = weapon === 'pistol' || weapon === 'revolver';
     return true;
   }
   fire() { this.recoil = 1; this.flash = 0.05; this.kick = (Math.random() - 0.5) * 2; }
   startReload(d) { this.rl = { t: 0, d: Math.max(0.6, d) }; }
   throwNade() { this.nd = { t: 0 }; }
+  /** the knife: the arms play a slash */
+  stab() { this.sb = { t: 0 }; }
   /** a look movement (pixels): the weapon lags a little behind the turn */
   turned(dx, dy) { this.swayX = Math.max(-0.05, Math.min(0.05, (this.swayX ?? 0) - dx * 0.00012)); this.swayY = Math.max(-0.04, Math.min(0.04, (this.swayY ?? 0) - dy * 0.00012)); }
   update(dt, moving, walkPhase, aspect, hidden) {
@@ -51,7 +53,9 @@ export class ViewModel {
     if (this.rl && this.reloading >= 0) this.rl.t = this.reloading * this.rl.d;
     if (this.rl && this.rl.t >= this.rl.d) this.rl = null;
     if (this.nd) { this.nd.t += dt; if (this.nd.t > 0.9) this.nd = null; }
-    if (this.nd) { acting = ['Crouch_Pull_and_Throw', this.nd.t / 0.9]; }
+    if (this.sb) { this.sb.t += dt; if (this.sb.t > 0.5) this.sb = null; }
+    if (this.sb) { acting = ['Right_Hand_Sword_Slash', this.sb.t / 0.5]; }
+    else if (this.nd) { acting = ['Crouch_Pull_and_Throw', this.nd.t / 0.9]; }
     else if (this.rl) { acting = ['Standing_Reload', this.rl.t / this.rl.d]; }
     if (acting && !this.oneHandOnly) {
       const clip = this.unit.acts[acting[0]], len = clip ? clip.getClip().duration : 1;
@@ -71,7 +75,7 @@ export class ViewModel {
     const bobX = moving ? Math.sin(walkPhase * 0.5) * 0.012 : Math.sin(tm * 1.3) * 0.002, bobY = moving ? -Math.abs(Math.sin(walkPhase)) * 0.016 : Math.sin(tm * 1.9) * 0.0025;
     // the action clips raise the arm well above the gun: tip the view down while one runs so the hands stay in sight
     const bell = (p) => Math.max(0, Math.min(1, p / 0.15, (1 - p) / 0.15));
-    const tip = acting ? (acting[0] === 'Standing_Reload' ? 0.5 : 0.3) * bell(acting[1]) : 0;
+    const tip = acting ? (acting[0] === 'Standing_Reload' ? 0.5 : acting[0] === 'Right_Hand_Sword_Slash' ? 0.1 : 0.3) * bell(acting[1]) : 0;
     this.spr = (this.spr ?? 0) + ((this.sprinting ? 1 : 0) - (this.spr ?? 0)) * Math.min(1, dt * 9); const spr = this.spr;
     const eq = this.equipT > 0 ? (this.equipT / 0.5) ** 2 : 0;
     const kick = this.recoil * this.recoil;

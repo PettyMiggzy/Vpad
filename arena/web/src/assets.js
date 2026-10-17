@@ -13,6 +13,7 @@ const load = (url) => new Promise((res, rej) => loader.load(url, res, undefined,
 function shade(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = 8; } }); }
 function shadeProp(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = 8; } }); }
 
+export const WEAPON_IDS = ['pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'revolver', 'burst', 'lmg', 'autosg', 'dmr'];
 export const GUN_FILE = { pistol: 'a', smg: 'j', rifle: 'd', shotgun: 'l', sniper: 'e' };
 
 export async function loadAssets(onProgress = () => {}) {
@@ -24,10 +25,10 @@ export async function loadAssets(onProgress = () => {}) {
   for (const c of ['frog', 'bulldog']) add(load(`${BASE}models/hero/${c}.glb`).then((g) => { shade(g.scene); A.hero[c] = g; }));
   // lighter copies for the crowd: only your own arms and weapon need every triangle
   for (const c of ['frog', 'bulldog']) add(load(`${BASE}models/hero/${c}_lo.glb`).then((g) => { shade(g.scene); A.heroLo[c] = g; }));
-  for (const w of ['pistol', 'smg', 'rifle', 'shotgun', 'sniper']) add(load(`${BASE}models/hero/gun_${w}_lo.glb`).then((g) => { shade(g.scene); A.gunsLo[w] = g; }));
+  for (const w of WEAPON_IDS) add(load(`${BASE}models/hero/gun_${w}_lo.glb`).then((g) => { shade(g.scene); A.gunsLo[w] = g; }));
   const clipSets = [];
-  for (const f of ['clips', 'clips2']) add(load(`${BASE}models/hero/${f}.glb`).then((g) => { clipSets[f === 'clips' ? 0 : 1] = g.animations; }));
-  for (const w of ['pistol', 'smg', 'rifle', 'shotgun', 'sniper']) add(load(`${BASE}models/hero/gun_${w}.glb`).then((g) => { shade(g.scene); A.gunsH[w] = g; }));
+  for (const f of ['clips', 'clips2', 'clips3']) add(load(`${BASE}models/hero/${f}.glb`).then((g) => { clipSets[['clips', 'clips2', 'clips3'].indexOf(f)] = g.animations; }));
+  for (const w of WEAPON_IDS) add(load(`${BASE}models/hero/gun_${w}.glb`).then((g) => { shade(g.scene); A.gunsH[w] = g; }));
   await Promise.all(jobs);
   A.clips = clipSets.flat();
   return A;

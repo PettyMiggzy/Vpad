@@ -5,7 +5,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export const UNIT_H = 1.85;
 const POOL = [['frog'], ['bulldog']];
-const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25 };
+const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25, revolver: 0.42, burst: 0.72, lmg: 1.15, autosg: 0.95, dmr: 1.1 };
 // where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
 // the pistol model is drawn pointing the other way from the rest: turn it half a circle so every weapon's muzzle leads
 const GUN_TURN = { pistol: Math.PI };
@@ -74,7 +74,7 @@ export class Unit {
     for (const c of A.clips) {
       const a = this.mixer.clipAction(c);
       if (c.name.startsWith('Shot_and_')) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
-      if (c.name === 'Gunshot_Reaction' || c.name === 'Standing_Reload' || c.name === 'Crouch_Pull_and_Throw') { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
+      if (['Gunshot_Reaction', 'Standing_Reload', 'Crouch_Pull_and_Throw', 'Right_Hand_Sword_Slash', 'Regular_Jump'].includes(c.name)) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
       this.acts[c.name] = a;
     }
     this.cur = null; this.dead = false; this.dieT = 0; this.flash = 0; this.ovr = null; this.dieClip = ['Shot_and_Fall_Backward', 'Shot_and_Fall_Forward', 'Shot_and_Slow_Fall_Backward'][Math.floor(Math.random() * 3)];
@@ -105,9 +105,9 @@ export class Unit {
   }
   /** a short action over the walking: 'reload' or 'throw' */
   act(kind) {
-    const clip = kind === 'throw' ? 'Crouch_Pull_and_Throw' : 'Standing_Reload', a = this.acts[clip];
+    const clip = { throw: 'Crouch_Pull_and_Throw', melee: 'Right_Hand_Sword_Slash', jump: 'Regular_Jump', reload: 'Standing_Reload' }[kind] ?? 'Standing_Reload', a = this.acts[clip];
     if (!a) return;
-    this.ovr = { clip, t: Math.min(kind === 'throw' ? 1.1 : 1.8, a.getClip().duration) };
+    this.ovr = { clip, t: Math.min({ throw: 1.1, melee: 0.55, jump: 0.7, reload: 1.8 }[kind] ?? 1, a.getClip().duration) };
   }
   /** a flinch when hit (skipped while another action is running) */
   hit() {
