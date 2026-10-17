@@ -154,8 +154,10 @@ EOF
   say "Checking"
   sleep 2
   curl -fsS http://127.0.0.1:2567/health; echo
-  curl -fsS -o /dev/null -w "page: %{http_code}\n" http://127.0.0.1/
-  curl -fsS http://127.0.0.1/health; echo
+  # asked by name, the way a visitor asks (a plain address is refused once https redirects are on)
+  local HOSTNAME_CHECK="${DOMAIN:-localhost}"
+  curl -fsS -o /dev/null -w "page: %{http_code}\n" -H "Host: $HOSTNAME_CHECK" http://127.0.0.1/ || true
+  curl -fsS -H "Host: $HOSTNAME_CHECK" http://127.0.0.1/health || true; echo
   echo
   echo "Done. Open: http://${MYIP:-this-server}/"
   if [ -n "$DOMAIN" ]; then echo "  and: https://$DOMAIN/"; fi
