@@ -7,6 +7,8 @@
 set -euo pipefail
 
 main() {
+  # files made by this script must be readable by the web server and the match server's own user, whatever restrictive setting the installer's shell has
+  umask 022
   local UPDATE=0
   if [ "${1:-}" = "--update" ]; then UPDATE=1; shift; fi
   local DOMAIN="${1:-}"
@@ -78,6 +80,11 @@ main() {
   rsync -a "$SRC/arena/web/dist/assets/" "$WEB/assets/"
   find "$WEB/assets" -type f -mtime +7 -delete
   fi
+
+  # and make what is already there readable too (a run under a strict umask leaves root-only files behind)
+  chmod 755 "$APP" "$WEB" 2>/dev/null || true
+  chmod -R a+rX "$SRC" "$WEB" 2>/dev/null || true
+  if ! runuser -u arena -- test -r "$SRC/arena/server/node_modules/colyseus/package.json"; then echo "The service user still cannot read the match server's files."; return 1; fi
 
   if [ "$UPDATE" = 1 ]; then
     # a page-only change must not end the matches being played: restart the match server only when its own files changed
