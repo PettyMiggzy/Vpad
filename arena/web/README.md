@@ -1,4 +1,4 @@
-# Token Arena (3D)
+# Vyre Bad Lands: Token Arena (3D)
 
 The first-person arena in three.js. The rules (movement, height, shots, grenades, bots, rounds) and the three maps are the match server's own files (`../server/game.js`, `../server/maps.js`), read directly: one copy.
 

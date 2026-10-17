@@ -1,5 +1,5 @@
 {
-  "name": "token-arena-web",
+  "name": "vyre-bad-lands-arena-web",
   "private": true,
   "type": "module",
   "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview", "test": "node --test test/*.test.js" },

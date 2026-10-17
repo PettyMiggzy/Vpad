@@ -60,8 +60,8 @@ const CSS = `
 #vy-touch .stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(182,255,0,.4); background: rgba(182,255,0,.08); } #vy-touch .stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(182,255,0,.55); }
 #vy-fire { position: absolute; right: calc(22px + env(safe-area-inset-right)); bottom: calc(86px + env(safe-area-inset-bottom)); width: 86px; height: 86px; border-radius: 50%; background: rgba(255,60,40,.35); border: 2px solid rgba(255,120,100,.8); color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; letter-spacing: .06em; }
 #vy-fire.on { background: rgba(255,60,40,.7); }
-#vy-nade { position: absolute; right: calc(118px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 64px; height: 64px; border-radius: 50%; background: rgba(120,160,40,.35); border: 2px solid rgba(182,255,0,.7); color: #fff; font-weight: 900; font-size: 12px; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
-#vy-reload { position: absolute; right: calc(190px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 54px; height: 54px; border-radius: 50%; background: rgba(60,120,200,.35); border: 2px solid rgba(120,180,255,.7); color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
+#vy-nade { position: absolute; right: calc(122px + env(safe-area-inset-right)); bottom: calc(112px + env(safe-area-inset-bottom)); width: 64px; height: 64px; border-radius: 50%; background: rgba(120,160,40,.35); border: 2px solid rgba(182,255,0,.7); color: #fff; font-weight: 900; font-size: 12px; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
+#vy-reload { position: absolute; right: calc(128px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 54px; height: 54px; border-radius: 50%; background: rgba(60,120,200,.35); border: 2px solid rgba(120,180,255,.7); color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
 #vy-reload.on { background: rgba(120,180,255,.6); }
 #vy-nade.on { background: rgba(182,255,0,.6); }
 #vy-score { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); width: min(720px, 94vw); background: rgba(6,10,6,.9); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: none; }
@@ -88,7 +88,7 @@ const CSS = `
 #vy-pause small { display: block; color: var(--muted); font-size: 13px; font-weight: 600; margin-top: 8px; letter-spacing: .02em; }
 #vy-menu { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 15%, rgba(27,42,16,.9), rgba(5,8,5,.94) 70%); display: grid; place-items: center; padding: 14px; overflow-y: auto; z-index: 5; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--text); }
 #vy-menu .card { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; }
-#vy-menu h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: .06em; color: var(--lime); } #vy-menu .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; line-height: 1.4; }
+ #vy-menu .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; line-height: 1.4; }
 #vy-menu label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
 #vy-menu input, #vy-menu select { width: 100%; background: #0d160a; color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 16px; }
 #vy-menu .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } #vy-menu .team { border: 2px solid var(--line); border-radius: 14px; padding: 12px; text-align: center; font-weight: 900; cursor: pointer; background: #0d160a; } #vy-menu .team.on { border-color: var(--c); box-shadow: 0 0 18px var(--c); } #vy-menu .team small { display: block; color: var(--muted); font-weight: 600; margin-top: 3px; }
@@ -135,7 +135,8 @@ export class Ui {
 <div id="vy-pause" hidden><div>PAUSED<small>${'ontouchstart' in window ? 'Tap Resume to keep playing' : 'Click Resume to keep playing. Esc frees the mouse.'}</small><div class="btns"><button id="vy-resume">Resume</button><button class="leave" id="vy-leave">Leave match</button></div></div></div>
 <div id="vy-menu">
   <div class="card">
-    <h1>TOKEN ARENA</h1>
+    <img src="${import.meta.env.BASE_URL}badlands.webp" alt="Vyre Bad Lands" style="display:block;width:min(360px,80%);margin:0 auto 2px" />
+    <div style="text-align:center;color:var(--lime);letter-spacing:.3em;font-size:11px;font-weight:800;margin-bottom:10px">TOKEN ARENA</div>
     <div class="sub">First-person team shooter. Two token teams, best of three rounds, bots fill the empty seats so a match is always on. Play money only: nothing here touches a wallet. Prototype.</div>
     <label>Your name</label><input id="vy-name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
     <label>Match type</label>
