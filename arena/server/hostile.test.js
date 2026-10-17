@@ -274,3 +274,17 @@ test('the process refuses another room once it is full of them', async () => {
   for (const h of rooms) h.stop();
   assert.equal(refused, true);
 });
+
+test('a practice room is private to its player; challenge rooms with the same teams are shared', async () => {
+  const { Client } = await import('@colyseus/sdk');
+  const client = new Client(`http://127.0.0.1:${port}`);
+  const opts = (solo, pid) => ({ pid, name: 'x', names: ['AA', 'BB'], a: 'AA', b: 'BB', map: 'dust', perSide: 3, mode: 'practice', difficulty: 1, objective: 'elim', solo });
+  const rooms = [];
+  const join = async (solo, pid) => { const r = await client.joinOrCreate('match', opts(solo, pid)); r.onMessage('*', () => {}); rooms.push(r); return r; };
+  const a = await join('a'.repeat(16), 'a'.repeat(16)), b = await join('b'.repeat(16), 'b'.repeat(16));
+  const c = await join('shared', 'c'.repeat(16)), d = await join('shared', 'd'.repeat(16));
+  assert.notEqual(a.roomId, b.roomId, 'two practice players landed in one room');
+  assert.equal(c.roomId, d.roomId, 'two players with the same fixture did not meet');
+  assert.ok(![a.roomId, b.roomId].includes(c.roomId));
+  for (const r of rooms) await r.leave();
+});

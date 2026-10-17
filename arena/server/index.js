@@ -38,10 +38,10 @@ const api = (app) => {
 const transport = new WebSocketTransport({ maxPayload: 4096 });
 const server = new Server({ transport, express: api });
 // a and b are the two team names; clients that send the same fixture share a room, and a different map or mode does not
-server.define('match', MatchRoom).filterBy(['a', 'b', 'map', 'mode', 'objective', 'perSide', 'difficulty']);
+server.define('match', MatchRoom).filterBy(['a', 'b', 'map', 'mode', 'objective', 'perSide', 'difficulty', 'solo']);
 
-export function listen(port = Number(process.env.PORT) || 2567) {
-  return server.listen(port).then(() => {
+export function listen(port = Number(process.env.PORT) || 2567, host = process.env.HOST || undefined) {
+  return server.listen(port, host).then(() => {
     const addr = transport.server?.address?.();
     const got = addr && typeof addr === 'object' ? addr.port : port;
     console.log(`arena server on :${got}`);

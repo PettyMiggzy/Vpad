@@ -16,6 +16,9 @@ import { loadAssets } from './assets.js';
 import { buildWorld } from './world.js';
 import { Unit, UNIT_H, GUN_OFFSET } from './units.js';
 import { ViewModel } from './view.js';
+import { connect } from './net.js';
+import { NetMatch } from './netmatch.js';
+import { serverUrl, reachable, playerId, pullProfile, mirrorShop } from './online.js';
 
 const qs = new URLSearchParams(location.search);
 const dbg = qs.get('dbg') || '';
@@ -131,7 +134,14 @@ function recordMatch(winner) {
   saveLb(); ui.renderBoard();
 }
 let paused = false;
-const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => { paused = false; ui.showPause(false); requestLock(); }, onLeave: () => leave(), challengeLive: !!qs.get('server'), leaders: () => lb, onPause: () => { paused = true; ui.showPause(true); }, onScore: () => { showScore = !showScore; } });
+// a hosted game: when a match server answers, every match (practice too) runs on it and the shop lives on it; otherwise the page plays alone against bots
+const srv = serverUrl() && (await reachable(serverUrl())) ? serverUrl() : '';
+const pid = srv ? playerId() : '';
+let netH = null, netInfo = null;
+if (srv) await pullProfile(srv, pid, profile);
+let shopQ = Promise.resolve();
+const onShop = (op, a, b) => { if (srv) shopQ = shopQ.then(() => mirrorShop(srv, pid, profile, op, a, b)).then(() => { save(); if (ui.menuOpen()) ui.renderShop(); }); };
+const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => { paused = false; ui.showPause(false); requestLock(); }, onLeave: () => leave(), challengeLive: !!srv, onShop, leaders: () => lb, onPause: () => { paused = true; ui.showPause(true); }, onScore: () => { showScore = !showScore; } });
 
 async function start(c) {
   sfx.unlock();
@@ -143,16 +153,43 @@ async function start(c) {
   for (const [id, u] of units) { u.dispose(); ui.dropTag(id); }
   units.clear();
   if (Array.isArray(c.names)) { names[0] = c.names[0]; names[1] = c.names[1]; teams[0].name = names[0]; teams[1].name = names[1]; ui.setTeams(names); }
-  match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim' });
-  me = match.addPlayer('me', { name: c.name, team: c.team, loadout: { ...profile.loadout } });
-  match.startRound();
+  if (srv) { if (!(await startOnline(c))) return; }
+  else {
+    match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim' });
+    me = match.addPlayer('me', { name: c.name, team: c.team, loadout: { ...profile.loadout } });
+    match.startRound();
+  }
   if (ui.showTips()) paused = true;
   buildZone(); hintsOn = !ui.touch; ui.hints(hintsOn); if (hintsOn) setTimeout(() => { if (hintsOn && playing) { hintsOn = false; ui.hints(false); } }, 25000);
   playing = true; spectate = null; wasAlive = false; eyeY = 1.6; deathCam = null; paused = false; showScore = false;
   ui.showMenu(false); requestLock();
   ui.banner('ROUND 1', 'get ready', 2600);
 }
+/** joins a room on the match server and waits for the first picture of the match; false (with the menu back up) when it cannot */
+async function startOnline(c) {
+  const back = (msg) => { ui.hideBanner(); ui.showMenu(true); ui.error(msg); return false; };
+  ui.banner('CONNECTING', 'to the match server', 0);
+  let h;
+  try {
+    h = await connect(srv, { pid, name: c.name, team: c.team, names: [...names], map: curMapId, perSide: c.seats, mode: c.mode, difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', solo: c.mode === 'practice' ? pid : 'shared' });
+  } catch (err) { return back('Could not join a match on the server. Try again in a moment.'); }
+  const hello = await new Promise((res) => { const t = setTimeout(() => res(null), 8000); h.onHello((m) => { clearTimeout(t); res(m); }); });
+  if (!hello) { void h.leave(); return back('The server did not answer. Try again.'); }
+  if (Array.isArray(hello.teams)) { names[0] = hello.teams[0].name; names[1] = hello.teams[1].name; teams[0].name = names[0]; teams[1].name = names[1]; ui.setTeams(names); }
+  const nm = new NetMatch(hello, teams);
+  h.onRoster((list) => nm.setRoster(list));
+  h.onEvent((e) => nm.push(e));
+  h.onSnapshot((snap) => nm.apply(snap));
+  h.onClose((code) => { if (netH !== h) return; leave(); ui.error(code === 4002 ? 'You are already in a match in another window.' : 'The connection to the match server was lost.'); });
+  for (let i = 0; i < 160 && !nm.ready; i++) await new Promise((r) => setTimeout(r, 50));
+  const mine = nm.players.get(h.myId);
+  if (!nm.ready || !mine) { void h.leave(); return back('The match did not start. Try again.'); }
+  netH = h; netInfo = { sent: 0, key: '', edge: { nade: 0, melee: 0, swap: 0 } };
+  match = nm; me = mine;
+  return true;
+}
 function leave() {
+  if (netH) { const h = netH; netH = null; void h.leave(); if (srv) void syncProfile(); }
   playing = false; paused = false; fire = false; zoom = false;
   try { document.exitPointerLock?.(); } catch { /* not locked */ }
   for (const [id, u] of units) { u.dispose(); ui.dropTag(id); }
@@ -235,13 +272,13 @@ function onEvents(evs) {
       const a = match.players.get(e.by), v = match.players.get(e.victim);
       if (a && v) ui.feed(`<span style="color:${TEAM_COLORS[a.team]}">${a.name}</span> ${e.melee ? '&#9876;' : e.nade ? '&#9679;' : e.head ? '&#9678;' : '&#9656;'} <span style="color:${TEAM_COLORS[v.team]}">${v.name}</span>`);
       if (me && e.by === me.id && e.victim !== me.id) {
-        sfx.kill(); award(profile, REWARD.kill); save();
+        sfx.kill(); if (!netH) { award(profile, REWARD.kill); save(); }
         streak += 1; const now = performance.now() / 1000; multi = { n: now - multi.t < 4 ? multi.n + 1 : 1, t: now };
         const tags = []; if (e.melee) tags.push(e.back ? 'BACKSTAB' : 'KNIFE KILL');
         if (multi.n === 2) tags.push('DOUBLE KILL'); else if (multi.n === 3) tags.push('TRIPLE KILL'); else if (multi.n >= 4) tags.push('RAMPAGE');
         if (streak === 3) tags.push('KILLING SPREE'); else if (streak === 5) tags.push('UNSTOPPABLE'); else if (streak === 8) tags.push('LEGENDARY');
         if (!tags.length) tags.push(e.nade ? 'GRENADE KILL' : e.head ? 'HEADSHOT' : '');
-        const before = playerLevel(profile); gainXp(profile, XP.kill + (e.head ? XP.head : 0) + (e.melee ? XP.melee : 0) + (e.nade ? XP.nade : 0), e.nade || e.melee ? null : (e.weapon ?? me.weapon)); save(); if (playerLevel(profile) > before) ui.banner('LEVEL UP', `You are level ${playerLevel(profile)}: new gear in the shop`, 3200);
+        const before = playerLevel(profile); if (!netH) gainXp(profile, XP.kill + (e.head ? XP.head : 0) + (e.melee ? XP.melee : 0) + (e.nade ? XP.nade : 0), e.nade || e.melee ? null : (e.weapon ?? me.weapon)); if (!netH) save(); if (playerLevel(profile) > before) ui.banner('LEVEL UP', `You are level ${playerLevel(profile)}: new gear in the shop`, 3200);
         if (tags[0]) { ui.medal(tags.join('  +  '), e.head && !e.nade ? '#ff6a50' : '#ffd24a'); sfx.medal(); }
       }
       if (me && e.victim === me.id) { streak = 0; multi = { n: 0, t: 0 }; }
@@ -275,8 +312,8 @@ function onEvents(evs) {
     } else if (e.type === 'boom') {
       explosion(e.x / PX_PER_M, e.z, e.y / PX_PER_M);
     } else if (e.type === 'round') { ui.banner(`ROUND ${e.n}`, 'get ready', 2400); sfx.chime(); }
-    else if (e.type === 'roundEnd') { const w = e.winner; ui.banner(w === 0 || w === 1 ? `${teamTag(w)} TAKES THE ROUND` : 'DRAW', e.reason === 'zone' ? 'by holding the zone' : '', 3000); if (me && w === me.team) { award(profile, REWARD.round); gainXp(profile, XP.round); save(); } }
-    else if (e.type === 'match') { recordMatch(e.winner); ui.banner(`${teamTag(e.winner)} WINS THE MATCH`, 'new match starting', 6000); if (me) { gainXp(profile, XP.play + (e.winner === me.team ? XP.match : 0)); if (e.winner === me.team) award(profile, REWARD.match); save(); } }
+    else if (e.type === 'roundEnd') { const w = e.winner; ui.banner(w === 0 || w === 1 ? `${teamTag(w)} TAKES THE ROUND` : 'DRAW', e.reason === 'zone' ? 'by holding the zone' : '', 3000); if (me && w === me.team && !netH) { award(profile, REWARD.round); gainXp(profile, XP.round); save(); } }
+    else if (e.type === 'match') { recordMatch(e.winner); ui.banner(`${teamTag(e.winner)} WINS THE MATCH`, 'new match starting', 6000); if (me && !netH) { gainXp(profile, XP.play + (e.winner === me.team ? XP.match : 0)); if (e.winner === me.team) award(profile, REWARD.match); save(); } }
   }
 }
 const tracerMat = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(3), toneMapped: false, transparent: true }));
@@ -446,13 +483,41 @@ function drawMinimap() {
     g.save(); g.translate(me.x * sx, me.y * sy); g.rotate(look.yaw); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(9, 0); g.lineTo(-6, 5.5); g.lineTo(-6, -5.5); g.closePath(); g.fill(); g.restore();
   }
 }
+// ---- a hosted match: what the player is doing goes to the server, only when it changes (and every tenth of a second so nothing sticks) ----
+function sendInput(now, idle = false) {
+  if (!me || !netInfo) return;
+  if (idle || !me.alive) me.input = { dx: 0, dy: 0, aim: look.yaw, pitch: -look.pitch, fire: false, nade: false, reload: false, jump: false, melee: false, swap: false, sprint: false };
+  else readInput();
+  const inp = me.input, ed = netInfo.edge;
+  // a throw, a stab or a swap is a moment, not a state: keep it up for a little over a server step so a busy frame cannot lose it
+  for (const k of ['nade', 'melee', 'swap']) { if (inp[k]) ed[k] = now + 120; inp[k] = now < ed[k]; }
+  nadeQueued = false; meleeQueued = false; swapQueued = false; ui.swapTouch = false;
+  me.sprinting = !!inp.sprint && Math.hypot(inp.dx, inp.dy) > 0.3;
+  const key = [inp.dx.toFixed(2), inp.dy.toFixed(2), inp.aim.toFixed(2), inp.pitch.toFixed(2), +inp.fire, +inp.nade, +inp.reload, +inp.jump, +inp.melee, +inp.swap, +inp.sprint].join();
+  if (key !== netInfo.key || now - netInfo.sent > 100) { netInfo.key = key; netInfo.sent = now; netH.send(inp); }
+}
+let lobbyUp = false;
+function lobbyBanner() {
+  const wait = match.phase === 'lobby' && match.mode === 'challenge';
+  if (wait && !lobbyUp) { lobbyUp = true; ui.banner('WAITING FOR THE OTHER TEAM', 'a challenge starts when a player is on each side', 0); }
+  else if (!wait && lobbyUp) { lobbyUp = false; ui.hideBanner(); }
+}
+// the shop on the server is the truth: coins and experience earned in a match are added there, so look again while playing
+async function syncProfile() {
+  const before = playerLevel(profile);
+  if (!(await pullProfile(srv, pid, profile))) return;
+  save();
+  if (playing && playerLevel(profile) > before) ui.banner('LEVEL UP', `You are level ${playerLevel(profile)}: new gear in the shop`, 3200);
+  if (ui.menuOpen()) ui.renderShop();
+}
+setInterval(() => { if (srv && playing && netH) void syncProfile(); }, 6000);
 // ---- the frame ----
 function draw() {
   if (composer) composer.render(); else renderer.render(scene, camera);
   renderer.autoClear = false; renderer.clearDepth(); renderer.render(vm.scene, vm.cam); renderer.autoClear = true;
 }
 let acc = 0, last = performance.now(), fov = FOV;
-window.__arena = { sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
+window.__arena = { get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
@@ -466,10 +531,14 @@ function frame(now) {
   const sens = fov / FOV;
   if (ui.touch && (ui.lookDelta.x || ui.lookDelta.y)) { turn(ui.lookDelta.x * LOOK_TOUCH * sens, ui.lookDelta.y * LOOK_TOUCH * sens); ui.lookDelta.x = 0; ui.lookDelta.y = 0; }
   if ((playing && !paused && (ui.touch || locked || lockFailed)) || !playing) {
-    acc += dt; assist(dt);
-    for (let n = 0; acc >= SIM_STEP && n < 6; n++, acc -= SIM_STEP) { readInput(); match.step(SIM_STEP); nadeQueued = false; meleeQueued = false; swapQueued = false; ui.swapTouch = false; onEvents(match.events); }
-    if (acc > SIM_STEP * 6) acc = 0;
-  }
+    if (netH) { assist(dt); sendInput(now); }
+    else {
+      acc += dt; assist(dt);
+      for (let n = 0; acc >= SIM_STEP && n < 6; n++, acc -= SIM_STEP) { readInput(); match.step(SIM_STEP); nadeQueued = false; meleeQueued = false; swapQueued = false; ui.swapTouch = false; onEvents(match.events); }
+      if (acc > SIM_STEP * 6) acc = 0;
+    }
+  } else if (netH) sendInput(now, true);
+  if (netH) { onEvents(match.takeEvents()); lobbyBanner(); }
   const alive = !!(me && me.alive);
   if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
   wasAlive = alive;

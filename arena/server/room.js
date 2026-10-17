@@ -121,6 +121,7 @@ export class MatchRoom extends Room {
         await this.setMetadata({
           a: opt.teams[0].name, b: opt.teams[1].name, map: opt.map, mode: opt.mode,
           objective: opt.objective, perSide: opt.perSide, difficulty: opt.difficulty,
+          solo: typeof options.solo === 'string' ? options.solo.slice(0, 64) : undefined,   // a practice room is filtered by its player's id, so only that player is let in
         });
       } catch { /* the listing is filled in by the matchmaker when this room was not opened through it */ }
     }

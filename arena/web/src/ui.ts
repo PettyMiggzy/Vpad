@@ -25,6 +25,8 @@ export interface UiOptions {
   onPause: () => void;
   onScore: () => void;
   challengeLive: boolean;
+  /** a shop or class action the menu took on this device; a hosted game repeats it on the server */
+  onShop?: (op: string, a?: string | number, b?: string) => void;
   leaders: () => LeaderData;
 }
 
@@ -181,7 +183,7 @@ export class Ui {
     <div class="sub">First-person team shooter. Two token teams, best of three rounds, bots fill the empty seats so a match is always on. Play money only: nothing here touches a wallet. Prototype.</div>
     <label>Your name</label><input id="vy-name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
     <label>Match type</label>
-    <div class="modes"><div class="mode on" data-mode="practice">Practice<small>Against bots, any time. Does not count on the ranked board.</small></div><div class="mode ${o.challengeLive ? '' : 'off'}" data-mode="challenge">Challenge a team<small>${o.challengeLive ? 'Waits for a player on each side. Counts.' : 'Needs the hosted match server. Not live yet.'}</small></div></div>
+    <div class="modes"><div class="mode on" data-mode="practice">Practice<small>Against bots, any time. Does not count on the ranked board.</small></div><div class="mode ${o.challengeLive ? '' : 'off'}" data-mode="challenge">Challenge a team<small>${o.challengeLive ? 'Waits for a player on each side. Counts.' : 'Needs the match server, which this page cannot reach.'}</small></div></div>
     <label>Game type</label>
     <select id="vy-obj"><option value="elim">Elimination: knock out the other team</option><option value="zone">Hold the Zone: own the middle, or knock them out</option></select>
     <label>Team names (a token each)</label>
@@ -232,7 +234,7 @@ export class Ui {
     this.el['vy-pause'].addEventListener('click', (e) => { if ((e.target as HTMLElement).id !== 'vy-leave') this.o.onResume(); });
     this.el['vy-leave'].addEventListener('click', (e) => { e.stopPropagation(); this.o.onLeave(); });
     root.querySelectorAll<HTMLElement>('.mode').forEach((t) => t.addEventListener('click', () => {
-      if (t.classList.contains('off')) { this.el['vy-err'].textContent = 'Challenges start when the match server is hosted. Practice now.'; return; }
+      if (t.classList.contains('off')) { this.el['vy-err'].textContent = 'The match server is not reachable from this page. Practice now.'; return; }
       this.mode = t.dataset.mode === 'challenge' ? 'challenge' : 'practice';
       root.querySelectorAll('.mode').forEach((x) => x.classList.toggle('on', x === t));
     }));
@@ -303,9 +305,9 @@ export class Ui {
     // the five saved classes
     this.el['vy-classes'].innerHTML = p.classes.map((c, i) => `<div class="cls${i === p.activeClass ? ' on' : ''}" data-cls="${i}">${c.name}</div>`).join('') +
       `<button class="clsb" data-clsdo="save">Save gear to ${p.classes[p.activeClass].name}</button><button class="clsb alt" data-clsdo="rename">Rename</button>`;
-    this.el['vy-classes'].querySelectorAll<HTMLElement>('.cls').forEach((c) => c.addEventListener('click', () => { classSelect(p, Number(c.dataset.cls)); this.o.save(); this.el['vy-err'].textContent = ''; this.renderShop(); }));
-    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="save"]')!.addEventListener('click', () => { classSave(p, p.activeClass); this.o.save(); this.el['vy-err'].textContent = `Saved to ${p.classes[p.activeClass].name}`; });
-    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="rename"]')!.addEventListener('click', () => { const n = window.prompt('Name this class', p.classes[p.activeClass].name); if (n !== null) { const r = classRename(p, p.activeClass, n); this.el['vy-err'].textContent = r.error || ''; this.o.save(); this.renderShop(); } });
+    this.el['vy-classes'].querySelectorAll<HTMLElement>('.cls').forEach((c) => c.addEventListener('click', () => { classSelect(p, Number(c.dataset.cls)); this.o.save(); this.o.onShop?.('class-select', Number(c.dataset.cls)); this.el['vy-err'].textContent = ''; this.renderShop(); }));
+    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="save"]')!.addEventListener('click', () => { classSave(p, p.activeClass); this.o.save(); this.o.onShop?.('class-save', p.activeClass); this.el['vy-err'].textContent = `Saved to ${p.classes[p.activeClass].name}`; });
+    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="rename"]')!.addEventListener('click', () => { const n = window.prompt('Name this class', p.classes[p.activeClass].name); if (n !== null) { const r = classRename(p, p.activeClass, n); this.el['vy-err'].textContent = r.error || ''; this.o.save(); if (!r.error) this.o.onShop?.('class-rename', p.activeClass, n); this.renderShop(); } });
     this.el['vy-tabs'].innerHTML = (SLOTS as string[]).map((s) => `<div class="tab${s === this.tab ? ' on' : ''}" data-tab="${s}">${TAB_NAMES[s]}</div>`).join('');
     this.el['vy-tabs'].querySelectorAll<HTMLElement>('.tab').forEach((t) => t.addEventListener('click', () => { this.tab = t.dataset.tab || 'weapon'; this.renderShop(); }));
     const rows = Object.entries(items).filter(([, it]) => it.slot === this.tab).sort((a, b) => a[1].cost - b[1].cost);
@@ -319,7 +321,7 @@ export class Ui {
     this.el['vy-items'].querySelectorAll<HTMLElement>('button[data-do]').forEach((b) => b.addEventListener('click', () => {
       const r = b.dataset.do === 'buy' ? buy(p, b.dataset.id || '') : equip(p, b.dataset.id || '');
       this.el['vy-err'].textContent = r.error || '';
-      if (!r.error) this.o.save();
+      if (!r.error) { this.o.save(); this.o.onShop?.(b.dataset.do || '', b.dataset.id || ''); }
       this.renderShop();
     }));
   }
@@ -338,6 +340,8 @@ export class Ui {
     }
     if (!this.tipsPending) return false; this.tipsPending = false; this.el['vy-tips'].hidden = false; return true;
   }
+  /** a line under the menu's buttons */
+  error(msg: string): void { this.el['vy-err'].textContent = msg; }
   showPause(on: boolean): void { this.el['vy-pause'].hidden = !on; }
   menuOpen(): boolean { return !this.el['vy-menu'].hidden; }
 

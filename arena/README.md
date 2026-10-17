@@ -68,3 +68,7 @@ arena.example.com {
 ```
 
 The page then uses `wss://arena.example.com`. `https://arena.example.com/health` and `https://arena.example.com/rooms` are the same routes.
+
+## Putting it all on a server
+
+`deploy/setup.sh` installs the page and the match server on an Ubuntu machine in one command (see `deploy/README.md`).

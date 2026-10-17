@@ -527,5 +527,5 @@ export class Match {
     };
   }
 
-  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, weapon: p.weapon, armor: p.armor, camo: p.camo, hpMax: p.hpMax, team: p.team, bot: p.bot })); }
+  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, weapon: p.weapon, primary: p.primary, armor: p.armor, camo: p.camo, hpMax: p.hpMax, magMul: p.magMul, reloadMul: p.reloadMul, team: p.team, bot: p.bot })); }
 }

@@ -123,7 +123,7 @@ export async function connect(url, opts = {}) {
     pid: opts.pid, name: opts.name, team: opts.team, names, colors: opts.colors,
     a: opts.a ?? names[0], b: opts.b ?? names[1],
     map: opts.map ?? 'cargo', perSide: opts.perSide ?? 8, mode: opts.mode ?? 'practice',
-    difficulty: opts.difficulty ?? 1, objective: opts.objective ?? 'elim',
+    difficulty: opts.difficulty ?? 1, objective: opts.objective ?? 'elim', solo: opts.solo,
   };
   const client = new Client(url);
   const room = opts.roomId ? await client.joinById(opts.roomId, options) : await client.joinOrCreate('match', options);
@@ -136,7 +136,7 @@ export async function connect(url, opts = {}) {
   let lastInput = blankInput();
   let lastSent = 0;
   let pendingSend = false;
-  let snapCb = null, eventCb = null, rosterCb = null;
+  let snapCb = null, eventCb = null, rosterCb = null, helloCb = null, helloMsg = null, closeCb = null;
   const tracks = new Map();
   const log = [];
   let lastFrame = performance.now();
@@ -205,8 +205,9 @@ export async function connect(url, opts = {}) {
     return { ...latest, p, ev: [] };
   };
 
+  room.onLeave((code, reason) => { if (!stopped && closeCb) closeCb(code, reason); });
   room.onMessage('hello', (m) => {
-    myId = m.id;
+    myId = m.id; helloMsg = m; if (helloCb) helloCb(m);
     if (Number.isFinite(m.spd)) speedMul = m.spd;
     if (m.roster && rosterCb) rosterCb(m.roster);
   });
@@ -264,6 +265,9 @@ export async function connect(url, opts = {}) {
     onSnapshot(cb) { snapCb = cb; },
     onEvent(cb) { eventCb = cb; },
     onRoster(cb) { rosterCb = cb; },
+    onClose(cb) { closeCb = cb; },
+    onHello(cb) { helloCb = cb; if (helloMsg) cb(helloMsg); },
+    get myId() { return myId; },
     leave() {
       stopped = true;
       caf(loopId);
