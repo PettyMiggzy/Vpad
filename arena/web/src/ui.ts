@@ -125,11 +125,12 @@ body.touch #vy-gun small { display: none; } body.touch #vy-gun b { font-size: 24
 @media (min-width: 700px) {
   #vy-menu { padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); overflow: hidden; }
   #vy-menu .card { width: min(1000px, 100%); max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); display: grid; grid-template-columns: minmax(250px, 320px) 1fr; gap: 22px; padding: 16px 18px; overflow: hidden; }
-  #vy-menu .side { align-self: center; }
+  #vy-menu .side { align-self: center; max-height: calc(100vh - 56px); max-height: calc(100dvh - 56px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
   #vy-menu .main { overflow-y: auto; overscroll-behavior: contain; padding-right: 8px; max-height: calc(100vh - 56px); max-height: calc(100dvh - 56px); -webkit-overflow-scrolling: touch; }
   #vy-menu .main > label:first-child { margin-top: 0; }
   #vy-menu .logo { width: min(300px, 100%); }
 }
+@media (max-height: 440px) { #vy-menu .logo { width: min(150px, 100%); } #vy-menu .side input { padding: 8px 12px; } #vy-menu .pick { margin-top: 6px; } #vy-menu #vy-level { margin-top: 0; } #vy-menu .card { padding: 10px 14px; gap: 16px; } #vy-menu .main { max-height: calc(100vh - 36px); max-height: calc(100dvh - 36px); } #vy-menu .side { max-height: calc(100vh - 36px); max-height: calc(100dvh - 36px); } }
 @media (max-height: 520px) { #vy-menu .sub { display: none; } #vy-menu .side label { margin-top: 8px; } #vy-menu .logo { width: min(210px, 100%); } #vy-menu button.go { margin-top: 10px; padding: 12px; } }
  #vy-menu .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; line-height: 1.4; }
 #vy-menu label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
@@ -198,8 +199,8 @@ export class Ui {
     <div style="text-align:center;color:var(--lime);letter-spacing:.3em;font-size:11px;font-weight:800;margin-bottom:10px">TOKEN ARENA</div>
     <div class="sub">First-person team shooter. Two token teams, best of three rounds, bots fill the empty seats so a match is always on. Play money only: nothing here touches a wallet. Prototype.</div>
     <label>Your name</label><input id="vy-name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
-    <div class="pick" id="vy-pick"></div>
     <button class="go" id="vy-go">PLAY</button>
+    <div class="pick" id="vy-pick"></div>
     <div class="err" id="vy-err"></div>
     <div id="vy-level"></div>
     <div class="install" id="vy-install" hidden></div>
@@ -230,13 +231,14 @@ export class Ui {
     <select id="vy-gfx"><option value="auto">Auto (drops detail if slow)</option><option value="high">High</option><option value="mid">Medium</option><option value="low">Low (fastest)</option></select>
     <label>Seats per side (humans and bots together)</label>
     <select id="vy-seats">${SEATS.map((n) => `<option${n === DEFAULT_SEATS ? ' selected' : ''}>${n}</option>`).join('')}</select>
+    <button class="go" id="vy-go2" style="margin-top:18px">PLAY</button>
     <details id="vy-lb"><summary>LEADERBOARD</summary><div id="vy-lbbody"></div></details>
     <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button. Grenade: G or the GRENADE button. Knife: F. Reload: R. Swap gun: Q. Jump: Space. Sprint: Shift (no firing while sprinting). Scoreboard: hold Tab. Esc pauses and lets you leave the match.</div>
    </div>
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -265,6 +267,7 @@ export class Ui {
     this.renderShop();
     const main = root.querySelector('.main') as HTMLElement;
     for (const ev of ['click', 'input', 'change']) main.addEventListener(ev, () => this.updatePick());
+    this.el['vy-go2'].addEventListener('click', () => (this.el['vy-go'] as HTMLButtonElement).click());
     this.updatePick(); this.installHint();
     if (this.touch) this.wireTouch();
   }
