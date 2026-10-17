@@ -12,7 +12,7 @@ import { freshProfile, sanitize, award, teamNames, gainXp, level as playerLevel 
 import { XP } from '../../server/progress.js';
 import { Ui } from './ui.ts';
 import * as sfx from './audio.ts';
-import { loadAssets } from './assets.js';
+import { loadAssets, loadGun } from './assets.js';
 import { buildWorld } from './world.js';
 import { Unit, UNIT_H, GUN_OFFSET } from './units.js';
 import { ViewModel } from './view.js';
@@ -149,6 +149,7 @@ async function start(c) {
   if (c.gfx && (c.gfx === 'auto' || c.gfx in LEVELS)) { gfxMode = c.gfx; try { localStorage.setItem('vyre.arena.gfx', gfxMode); } catch { /* storage may be blocked */ } if (gfxMode !== 'auto' && LEVELS[gfxMode] !== level) applyLevel(LEVELS[gfxMode]); }
   ui.banner('LOADING MAP', MAPS[c.map]?.name || '', 0);
   await setMap(MAPS[c.map] ? c.map : 'cargo', (d, n) => ui.banner('LOADING MAP', `${d}/${n}`, 0));
+  await Promise.all([loadGun(A, profile.loadout.weapon || 'pistol'), loadGun(A, 'pistol')]);   // the first-person models of the guns this player carries
   ui.hideBanner(); sfx.ambience(curMapId);
   for (const [id, u] of units) { u.dispose(); ui.dropTag(id); }
   units.clear();

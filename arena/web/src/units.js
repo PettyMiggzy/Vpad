@@ -52,7 +52,7 @@ export class Unit {
     this.body.scale.multiplyScalar(this.scale);
     this.body.position.y = -box.min.y * this.scale;
     // weapon
-    const gunSrc = full ? A.gunsH[weapon] : A.gunsLo[weapon];
+    const gunSrc = (full && A.gunsH[weapon]) || A.gunsLo[weapon];
     this.gun = new THREE.Group();
     const g = gunSrc.scene.clone(true);
     const gb = new THREE.Box3().setFromObject(g), gs = gb.getSize(new THREE.Vector3()), gc = gb.getCenter(new THREE.Vector3());
