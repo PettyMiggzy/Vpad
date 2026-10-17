@@ -1,93 +1,88 @@
-// Soldiers: Kenney's animated blocky characters. Legs follow the walk and sprint clips while the arms follow the gun-holding clips,
-// so a soldier can run and shoot at once. A team ring and an overhead marker say whose side each one is.
+// Soldiers: generated 3D characters (one shared 24-bone rig, so one set of animation clips fits all of them) holding generated weapons.
+// A team ring and an overhead marker say whose side each one is.
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { GUN_FILE } from './assets.js';
 
-const LOWER = /^(leg-left|leg-right|root)\./, UPPER = /^(arm-left|arm-right|torso|head)\./;
-// who is on which team (looks only): organic fighters for one side, machines and masks for the other
-const POOL = [['l', 'o', 'm', 'n', 'f', 'k', 'c', 'a'], ['h', 'g', 'r', 'd', 'j', 'q', 'p', 'e']];
-const GUN_LEN = { pistol: 0.36, smg: 0.5, rifle: 0.85, shotgun: 0.8, sniper: 1.05 };
-const TWO_HANDED = { pistol: false, smg: true, rifle: true, shotgun: true, sniper: true };
 export const UNIT_H = 1.85;
+const POOL = [['frog'], ['bulldog']];
+const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25 };
+// where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
+export const GUN_OFFSET = { pos: [0, 0, 0], rot: [0, 0, 0], k: 1 };
 
-function layer(clip, re, name) {
-  const tracks = clip.tracks.filter((t) => re.test(t.name)).map((t) => t.clone());
-  return new THREE.AnimationClip(name, clip.duration, tracks);
-}
+const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _o = new THREE.Matrix4(), _e = new THREE.Euler();
 
-let pick = 0;
 export class Unit {
   constructor(A, team, weapon, color, seed) {
     this.team = team; this.weapon = weapon;
-    const letter = POOL[team][(typeof seed === 'number' ? seed : pick++) % POOL[team].length];
-    const src = A.chars[letter];
+    const names = POOL[team];
+    const src = A.hero[names[(typeof seed === 'number' ? seed : 0) % names.length]];
     this.root = new THREE.Group();
     this.body = SkeletonUtils.clone(src.scene);
+    this.root.add(this.body);
+    this.root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(this.body);
     this.scale = UNIT_H / (box.max.y - box.min.y);
     this.body.scale.multiplyScalar(this.scale);
     this.body.position.y = -box.min.y * this.scale;
-    this.root.add(this.body);
-    // gun at the chest, arms follow the holding clips
-    const gunSrc = A.guns[GUN_FILE[weapon]];
-    const len = GUN_LEN[weapon] ?? 0.6;
-    const gb = new THREE.Box3().setFromObject(gunSrc.scene), gs = gb.getSize(new THREE.Vector3());
-    const k = len / gs.z;
-    const gunHolder = new THREE.Group(); gunHolder.add(fitGun(gunSrc, k)); gunHolder.position.set(-0.02, 1.0, 0.36 + len * 0.25); gunHolder.rotation.y = Math.PI;
-    this.root.add(gunHolder); this.gunHolder = gunHolder;
+    // weapon
+    const gunSrc = A.gunsH[weapon];
+    this.gun = new THREE.Group();
+    const g = gunSrc.scene.clone(true);
+    const gb = new THREE.Box3().setFromObject(g), gs = gb.getSize(new THREE.Vector3()), gc = gb.getCenter(new THREE.Vector3());
+    const long = Math.max(gs.x, gs.y, gs.z);
+    g.position.sub(gc); g.scale.setScalar((GUN_LEN[weapon] ?? 0.8) / long);
+    this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gun.add(this.gunInner);
+    this.gun.matrixAutoUpdate = false; this.root.add(this.gun);
+    this.hand = this.body.getObjectByName('RightHand');
     // team marks
     const col = new THREE.Color(color);
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.62, 28), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(2), side: THREE.DoubleSide, transparent: true, opacity: 0.9, toneMapped: false }));
     this.ring.rotation.x = -Math.PI / 2; this.ring.position.y = 0.025; this.root.add(this.ring);
     this.mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 0), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(2.2), toneMapped: false }));
     this.mark.position.y = UNIT_H + 0.45; this.root.add(this.mark);
-    // animation layers
+    // animation
     this.mixer = new THREE.AnimationMixer(this.body);
-    const by = Object.fromEntries(src.animations.map((c) => [c.name, c]));
-    const two = TWO_HANDED[weapon];
-    const make = (clip, loop = THREE.LoopRepeat) => { const a = this.mixer.clipAction(clip); a.loop = loop; a.clampWhenFinished = loop === THREE.LoopOnce; a.enabled = true; return a; };
-    this.acts = {
-      idle: make(layer(by.idle, LOWER, 'idleL')), walk: make(layer(by.walk, LOWER, 'walkL')), sprint: make(layer(by.sprint, LOWER, 'sprintL')),
-      hold: make(layer(by[two ? 'holding-both' : 'holding-right'], UPPER, 'holdU')),
-      shoot: make(layer(by[two ? 'holding-both-shoot' : 'holding-right-shoot'], UPPER, 'shootU')),
-      die: make(by.die, THREE.LoopOnce),
-    };
-    for (const a of Object.values(this.acts)) a.setEffectiveWeight(0);
-    this.cur = null; this.shootT = 0; this.dead = false; this.dieT = 0;
-    this.acts.hold.setEffectiveWeight(1).play();
-    this.setLower('idle');
-    this.mixer.setTime(Math.random() * 2);
+    this.acts = {};
+    for (const c of A.clips) {
+      const a = this.mixer.clipAction(c);
+      if (c.name.startsWith('Shot_and_Fall')) { a.loop = THREE.LoopOnce; a.clampWhenFinished = true; }
+      this.acts[c.name] = a;
+    }
+    this.cur = null; this.dead = false; this.dieT = 0; this.flash = 0;
+    this.play('Idle'); this.mixer.setTime(Math.random() * 3);
   }
-  setLower(n) {
-    if (this.cur === n) return;
-    const next = this.acts[n]; next.reset().setEffectiveWeight(1).play();
-    if (this.cur) this.acts[this.cur].crossFadeTo(next, 0.18, false);
-    this.cur = n;
+  play(name, fade = 0.18) {
+    if (this.cur === name) return;
+    const next = this.acts[name]; if (!next) return;
+    next.reset().setEffectiveWeight(1).play();
+    if (this.cur) this.acts[this.cur].crossFadeTo(next, fade, false);
+    this.cur = name;
   }
-  /** speed in metres a second; firing true on the frame a shot goes off */
-  update(dt, speed, firing, alive, t) {
+  /** speed in metres a second, back true when moving away from where it faces */
+  update(dt, speed, firing, alive, t, back = false) {
     if (!alive) {
-      if (!this.dead) { this.dead = true; this.dieT = 0; for (const a of Object.values(this.acts)) a.setEffectiveWeight(0); this.acts.die.reset().setEffectiveWeight(1).play(); }
+      if (!this.dead) { this.dead = true; this.dieT = 0; this.cur = null; for (const a of Object.values(this.acts)) a.stop(); this.play('Shot_and_Fall_Backward', 0.05); }
       this.dieT += dt; this.mixer.update(dt);
-      this.ring.visible = false; this.mark.visible = false; this.gunHolder.visible = this.dieT < 0.4;
+      this.ring.visible = false; this.mark.visible = false; this.syncGun(); this.gun.visible = this.dieT < 2.5;
       return;
     }
-    if (this.dead) { this.dead = false; this.acts.die.stop(); this.cur = null; this.acts.hold.setEffectiveWeight(1).reset().play(); this.ring.visible = true; this.mark.visible = true; this.gunHolder.visible = true; }
-    this.setLower(speed < 0.3 ? 'idle' : speed < 3.3 ? 'walk' : 'sprint');
-    this.shootT = firing ? 0.2 : Math.max(0, this.shootT - dt);
-    const sh = this.shootT > 0 ? 1 : 0;
-    this.acts.shoot.setEffectiveWeight(sh); this.acts.hold.setEffectiveWeight(1 - sh);
-    if (sh && !this.acts.shoot.isRunning()) this.acts.shoot.reset().play();
+    if (this.dead) { this.dead = false; for (const a of Object.values(this.acts)) a.stop(); this.cur = null; this.ring.visible = true; this.mark.visible = true; this.gun.visible = true; }
+    this.play(speed < 0.35 ? 'Idle' : back ? 'Walk_Backward_While_Shooting' : speed < 3.2 ? 'Walk_Forward_While_Shooting' : 'Run_and_Shoot');
     this.mixer.update(dt);
+    this.syncGun();
     this.mark.position.y = UNIT_H + 0.45 + Math.sin(t * 3 + this.root.id) * 0.05; this.mark.rotation.y = t * 2;
   }
-  dispose() { this.root.removeFromParent(); this.root.traverse((o) => { if (o.isMesh && (o.material.isMeshBasicMaterial)) { o.geometry.dispose(); o.material.dispose(); } }); }
-}
-
-function fitGun(gunSrc, k) {
-  const o = gunSrc.scene.clone(true); o.scale.setScalar(k);
-  const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3());
-  o.position.sub(c);
-  const g = new THREE.Group(); g.add(o); return g;
+  /** the weapon follows the hand bone (world pose, without the bone's scale) */
+  syncGun() {
+    if (!this.hand) return;
+    this.root.updateMatrixWorld(true);
+    _inv.copy(this.root.matrixWorld).invert();
+    _m.copy(this.hand.matrixWorld).premultiply(_inv);
+    _m.decompose(_p, _q, _s);
+    _e.set(GUN_OFFSET.rot[0], GUN_OFFSET.rot[1], GUN_OFFSET.rot[2]);
+    _o.compose(new THREE.Vector3(...GUN_OFFSET.pos), new THREE.Quaternion().setFromEuler(_e), new THREE.Vector3(GUN_OFFSET.k, GUN_OFFSET.k, GUN_OFFSET.k));
+    this.gun.matrix.compose(_p, _q, new THREE.Vector3(1, 1, 1)).multiply(_o);
+    this.gun.matrixWorldNeedsUpdate = true;
+  }
+  dispose() { this.root.removeFromParent(); this.root.traverse((o) => { if (o.isMesh && o.material.isMeshBasicMaterial) { o.geometry.dispose(); o.material.dispose(); } }); }
 }

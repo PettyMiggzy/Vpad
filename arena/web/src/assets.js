@@ -1,9 +1,11 @@
 // Loads the 3D models (Kenney's CC0 blocky characters, blasters and kits) and the floor textures once.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 const BASE = import.meta.env.BASE_URL + 'models/';
 const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);
 const load = (url) => new Promise((res, rej) => loader.load(url, res, undefined, () => rej(new Error('could not load ' + url))));
 
 /** crisp palette textures: the models are made of flat colours and pixels */
@@ -15,15 +17,19 @@ function crisp(root) {
   });
 }
 
+function shade(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = 8; } }); }
+
 export const GUN_FILE = { pistol: 'a', smg: 'j', rifle: 'd', shotgun: 'l', sniper: 'e' };
 
 export async function loadAssets(onProgress = () => {}) {
-  const A = { chars: {}, guns: {}, ind: {}, sv: {}, tex: {} };
+  const A = { hero: {}, clips: null, gunsH: {}, ind: {}, sv: {}, tex: {} };
   const jobs = [];
   const add = (p) => { jobs.push(p); p.then(() => onProgress(done += 1, jobs.length)); return p; };
   let done = 0;
-  for (const c of 'abcdefghijklmnopqr') add(load(`${BASE}char/character-${c}.glb`).then((g) => { crisp(g.scene); A.chars[c] = g; }));
-  for (const g of new Set(Object.values(GUN_FILE))) add(load(`${BASE}gun/blaster-${g}.glb`).then((x) => { crisp(x.scene); A.guns[g] = x; }));
+  // the generated 3D soldiers (one rig, shared animation clips) and the generated weapons
+  for (const c of ['frog', 'bulldog']) add(load(`${BASE}hero/${c}.glb`).then((g) => { shade(g.scene); A.hero[c] = g; }));
+  add(load(`${BASE}hero/clips.glb`).then((g) => { A.clips = g.animations; }));
+  for (const w of ['pistol', 'smg', 'rifle', 'shotgun', 'sniper']) add(load(`${BASE}hero/gun_${w}.glb`).then((g) => { shade(g.scene); A.gunsH[w] = g; }));
   for (const n of ['shipping-container-a', 'shipping-container-b', 'shipping-container-c', 'building-a', 'building-b', 'building-c', 'building-d', 'building-e', 'building-f', 'building-g', 'water-tower', 'detail-tank', 'detail-tank-large', 'chimney-large'])
     add(load(`${BASE}ind/${n}.glb`).then((x) => { crisp(x.scene); A.ind[n] = x; }));
   for (const n of ['barrel', 'box-large', 'box']) add(load(`${BASE}sv/${n}.glb`).then((x) => { crisp(x.scene); A.sv[n] = x; }));

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { GUN_FILE } from './assets.js';
 
-const LEN = { pistol: 0.34, smg: 0.46, rifle: 0.72, shotgun: 0.7, sniper: 0.92 };
+const LEN = { pistol: 0.3, smg: 0.62, rifle: 0.82, shotgun: 0.82, sniper: 1.05 };
 
 export class ViewModel {
   constructor(A) {
@@ -19,16 +19,16 @@ export class ViewModel {
   set(weapon, teamColor, sleeve) {
     const key = `${weapon}|${teamColor}`; if (key === this.key) return; this.key = key;
     while (this.kick.children.length) this.kick.remove(this.kick.children[0]);
-    const g = this.A.guns[GUN_FILE[weapon]], o = g.scene.clone(true);
+    const g = this.A.gunsH[weapon], o = g.scene.clone(true);
     const b0 = new THREE.Box3().setFromObject(o), s0 = b0.getSize(new THREE.Vector3());
-    o.scale.setScalar((LEN[weapon] ?? 0.5) / s0.z);
+    o.scale.setScalar((LEN[weapon] ?? 0.5) / Math.max(s0.x, s0.y, s0.z));
     const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3()); o.position.sub(c);
-    o.traverse((x) => { if (x.isMesh) { x.castShadow = false; x.receiveShadow = false; } });
-    const gun = new THREE.Group(); gun.add(o); gun.rotation.y = Math.PI;       // the model's muzzle points back, turn it away from you
-    gun.position.set(0.2, -0.22, -0.5 - (LEN[weapon] ?? 0.5) * 0.18);
+    o.traverse((x) => { if (x.isMesh) { x.castShadow = false; x.receiveShadow = false; x.frustumCulled = false; } });
+    const gun = new THREE.Group(); gun.add(o); gun.rotation.y = Math.PI / 2;   // the model's barrel runs along x: turn it to point away from you
+    gun.position.set(0.2, -0.2, -0.5 - (LEN[weapon] ?? 0.5) * 0.2);
     this.kick.add(gun); this.gun = gun;
     // blocky arms in the team colour with bare hands
-    const skin = new THREE.MeshStandardMaterial({ color: 0xd9a37c, roughness: 0.9 }), cloth = new THREE.MeshStandardMaterial({ color: sleeve, roughness: 0.8 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.7 }), cloth = new THREE.MeshStandardMaterial({ color: 0x252a30, roughness: 0.55, metalness: 0.35 });
     const arm = (x, z, ry, len = 0.5) => {
       const a = new THREE.Group();
       const sl = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, len), cloth); sl.position.z = len / 2;

@@ -13,7 +13,8 @@ import { Ui } from './ui.ts';
 import * as sfx from './audio.ts';
 import { loadAssets } from './assets.js';
 import { buildWorld, W, H } from './world.js';
-import { Unit, UNIT_H } from './units.js';
+import { Unit, UNIT_H, GUN_OFFSET } from './units.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { ViewModel } from './view.js';
 
 const qs = new URLSearchParams(location.search);
@@ -38,6 +39,13 @@ const bootmsg = document.getElementById('bootmsg');
 const A = await loadAssets((d, n) => { bootmsg.textContent = `loading ${d}/${n}`; });
 buildWorld(scene, A, TEAM_COLORS, quality);
 const vm = new ViewModel(A);
+// image-based light: without it the metal parts of the generated models read as black
+const env = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = env; scene.environmentIntensity = 0.18; vm.scene.environment = env; vm.scene.environmentIntensity = 0.5;
+// the generated models carry metal and gloss: give them the full reflection, leave the flat-painted containers alone
+const reflect = (root, k) => root.traverse((o) => { if (o.isMesh) for (const mt of [].concat(o.material)) { mt.envMap = env; mt.envMapIntensity = k; mt.needsUpdate = true; } });
+for (const g of Object.values(A.hero)) reflect(g.scene, 1.1);
+for (const g of Object.values(A.gunsH)) reflect(g.scene, 1.3);
 
 let composer = null;
 if (quality !== 'low') {
@@ -156,13 +164,15 @@ function syncUnits(dt, t) {
     const key = `${p.team}|${p.weapon}`;
     let u = units.get(p.id);
     if (u && u.key !== key) { u.dispose(); units.delete(p.id); u = undefined; }
-    if (!u) { u = new Unit(A, p.team, p.weapon, TEAM_COLORS[p.team]); u.key = key; u.lx = p.x / PX_PER_M; u.lz = p.y / PX_PER_M; scene.add(u.root); units.set(p.id, u); }
+    if (!u) { u = new Unit(A, p.team, p.weapon, TEAM_COLORS[p.team]); u.key = key; u.lx = p.x / PX_PER_M; u.lz = p.y / PX_PER_M; u.px = u.lx; u.pz = u.lz; scene.add(u.root); units.set(p.id, u); }
     const gx = p.x / PX_PER_M, gz = p.y / PX_PER_M;
     const speed = Math.hypot(gx - u.lx, gz - u.lz) / Math.max(dt, 1e-3);
     u.lx = gx; u.lz = gz;
     u.root.position.set(gx, 0, gz); u.root.rotation.y = Math.PI / 2 - p.aim;
     u.root.visible = p !== me || !p.alive ? true : false;
-    u.update(dt, Math.min(speed, 7), firedNow.has(p.id), p.alive, t);
+    const vx = (gx - u.px) / Math.max(dt, 1e-3), vz = (gz - u.pz) / Math.max(dt, 1e-3);
+    u.px = gx; u.pz = gz;
+    u.update(dt, Math.min(speed, 7), firedNow.has(p.id), p.alive, t, (vx * Math.cos(p.aim) + vz * Math.sin(p.aim)) < -0.5);
   }
   firedNow.clear();
   for (const [id, u] of units) if (!live.has(id)) { u.dispose(); units.delete(id); ui.dropTag(id); }
@@ -170,7 +180,7 @@ function syncUnits(dt, t) {
 
 // ---- the frame ----
 let acc = 0, last = performance.now();
-window.__arena = { start, get match() { return match; }, get me() { return me; }, look, units, scene, camera, renderer, A };
+window.__arena = { GUN_OFFSET, start, get match() { return match; }, get me() { return me; }, look, units, scene, camera, renderer, A };
 const v3 = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
