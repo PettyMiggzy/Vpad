@@ -11,6 +11,28 @@ const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1
 const GUN_TURN = { pistol: Math.PI };
 export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
+/** the soldiers and weapons are painted with lime accents: swap those for the team's colour (blue 0.61 or red 0.0 on the hue wheel), leave browns and greys alone */
+const TEAM_HUE = [0.61, 0.005];
+function teamize(root, team) {
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const mk = (m0) => {
+      const m = m0.clone();
+      m.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+          { vec3 c = diffuseColor.rgb; float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b)), d = mx - mn;
+            if (d > 0.1 && mx > 0.2) {
+              float h = mx == c.r ? mod((c.g - c.b) / d, 6.0) : mx == c.g ? (c.b - c.r) / d + 2.0 : (c.r - c.g) / d + 4.0; h /= 6.0;
+              if (h > 0.16 && h < 0.44) { vec3 k = clamp(abs(mod(${TEAM_HUE[team].toFixed(3)} * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); diffuseColor.rgb = mn + d * k; }
+            } }`);
+      };
+      m.customProgramCacheKey = () => `team${team}`;
+      return m;
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(mk) : mk(o.material);
+  });
+}
+
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _o = new THREE.Matrix4(), _e = new THREE.Euler();
 
 export class Unit {
@@ -19,7 +41,7 @@ export class Unit {
     const names = POOL[team];
     const nm = names[(typeof seed === 'number' ? seed : 0) % names.length], src = full ? A.hero[nm] : A.heroLo[nm];
     this.root = new THREE.Group();
-    this.body = SkeletonUtils.clone(src.scene);
+    this.body = SkeletonUtils.clone(src.scene); teamize(this.body, team);
     this.root.add(this.body);
     this.root.updateMatrixWorld(true);
     // which way is the front of this model? the rig has a 'headfront' marker ahead of the head: turn the body so that is +Z
@@ -35,6 +57,7 @@ export class Unit {
     const g = gunSrc.scene.clone(true);
     const gb = new THREE.Box3().setFromObject(g), gs = gb.getSize(new THREE.Vector3()), gc = gb.getCenter(new THREE.Vector3());
     const long = Math.max(gs.x, gs.y, gs.z);
+    teamize(g, team);
     g.position.sub(gc); g.scale.setScalar((GUN_LEN[weapon] ?? 0.8) / long);
     this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gunInner.rotation.y = GUN_TURN[weapon] ?? 0; this.gun.add(this.gunInner);
     this.gun.matrixAutoUpdate = false; this.root.add(this.gun);

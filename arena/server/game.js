@@ -158,7 +158,9 @@ export const cleanSkin = (v) => (Number.isInteger(v) && v >= 0 && v <= 5 ? v : 0
 
 export class Match {
   /** teams: two { name, color }; perSide: seats per team (humans and bots together); map: an id or a map */
-  constructor({ teams, perSide = 8, bots = true, map = 'cargo' }) {
+  constructor({ teams, perSide = 8, bots = true, map = 'cargo', mode = 'practice', difficulty = 1 }) {
+    this.difficulty = [0, 1, 2].includes(difficulty) ? difficulty : 1;   // bots: 0 easy, 1 normal, 2 hard
+    this.mode = mode === 'challenge' ? 'challenge' : 'practice';   // practice starts at once against bots and never counts; a challenge waits for a human on each side, is one match, and counts
     this.map = typeof map === 'string' ? (MAPS[map] || MAPS.cargo) : map;
     this.teams = teams; this.perSide = Math.max(1, Math.min(32, perSide)); this.useBots = bots;
     this.players = new Map(); this.nades = []; this.nextId = 1;
@@ -192,8 +194,8 @@ export class Match {
 
   makePlayer(id, team, name, loadout, bot) {
     const st = statsOf(loadout);
-    return { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, alive: false, kills: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
-      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
+    return { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, alive: false, kills: 0, deaths: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
+      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
   }
 
   spawn(p) {
@@ -231,24 +233,31 @@ export class Match {
   endRound(winner) {
     this.phase = 'roundover'; this.timer = 4; this.roundWinner = winner;
     if (winner === 0 || winner === 1) this.score[winner] += 1;
-    if (this.score[0] >= R.WIN_ROUNDS || this.score[1] >= R.WIN_ROUNDS) { this.phase = 'matchover'; this.timer = 10; this.winner = this.score[0] >= R.WIN_ROUNDS ? 0 : 1; this.events.push({ type: 'match', winner: this.winner }); }
+    if (this.score[0] >= R.WIN_ROUNDS || this.score[1] >= R.WIN_ROUNDS) { this.phase = 'matchover'; this.timer = 10; this.winner = this.score[0] >= R.WIN_ROUNDS ? 0 : 1; this.events.push({ type: 'match', winner: this.winner, ranked: this.mode === 'challenge' }); }
     else this.events.push({ type: 'roundEnd', winner });
   }
 
-  restartMatch() { this.score = [0, 0]; this.round = 0; this.winner = null; for (const p of this.players.values()) p.kills = 0; this.startRound(); }
+  restartMatch() { this.score = [0, 0]; this.round = 0; this.winner = null; for (const p of this.players.values()) { p.kills = 0; p.deaths = 0; } this.startRound(); }
 
   /** one step of `dt` seconds */
   step(dt) {
     this.events = [];
     if (this.phase === 'lobby') {
+      if (this.mode === 'challenge') {
+        // a challenge starts only when both teams have a human; until then the room waits (no bots, no clock)
+        if (this.humans(0) < 1 || this.humans(1) < 1) { this.timer = 10; return; }
+        this.timer -= dt; if (this.timer <= 0) this.startRound();
+        return;
+      }
       this.timer -= dt;
-      if (this.timer <= 0 && this.players.size >= 0) this.startRound();
+      if (this.timer <= 0) this.startRound();
       this.fillBots();
       return;
     }
     if (this.phase === 'countdown') { this.timer -= dt; if (this.timer <= 0) { this.phase = 'live'; this.timer = R.ROUND_SECONDS; } this.think(dt, false); return; }
     if (this.phase === 'roundover') { this.timer -= dt; this.moveNades(dt); if (this.timer <= 0) this.startRound(); return; }
-    if (this.phase === 'matchover') { this.timer -= dt; this.moveNades(dt); if (this.timer <= 0) this.restartMatch(); return; }
+    if (this.phase === 'matchover') { this.timer -= dt; this.moveNades(dt); if (this.timer <= 0) { if (this.mode === 'challenge') this.phase = 'finished'; else this.restartMatch(); } return; }
+    if (this.phase === 'finished') return;
     // live
     this.timer -= dt;
     this.think(dt, true);
@@ -271,17 +280,19 @@ export class Match {
       const len = Math.hypot(dx, dy); if (len > 1) { dx /= len; dy /= len; }
       if (Number.isFinite(inp.aim)) p.aim = inp.aim;
       if (Number.isFinite(inp.pitch)) p.pitch = clamp(inp.pitch, -1.4, 1.4);
-      const sp = R.SPEED * p.speedMul;
+      // sprinting: faster, but only forward-ish movement counts and you cannot fire or throw while doing it
+      p.sprinting = !!inp.sprint && len > 0.3;
+      const sp = R.SPEED * p.speedMul * (p.sprinting ? 1.32 : 1);
       const [nx, ny, f] = tryMove(this.map, p.x, p.y, p.z, p.x + dx * sp * dt, p.y + dy * sp * dt);
       p.x = nx; p.y = ny; p.z = f >= p.z ? f : Math.max(f, p.z - R.FALL * dt);
       p.cd = Math.max(0, p.cd - dt); p.nadeCd = Math.max(0, p.nadeCd - dt);
       const w = WEAPONS[p.weapon];
       if (p.rl > 0) { p.rl = Math.max(0, p.rl - dt); if (p.rl === 0) p.ammo = p.magSize; }
       else if (live && (inp.reload || (inp.fire && p.ammo <= 0)) && p.ammo < p.magSize) { p.rl = p.reloadTime; this.events.push({ type: 'reload', by: p.id }); }
-      if (live && inp.fire && p.cd === 0 && p.rl === 0) {
+      if (live && inp.fire && p.cd === 0 && p.rl === 0 && !p.sprinting) {
         if (p.ammo > 0) { p.ammo -= 1; p.cd = w.gap; this.shoot(p, w); } else { p.cd = 0.3; this.events.push({ type: 'dry', by: p.id }); }
       }
-      if (live && inp.nade && p.nadeCd === 0 && p.grenades > 0) { p.grenades -= 1; p.nadeCd = 1.0; this.throwNade(p); inp.nade = false; }
+      if (live && inp.nade && p.nadeCd === 0 && p.grenades > 0 && !p.sprinting) { p.grenades -= 1; p.nadeCd = 1.0; this.throwNade(p); inp.nade = false; }
     }
   }
 
@@ -304,7 +315,7 @@ export class Match {
       this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0 });
       if (!hit) continue;
       hit.hp -= w.dmg * p.dmgMul * (head ? hit.headMul : 1);
-      if (hit.hp <= 0) { hit.alive = false; p.kills += 1; this.events.push({ type: 'kill', by: p.id, victim: hit.id, x: hit.x, y: hit.y, head: head ? 1 : 0 }); }
+      if (hit.hp <= 0) { hit.alive = false; hit.deaths += 1; p.kills += 1; this.events.push({ type: 'kill', by: p.id, victim: hit.id, x: hit.x, y: hit.y, head: head ? 1 : 0 }); }
       else this.events.push({ type: 'hit', by: p.id, victim: hit.id, x: ex, y: ey, z: ez, head: head ? 1 : 0 });
     }
   }
@@ -352,7 +363,7 @@ export class Match {
       const dmg = n.dmg * (1 - dist / n.radius) * (q.id === n.owner ? 0.5 : 1);
       if (dmg < 1) continue;
       q.hp -= dmg;
-      if (q.hp <= 0) { q.alive = false; if (owner && q.id !== owner.id) owner.kills += 1; this.events.push({ type: 'kill', by: n.owner, victim: q.id, x: q.x, y: q.y, nade: 1 }); }
+      if (q.hp <= 0) { q.alive = false; q.deaths += 1; if (owner && q.id !== owner.id) owner.kills += 1; this.events.push({ type: 'kill', by: n.owner, victim: q.id, x: q.x, y: q.y, nade: 1 }); }
       else this.events.push({ type: 'hit', by: n.owner, victim: q.id, x: q.x, y: q.y, z: q.z + 1, nade: 1 });
     }
   }
@@ -364,7 +375,7 @@ export class Match {
     let target = null, best = Infinity;
     if (b.retarget <= 0 || !b.target || !this.players.get(b.target)?.alive) {
       for (const q of this.players.values()) { if (q.team === p.team || !q.alive) continue; const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < best) { best = d; target = q; } }
-      b.target = target?.id ?? null; b.retarget = rnd(0.5, 1.2);
+      b.target = target?.id ?? null; b.retarget = rnd(0.5, 1.2) * ([1.6, 1, 0.6][this.difficulty]);
     }
     target = b.target ? this.players.get(b.target) : null;
     const inp = p.input; inp.fire = false; inp.dx = 0; inp.dy = 0; inp.nade = false; inp.reload = false;
@@ -372,7 +383,8 @@ export class Match {
     const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
     const see = clearLine(this.map, p.x, p.y, p.z + R.EYE, target.x, target.y, target.z + 1.3);
     // aim at the chest with a little error that grows with distance, so they hit but not always
-    const err = (0.012 + d / 60000) * (w.pellets > 1 ? 1 : 1);
+    const DF = [{ aim: 1.9, fire: 0.3, think: 1.6 }, { aim: 1, fire: 0.5, think: 1 }, { aim: 0.5, fire: 0.8, think: 0.6 }][this.difficulty];
+    const err = (0.012 + d / 60000) * DF.aim;
     inp.aim = ang + rnd(-err, err) * 4;
     inp.pitch = Math.atan2(target.z + 1.3 - (p.z + R.EYE), d / M) + rnd(-err, err) * 3;
     // snipers head for a high deck on their own half and hold it; everyone else closes to a sensible range
@@ -406,16 +418,16 @@ export class Match {
       if (od > 0 && od < 55) { inp.dx += (ox / od) * (55 - od) / 28; inp.dy += (oy / od) * (55 - od) / 28; }
     }
     inp.dx *= 0.9; inp.dy *= 0.9;
-    if (see && d < reach * 0.85 && Math.random() < 0.5) inp.fire = true;
+    if (see && d < reach * 0.85 && Math.random() < DF.fire) inp.fire = true;
     // a grenade now and then at an enemy that is far but in sight
     if (see && d > 500 && d < 1000 && p.grenades > 0 && Math.random() < 0.0015) inp.nade = true;
   }
 
   snapshot() {
     return {
-      ph: this.phase, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
+      mode: this.mode, ph: this.phase, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
       al: [this.aliveCount(0), this.aliveCount(1)], n: [this.count(0), this.count(1)],
-      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0]),
+      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths]),
       g: this.nades.map((n) => [n.id, Math.round(n.x), Math.round(n.y), +n.z.toFixed(2)]),
       ev: this.events,
     };

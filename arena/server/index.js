@@ -19,18 +19,18 @@ class MatchRoom extends Room {
     const names = Array.isArray(options.names) ? options.names.map(cleanName) : [];
     const colors = Array.isArray(options.colors) ? options.colors : [];
     const teams = [
-      { name: names[0] || 'TEAM RED', color: Number.isInteger(colors[0]) ? colors[0] : 0xff5a3c },
-      { name: names[1] || 'TEAM BLUE', color: Number.isInteger(colors[1]) ? colors[1] : 0x3cb4ff },
+      { name: names[0] || 'BLUE', color: Number.isInteger(colors[0]) ? colors[0] : 0x2f7bff },
+      { name: names[1] || 'RED', color: Number.isInteger(colors[1]) ? colors[1] : 0xff3b30 },
     ];
     const perSide = Math.max(1, Math.min(32, Number(options.perSide) || 8));
     this.maxClients = perSide * 2;
-    this.match = new Match({ teams, perSide, bots: options.bots !== false });
+    this.match = new Match({ teams, perSide, bots: options.bots !== false, map: typeof options.map === 'string' ? options.map : 'cargo', mode: options.mode });
     this.pids = new Map();   // session id to profile id
     this.tick = 0;
     this.onMessage('input', (client, m) => {
       const p = this.match.players.get(client.sessionId);
       if (!p || !m || typeof m !== 'object') return;
-      p.input = { dx: Number(m.dx) || 0, dy: Number(m.dy) || 0, aim: Number.isFinite(m.aim) ? m.aim : p.aim, fire: !!m.fire };
+      p.input = { dx: Number(m.dx) || 0, dy: Number(m.dy) || 0, aim: Number.isFinite(m.aim) ? m.aim : p.aim, pitch: Number.isFinite(m.pitch) ? m.pitch : 0, fire: !!m.fire, nade: !!m.nade, reload: !!m.reload };
     });
     this.setSimulationInterval(() => {
       const before = this.match.phase;

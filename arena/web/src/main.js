@@ -112,8 +112,24 @@ const units = new Map();
 const tracers = [], bits = [];
 let walkPhase = 0, hudT = 0, spectate = null, nadeQueued = false, zoom = false, eyeY = 1.6, shake = 0, boomT = 0;
 const nadeMeshes = new Map(), fx = [];
+let deathCam = null, showScore = false, specYaw = 0, specPitch = 0, scoreT = 0;
+let streak = 0, multi = { n: 0, t: 0 }, beatT = 0, lastShot = new Map(), mapBg = null, mapBgId = '';
 
-const ui = new Ui({ teamNames: names, teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => requestLock() });
+// the board of this device: practice results (ranked results arrive with challenge matches on the hosted server)
+const LB_KEY = 'vyre.arena.lb.v1';
+let lb; try { lb = JSON.parse(localStorage.getItem(LB_KEY) || 'null'); } catch { lb = null; }
+if (!lb || typeof lb !== 'object' || !lb.teams || !lb.players) lb = { teams: {}, players: {} };
+const saveLb = () => { try { localStorage.setItem(LB_KEY, JSON.stringify(lb)); } catch { /* storage may be blocked */ } };
+function recordMatch(winner) {
+  if (!me || match.mode !== 'practice') return;
+  const w = lb.teams[names[winner]] ??= { w: 0, l: 0 }, l = lb.teams[names[1 - winner]] ??= { w: 0, l: 0 };
+  w.w += 1; l.l += 1;
+  const pl = lb.players[me.name] ??= { kills: 0, deaths: 0, matches: 0, wins: 0 };
+  pl.kills += me.kills; pl.deaths += me.deaths; pl.matches += 1; if (me.team === winner) pl.wins += 1;
+  saveLb(); ui.renderBoard();
+}
+let paused = false;
+const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => { paused = false; ui.showPause(false); requestLock(); }, onLeave: () => leave(), challengeLive: !!qs.get('server'), leaders: () => lb, onPause: () => { paused = true; ui.showPause(true); }, onScore: () => { showScore = !showScore; } });
 
 async function start(c) {
   sfx.unlock();
@@ -123,12 +139,31 @@ async function start(c) {
   ui.hideBanner(); sfx.ambience(curMapId);
   for (const [id, u] of units) { u.dispose(); ui.dropTag(id); }
   units.clear();
-  match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId });
+  if (Array.isArray(c.names)) { names[0] = c.names[0]; names[1] = c.names[1]; teams[0].name = names[0]; teams[1].name = names[1]; ui.setTeams(names); }
+  match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1 });
   me = match.addPlayer('me', { name: c.name, team: c.team, loadout: { ...profile.loadout } });
   match.startRound();
-  playing = true; spectate = null; wasAlive = false; eyeY = 1.6;
+  playing = true; spectate = null; wasAlive = false; eyeY = 1.6; deathCam = null; paused = false; showScore = false;
   ui.showMenu(false); requestLock();
   ui.banner('ROUND 1', 'get ready', 2600);
+}
+function leave() {
+  playing = false; paused = false; fire = false; zoom = false;
+  try { document.exitPointerLock?.(); } catch { /* not locked */ }
+  for (const [id, u] of units) { u.dispose(); ui.dropTag(id); }
+  units.clear(); me = null; deathCam = null; spectate = null;
+  match = newMatch(6, curMapId || 'cargo');
+  ui.showMenu(true);
+}
+/** spectating: the next living team-mate (or, with none left, the next living player) */
+function cycleSpec(dir = 1) {
+  if (!me || me.alive) return;
+  const all = [...match.players.values()].filter((p) => p.alive);
+  const list = all.filter((p) => p.team === me.team).length ? all.filter((p) => p.team === me.team) : all;
+  if (!list.length) { spectate = null; return; }
+  const i = list.findIndex((p) => p.id === spectate);
+  spectate = list[(i + dir + list.length * 2) % list.length].id;
+  const t = match.players.get(spectate); if (t) { specYaw = t.aim; specPitch = t.pitch ?? 0; }
 }
 function requestLock() {
   sfx.unlock();
@@ -136,14 +171,14 @@ function requestLock() {
   if (dbg.includes('nolock')) { lockFailed = true; return; }
   try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { lockFailed = true; ui.showPause(false); }); } catch { lockFailed = true; }
 }
-document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; if (playing && !ui.touch && !lockFailed) ui.showPause(!locked); });
+document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; if (playing && !ui.touch && !lockFailed) { paused = !locked; ui.showPause(!locked); } });
 document.addEventListener('pointerlockerror', () => { lockFailed = true; locked = false; ui.showPause(false); });
 const turn = (dx, dy) => { vm.turned(dx, dy); look.yaw += dx * 0.0022; look.pitch = Math.max(-1.4, Math.min(1.4, look.pitch + dy * 0.0022)); };
 addEventListener('mousemove', (e) => { if (!playing) return; if (locked) turn(e.movementX, e.movementY); else if (lockFailed && (e.buttons & 1)) turn(e.movementX, e.movementY); });
-addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) fire = true; if (e.button === 2) zoom = true; });
+addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
 addEventListener('mouseup', (e) => { if (e.button === 0) fire = false; if (e.button === 2) zoom = false; });
-addEventListener('keydown', (e) => { keys.add(e.code); if ((e.code === 'KeyG' || e.code === 'KeyQ') && playing && !e.repeat) nadeQueued = true; if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
-addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) cycleSpec(1); if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if ((e.code === 'KeyG' || e.code === 'KeyQ') && playing && !e.repeat) nadeQueued = true; if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Tab') showScore = false; });
 addEventListener('blur', () => { keys.clear(); fire = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('click', () => { if (playing && !locked && !ui.touch && !lockFailed && !ui.menuOpen()) requestLock(); });
@@ -154,7 +189,7 @@ function readInput() {
   let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - ui.move.y;
   let str = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + ui.move.x;
   const len = Math.hypot(fwd, str); if (len > 1) { fwd /= len; str /= len; }
-  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw, pitch: -look.pitch, fire: fire || ui.fireTouch, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch };
+  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw, pitch: -look.pitch, fire: fire || ui.fireTouch, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') };
   ui.nadeTouch = false;
 }
 
@@ -177,7 +212,7 @@ function onEvents(evs) {
     if (e.type === 'shot') {
       const sh = match.players.get(e.by), own = !!(me && e.by === me.id), eye = eyeOf();
       sfx.shot(sh?.weapon ?? 'pistol', e.x / PX_PER_M, e.y / PX_PER_M, own);
-      tracer(e, sh); firedNow.add(e.by);
+      tracer(e, sh); firedNow.add(e.by); lastShot.set(e.by, performance.now());
       if (own) vm.fire();
       // a bullet that flew past your head, or hit the wall beside you
       if (me && me.alive && !own && sh && sh.team !== me.team && !e.hit && distToSeg(eye.x, eye.y, eye.z, e.x / PX_PER_M, e.z, e.y / PX_PER_M, e.ex / PX_PER_M, e.ez, e.ey / PX_PER_M) < 2.2) sfx.whiz();
@@ -186,7 +221,7 @@ function onEvents(evs) {
         sfx.impact(e.ez < 0.15 ? (curMapId === 'dust' ? 'dirt' : 'concrete') : curMapId === 'dust' ? 'concrete' : (e.x + e.y) % 3 < 1.6 ? 'metal' : 'concrete', ix, iz);
       }
     } else if (e.type === 'hit') {
-      if (me && e.victim === me.id) { ui.flash('vy-hurt'); sfx.hurtMe(); }
+      if (me && e.victim === me.id) { ui.flash('vy-hurt'); sfx.hurtMe(); const at = match.players.get(e.by); if (at && at.id !== me.id) ui.hitDir(Math.atan2(at.y - me.y, at.x - me.x) - look.yaw); }
       if (me && e.by === me.id) { ui.flash('vy-hitm'); sfx.hitMarker(); }
       sfx.impact('flesh', e.x / PX_PER_M, e.y / PX_PER_M);
       units.get(e.victim)?.hit();
@@ -194,9 +229,18 @@ function onEvents(evs) {
     } else if (e.type === 'kill') {
       const a = match.players.get(e.by), v = match.players.get(e.victim);
       if (a && v) ui.feed(`<span style="color:${TEAM_COLORS[a.team]}">${a.name}</span> ${e.nade ? '&#9679;' : e.head ? '&#9678;' : '&#9656;'} <span style="color:${TEAM_COLORS[v.team]}">${v.name}</span>`);
-      if (me && e.by === me.id && e.victim !== me.id) { sfx.kill(); award(profile, REWARD.kill); save(); }
+      if (me && e.by === me.id && e.victim !== me.id) {
+        sfx.kill(); award(profile, REWARD.kill); save();
+        streak += 1; const now = performance.now() / 1000; multi = { n: now - multi.t < 4 ? multi.n + 1 : 1, t: now };
+        const tags = [];
+        if (multi.n === 2) tags.push('DOUBLE KILL'); else if (multi.n === 3) tags.push('TRIPLE KILL'); else if (multi.n >= 4) tags.push('RAMPAGE');
+        if (streak === 3) tags.push('KILLING SPREE'); else if (streak === 5) tags.push('UNSTOPPABLE'); else if (streak === 8) tags.push('LEGENDARY');
+        if (!tags.length) tags.push(e.nade ? 'GRENADE KILL' : e.head ? 'HEADSHOT' : '');
+        if (tags[0]) { ui.medal(tags.join('  +  '), e.head && !e.nade ? '#ff6a50' : '#ffd24a'); sfx.medal(); }
+      }
+      if (me && e.victim === me.id) { streak = 0; multi = { n: 0, t: 0 }; }
       if (v) sfx.dieAt(v.x / PX_PER_M, v.y / PX_PER_M, !!(me && e.victim === me.id));
-      if (me && e.victim === me.id) { ui.flash('vy-hurt'); ui.banner('ELIMINATED', 'spectating a team-mate', 2200); }
+      if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; ui.banner('ELIMINATED', a && a.id !== me.id ? `by ${a.name}` : '', 2200); }
     } else if (e.type === 'nade') {
       const th = match.players.get(e.by);
       sfx.throwNade(e.x / PX_PER_M, e.y / PX_PER_M, !!(me && e.by === me.id)); if (me && e.by === me.id) vm.throwNade();
@@ -212,7 +256,7 @@ function onEvents(evs) {
       explosion(e.x / PX_PER_M, e.z, e.y / PX_PER_M);
     } else if (e.type === 'round') { ui.banner(`ROUND ${e.n}`, 'get ready', 2400); sfx.chime(); }
     else if (e.type === 'roundEnd') { const w = e.winner; ui.banner(w === 0 || w === 1 ? `${teamTag(w)} TAKES THE ROUND` : 'DRAW', '', 3000); if (me && w === me.team) { award(profile, REWARD.round); save(); } }
-    else if (e.type === 'match') { ui.banner(`${teamTag(e.winner)} WINS THE MATCH`, 'new match starting', 6000); if (me && e.winner === me.team) { award(profile, REWARD.match); save(); } }
+    else if (e.type === 'match') { recordMatch(e.winner); ui.banner(`${teamTag(e.winner)} WINS THE MATCH`, 'new match starting', 6000); if (me && e.winner === me.team) { award(profile, REWARD.match); save(); } }
   }
 }
 const tracerMat = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(3), toneMapped: false, transparent: true }));
@@ -237,19 +281,27 @@ function burst(x, y, z, color, n, speed = 3) {
     bits.push({ mesh, vx: (Math.random() - 0.5) * speed, vy: Math.random() * speed + 0.5, vz: (Math.random() - 0.5) * speed, life: 0.45 + Math.random() * 0.3 });
   }
 }
-// a grenade burst: a fireball, a flash of light, smoke, sparks, and a shake if you are near
-const fireMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff9a30).multiplyScalar(3), toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false });
-const smokeGeo = new THREE.SphereGeometry(1, 10, 8), fireGeo = new THREE.SphereGeometry(1, 14, 10);
+// a grenade burst: a fireball and flash, drifting smoke and sparks (soft sprites, not solids), plus a shake if you are near
+const glowTex = (inner, outer) => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 2, 64, 64, 62); gr.addColorStop(0, inner); gr.addColorStop(0.35, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+};
+const fireTex = glowTex('rgba(255,245,200,1)', 'rgba(255,140,30,0.75)'), smokeTex = glowTex('rgba(90,86,80,0.8)', 'rgba(60,58,55,0.45)');
 function explosion(x, y, z) {
   const eye = eyeOf(), dist = Math.hypot(x - eye.x, y - eye.y, z - eye.z);
   sfx.boom(x, z);
   shake = Math.max(shake, Math.min(1, 7 / (1 + dist * dist * 0.12)));
   boomT = 0.35; boomLight.position.set(x, y + 0.6, z);
-  const f = new THREE.Mesh(fireGeo, fireMat.clone()); f.position.set(x, y + 0.3, z); scene.add(f); fx.push({ mesh: f, t: 0, life: 0.28, kind: 'fire', r: 2.2 });
-  for (let i = 0; i < 7; i++) {
-    const sm = new THREE.Mesh(smokeGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.18, 0.17, 0.16), transparent: true, opacity: 0.55, depthWrite: false, fog: true }));
-    sm.position.set(x + (Math.random() - 0.5) * 1.2, y + 0.3 + Math.random() * 0.6, z + (Math.random() - 0.5) * 1.2); scene.add(sm);
-    fx.push({ mesh: sm, t: 0, life: 1.6 + Math.random() * 0.8, kind: 'smoke', r: 0.7 + Math.random() * 0.8, vy: 0.9 + Math.random() * 0.8 });
+  for (let i = 0; i < 4; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, color: new THREE.Color(1.6, 1.1, 0.7) }));
+    sp.position.set(x + (Math.random() - 0.5) * 0.8, y + 0.4 + i * 0.25, z + (Math.random() - 0.5) * 0.8); scene.add(sp);
+    fx.push({ mesh: sp, t: 0, life: 0.3 + i * 0.06, kind: 'fire', r: 3.2 - i * 0.4 });
+  }
+  for (let i = 0; i < 9; i++) {
+    const sm = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, opacity: 0.6 }));
+    sm.position.set(x + (Math.random() - 0.5) * 1.6, y + 0.3 + Math.random() * 0.8, z + (Math.random() - 0.5) * 1.6); scene.add(sm);
+    fx.push({ mesh: sm, t: 0, life: 1.8 + Math.random() * 1.0, kind: 'smoke', r: 1.6 + Math.random() * 1.2, vy: 0.6 + Math.random() * 0.6 });
   }
   burst(x, y + 0.3, z, 0xffb050, 26, 9); burst(x, y + 0.2, z, 0x6a5a48, 10, 6);
 }
@@ -294,7 +346,7 @@ function syncUnits(dt, t) {
     // soldiers out of view are not drawn or animated; far ones are animated at half rate
     sph.center.set(gx, p.z + 1, gz);
     const dist = Math.hypot(gx - camera.position.x, gz - camera.position.z);
-    u.root.visible = (p !== me || !p.alive) && (frustum.intersectsSphere(sph) || dist < 3);
+    u.root.visible = (p !== me || !p.alive) && p.id !== spectate && (frustum.intersectsSphere(sph) || dist < 3);
     u.skip = !u.skip;
     if (!u.root.visible || (dist > 40 && u.skip)) { u.pend = (u.pend ?? 0) + dt; continue; }
     const udt = dt + (u.pend ?? 0); u.pend = 0;
@@ -306,6 +358,29 @@ function syncUnits(dt, t) {
   for (const [id, u] of units) if (!live.has(id)) { u.dispose(); units.delete(id); ui.dropTag(id); }
 }
 
+// ---- the minimap: the map's own solids, your team, and any enemy that fired in the last second and a half ----
+function drawMinimap() {
+  const cv = ui.mapCanvas, g = cv.getContext('2d'), W = cv.width, H = cv.height, m = match.map, sx = W / m.w, sy = H / m.h;
+  if (mapBgId !== m.id || !mapBg) {
+    mapBg = document.createElement('canvas'); mapBg.width = W; mapBg.height = H; const b = mapBg.getContext('2d');
+    b.fillStyle = 'rgba(6,10,6,0.88)'; b.fillRect(0, 0, W, H);
+    for (const r of m.ramps) { b.fillStyle = 'rgba(130,160,100,0.35)'; b.fillRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy); }
+    for (const q of m.solids) { if (q.kind === 'wall' || q.kind === 'rail') continue; const h = Math.min(1, q.top / 6); b.fillStyle = q.walk ? `rgba(130,170,90,${0.3 + 0.3 * h})` : `rgba(175,180,175,${0.3 + 0.4 * h})`; b.fillRect(q.x * sx, q.y * sy, q.w * sx, q.h * sy); }
+    mapBgId = m.id;
+  }
+  g.clearRect(0, 0, W, H); g.drawImage(mapBg, 0, 0);
+  const now = performance.now();
+  for (const p of match.players.values()) {
+    if (!p.alive || p === me) continue;
+    const mine = me && p.team === me.team, shot = now - (lastShot.get(p.id) ?? -1e9) < 1500;
+    if (!mine && !shot) continue;
+    g.fillStyle = TEAM_COLORS[p.team]; g.beginPath(); g.arc(p.x * sx, p.y * sy, shot && !mine ? 7 : 5, 0, 7); g.fill();
+    if (shot && !mine) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
+  }
+  if (me && me.alive) {
+    g.save(); g.translate(me.x * sx, me.y * sy); g.rotate(look.yaw); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(9, 0); g.lineTo(-6, 5.5); g.lineTo(-6, -5.5); g.closePath(); g.fill(); g.restore();
+  }
+}
 // ---- the frame ----
 function draw() {
   if (composer) composer.render(); else renderer.render(scene, camera);
@@ -319,18 +394,18 @@ function frame(now) {
   const raw = (now - last) / 1000; last = now;
   const dt = Math.min(raw, 0.1), t = now / 1000;
   const sniping = me && me.alive && me.weapon === 'sniper';
-  const wantFov = zoom && playing ? (sniping ? 24 : 55) : FOV;
+  const wantFov = zoom && playing ? (sniping ? 24 : 55) : FOV + (me && me.alive && me.sprinting ? 7 : 0);
   fov += (wantFov - fov) * Math.min(1, dt * 14);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   const sens = fov / FOV;
   if (ui.touch && (ui.lookDelta.x || ui.lookDelta.y)) { turn(ui.lookDelta.x * LOOK_TOUCH * sens, ui.lookDelta.y * LOOK_TOUCH * sens); ui.lookDelta.x = 0; ui.lookDelta.y = 0; }
-  if ((playing && (ui.touch || locked || lockFailed)) || !playing) {
+  if ((playing && !paused && (ui.touch || locked || lockFailed)) || !playing) {
     acc += dt;
     for (let n = 0; acc >= SIM_STEP && n < 6; n++, acc -= SIM_STEP) { readInput(); match.step(SIM_STEP); nadeQueued = false; onEvents(match.events); }
     if (acc > SIM_STEP * 6) acc = 0;
   }
   const alive = !!(me && me.alive);
-  if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; eyeY = me.z + R.EYE; }
+  if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
   wasAlive = alive;
   watchFps(raw); syncUnits(dt, t); syncNades(dt, t);
   if (playing && me) sfx.setListener(camera.position.x, camera.position.z, alive ? look.yaw : (spectate ? (match.players.get(spectate)?.aim ?? 0) : 0));
@@ -340,15 +415,34 @@ function frame(now) {
   const place = (x, y, z, yaw, pitch) => { camera.position.set(x, y, z); camera.rotation.set(-pitch, -yaw - Math.PI / 2, 0); };
   if (playing && alive) {
     const moving = Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1;
-    walkPhase += moving ? dt * 9 : 0;
+    walkPhase += moving ? dt * (me.sprinting ? 13 : 9) : 0;
     eyeY += (me.z + R.EYE - eyeY) * Math.min(1, dt * 22);
     place(me.x / PX_PER_M, eyeY + (moving ? Math.sin(walkPhase) * 0.03 : 0), me.y / PX_PER_M, look.yaw, look.pitch);
     if (vm.set(me.weapon, me.team, TEAM_COLORS[me.team])) sfx.equip();
-    vm.reloading = me.rl > 0 ? 1 - me.rl / me.reloadTime : -1;
-  } else if (playing) {
-    let tgt = spectate ? match.players.get(spectate) : null;
-    if (!tgt || !tgt.alive) { tgt = [...match.players.values()].find((p) => p.alive && p.team === me?.team) || [...match.players.values()].find((p) => p.alive) || null; spectate = tgt ? tgt.id : null; }
-    if (tgt) place(tgt.x / PX_PER_M, tgt.z + R.EYE, tgt.y / PX_PER_M, tgt.aim, tgt.pitch ?? 0); else place(mapDims.w / 2, 14, mapDims.h / 2, 0, 1.2);
+    vm.reloading = me.rl > 0 ? 1 - me.rl / me.reloadTime : -1; vm.sprinting = !!me.sprinting;
+    if (me.hp / me.hpMax < 0.3 && match.phase === 'live') { beatT -= dt; if (beatT <= 0) { sfx.heartbeat(); beatT = 0.5 + (me.hp / me.hpMax) * 2; } } else beatT = 0;
+  } else if (playing && me) {
+    const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+    const killer = deathCam ? match.players.get(deathCam.killer) : null;
+    if (deathCam && deathCam.t < 2.2 && match.phase !== 'matchover') {
+      // the death cam: you drop to the floor where you fell and turn to look at who got you
+      deathCam.t += dt;
+      const fall = Math.min(1, deathCam.t / 0.45), ey = me.z + R.EYE - (R.EYE - 0.32) * (1 - (1 - fall) ** 2);
+      let ty = deathCam.yaw, tp = 0.25;
+      if (killer && killer.id !== me.id) { ty = Math.atan2(killer.y - me.y, killer.x - me.x); tp = Math.atan2(-(killer.z + 1.3 - ey), Math.hypot(killer.x - me.x, killer.y - me.y) / PX_PER_M); }
+      deathCam.yaw += wrapA(ty - deathCam.yaw) * (1 - Math.exp(-5 * dt)); deathCam.pitch += (tp - deathCam.pitch) * (1 - Math.exp(-5 * dt));
+      place(me.x / PX_PER_M, ey, me.y / PX_PER_M, deathCam.yaw, deathCam.pitch);
+      ui.spec(killer && killer.id !== me.id ? `Eliminated by ${killer.name}` : 'Eliminated', '');
+    } else {
+      // spectating: through a living team-mate's eyes, turned smoothly (a bot's aim jitters, a camera must not)
+      let tgt = spectate ? match.players.get(spectate) : null;
+      if (!tgt || !tgt.alive) { spectate = null; cycleSpec(1); tgt = spectate ? match.players.get(spectate) : null; }
+      if (tgt) {
+        specYaw += wrapA(tgt.aim - specYaw) * (1 - Math.exp(-9 * dt)); specPitch += ((tgt.pitch ?? 0) - specPitch) * (1 - Math.exp(-9 * dt));
+        place(tgt.x / PX_PER_M, tgt.z + R.EYE, tgt.y / PX_PER_M, specYaw, -specPitch);
+        ui.spec(`Spectating ${tgt.name}`, ui.touch ? '' : 'click or Space: next &middot; right click: previous');
+      } else { place(mapDims.w / 2, 16, mapDims.h / 2, 0, 1.2); ui.spec(null); }
+    }
   } else {
     const a = t * 0.08, cx = mapDims.w / 2, cz = mapDims.h / 2;
     camera.position.set(cx + Math.cos(a) * 30, 9 + Math.sin(a * 0.7) * 1.5, cz + Math.sin(a) * 20);
@@ -367,8 +461,8 @@ function frame(now) {
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt; const k = f.t / f.life;
     if (k >= 1) { scene.remove(f.mesh); f.mesh.material.dispose(); fx.splice(i, 1); continue; }
-    if (f.kind === 'fire') { f.mesh.scale.setScalar(0.3 + f.r * Math.sqrt(k)); f.mesh.material.opacity = 0.9 * (1 - k); }
-    else { f.mesh.scale.setScalar(f.r * (0.6 + k * 2.4)); f.mesh.position.y += f.vy * dt; f.mesh.material.opacity = 0.55 * (1 - k) * Math.min(1, f.t * 6); }
+    if (f.kind === 'fire') { f.mesh.scale.setScalar(0.4 + f.r * Math.sqrt(k)); f.mesh.material.opacity = 1 - k * k; }
+    else { f.mesh.scale.setScalar(f.r * (0.7 + k * 1.6)); f.mesh.position.y += f.vy * dt; f.mesh.material.opacity = 0.6 * (1 - k) * Math.min(1, f.t * 5); }
   }
   boomT = Math.max(0, boomT - dt); boomLight.intensity = boomT > 0 ? 90 * (boomT / 0.35) : 0;
 
@@ -379,6 +473,11 @@ function frame(now) {
     if (hudT <= 0) {
       hudT = 0.1;
       ui.setScore(match.score, match.round, Math.max(0, Math.ceil(match.timer)), [match.aliveCount(0), match.aliveCount(1)], match.phase);
+      const ended = match.phase === 'matchover' || match.phase === 'finished';
+      ui.scoreboard(showScore || ended, [...match.players.values()].map((p) => ({ name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, bot: p.bot, me: p === me, alive: p.alive })), names, match.score,
+        ended && match.winner !== null ? `${names[match.winner]} wins the match${match.mode === 'practice' ? ' &middot; practice, not counted on the ranked board' : ''}` : '');
+      document.getElementById('vy-cross').style.display = me && me.alive ? '' : 'none';
+      ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0);
     }
     const w = host.clientWidth, h = host.clientHeight;

@@ -111,6 +111,9 @@ function tone(freq: number, len: number, vol: number, slide = 0): void {
   if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + len);
   o.connect(g); o.start(t); o.stop(t + len);
 }
+/** one heartbeat, played while health is low */
+export function heartbeat(): void { tone(70, 0.12, 0.35, -25); setTimeout(() => tone(60, 0.14, 0.25, -20), 170); }
+export function medal(): void { tone(700, 0.1, 0.12, 500); setTimeout(() => tone(1000, 0.16, 0.12, 400), 90); }
 export function hitMarker(): void { tone(1500, 0.05, 0.12, -500); }
 export function kill(): void { tone(900, 0.14, 0.14, 600); }
 export function chime(): void { tone(520, 0.25, 0.12, 260); }

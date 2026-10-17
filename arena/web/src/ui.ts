@@ -10,7 +10,9 @@ type Item = { slot: string; name: string; cost: number; blurb: string };
 const items = CATALOG as unknown as Record<string, Item>;
 const TAB_NAMES: Record<string, string> = { weapon: 'Weapon', mod: 'Gun mods', armor: 'Armour', helmet: 'Helmet', boots: 'Boots', grenade: 'Grenades', camo: 'Camo' };
 
-export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string; gfx: string }
+export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string; gfx: string; names: [string, string]; mode: 'practice' | 'challenge'; difficulty: number }
+export interface BoardRow { name: string; team: number; kills: number; deaths: number; bot: boolean; me: boolean; alive: boolean }
+export interface LeaderData { teams: Record<string, { w: number; l: number }>; players: Record<string, { kills: number; deaths: number; matches: number; wins: number }> }
 export interface UiOptions {
   teamNames: [string, string];
   teamColors: readonly [string, string];
@@ -18,6 +20,11 @@ export interface UiOptions {
   save: () => void;
   onPlay: (c: PlayChoice) => void;
   onResume: () => void;
+  onLeave: () => void;
+  onPause: () => void;
+  onScore: () => void;
+  challengeLive: boolean;
+  leaders: () => LeaderData;
 }
 
 const CSS = `
@@ -57,6 +64,26 @@ const CSS = `
 #vy-reload { position: absolute; right: calc(190px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 54px; height: 54px; border-radius: 50%; background: rgba(60,120,200,.35); border: 2px solid rgba(120,180,255,.7); color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
 #vy-reload.on { background: rgba(120,180,255,.6); }
 #vy-nade.on { background: rgba(182,255,0,.6); }
+#vy-score { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); width: min(720px, 94vw); background: rgba(6,10,6,.9); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: none; }
+#vy-score.on { display: block; }
+#vy-score .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } #vy-score h3 { margin: 0 0 6px; font-size: 14px; letter-spacing: .08em; } #vy-score table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#vy-score th { color: var(--muted); font-weight: 600; text-align: right; font-size: 11px; } #vy-score th:first-child, #vy-score td:first-child { text-align: left; } #vy-score td { text-align: right; padding: 3px 0; border-top: 1px solid rgba(255,255,255,.06); } #vy-score tr.me td { font-weight: 900; background: rgba(255,255,255,.08); } #vy-score tr.dead td { opacity: .45; }
+#vy-score .foot { text-align: center; color: var(--muted); font-size: 11px; margin-top: 8px; }
+#vy-spec { position: absolute; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: rgba(0,0,0,.6); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; font-weight: 800; text-align: center; display: none; } #vy-spec small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; margin-top: 2px; } #vy-spec.on { display: block; }
+#vy-menubtn { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); width: 40px; height: 40px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: #fff; font-weight: 900; display: none; place-items: center; pointer-events: auto; }
+#vy-dir { position: absolute; inset: 0; pointer-events: none; }
+#vy-dir i { position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin: -150px 0 0 -22px; transform-origin: 22px 150px; border-left: 22px solid transparent; border-right: 22px solid transparent; border-bottom: 38px solid rgba(255,50,30,.85); filter: drop-shadow(0 0 6px #f20); animation: vyfade .9s forwards; }
+@keyframes vyfade { 0% { opacity: 1; } 100% { opacity: 0; } }
+#vy-low { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(160,0,0,.55) 100%); opacity: 0; transition: opacity .3s; pointer-events: none; }
+#vy-medal { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); text-align: center; font-weight: 900; letter-spacing: .08em; font-size: clamp(16px, 3.4vw, 28px); text-shadow: 0 2px 10px #000; opacity: 0; pointer-events: none; color: #ffd24a; } #vy-medal.on { animation: vymedal 1.6s forwards; }
+@keyframes vymedal { 0% { opacity: 0; transform: translateX(-50%) scale(.6); } 12% { opacity: 1; transform: translateX(-50%) scale(1.1); } 80% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; transform: translateX(-50%) translateY(-14px); } }
+#vy-map { position: absolute; left: calc(60px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top)); width: 168px; height: 105px; border: 1px solid var(--line); border-radius: 10px; background: rgba(4,8,4,.55); }
+@media (min-width: 900px) { #vy-map { left: calc(12px + env(safe-area-inset-left)); width: 216px; height: 135px; } }
+#vy-pause .btns { display: flex; gap: 10px; justify-content: center; margin-top: 18px; } #vy-pause button { border: 0; border-radius: 12px; padding: 12px 20px; font-size: 15px; font-weight: 900; cursor: pointer; background: var(--lime); color: #071000; } #vy-pause button.leave { background: transparent; color: #ff8a70; border: 1px solid #ff8a70; }
+#vy-menu .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } #vy-menu .mode { border: 2px solid var(--line); border-radius: 12px; padding: 10px; background: #0d160a; cursor: pointer; text-align: center; font-weight: 800; font-size: 13px; } #vy-menu .mode small { display: block; color: var(--muted); font-weight: 600; font-size: 11px; margin-top: 3px; line-height: 1.3; } #vy-menu .mode.on { border-color: var(--lime); box-shadow: 0 0 14px rgba(182,255,0,.35); } #vy-menu .mode.off { opacity: .45; cursor: not-allowed; }
+#vy-menu .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#vy-menu details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; } #vy-menu summary { cursor: pointer; font-weight: 800; letter-spacing: .06em; font-size: 13px; color: var(--lime); }
+#vy-menu table.lb { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; } #vy-menu table.lb td, #vy-menu table.lb th { padding: 4px 6px; text-align: right; border-top: 1px solid rgba(255,255,255,.06); } #vy-menu table.lb th:first-child, #vy-menu table.lb td:first-child { text-align: left; } #vy-menu table.lb th { color: var(--muted); font-size: 11px; }
 #vy-pause { position: fixed; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(5,8,5,.72); color: #fff; font: 800 22px system-ui, sans-serif; letter-spacing: .06em; text-align: center; cursor: pointer; }
 #vy-pause small { display: block; color: var(--muted); font-size: 13px; font-weight: 600; margin-top: 8px; letter-spacing: .02em; }
 #vy-menu { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 15%, rgba(27,42,16,.9), rgba(5,8,5,.94) 70%); display: grid; place-items: center; padding: 14px; overflow-y: auto; z-index: 5; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--text); }
@@ -78,6 +105,7 @@ export class Ui {
   private tab = 'weapon';
   private team: 0 | 1 = 0;
   private mapId = 'cargo';
+  private mode: 'practice' | 'challenge' = 'practice';
   private tags = new Map<string, HTMLElement>();
   private bannerTimer = 0;
   readonly touch: boolean;
@@ -96,41 +124,48 @@ export class Ui {
     root.innerHTML = `
 <div id="vy-hud" hidden>
   <div id="vy-hurt"></div>
-  <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span>${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span>${b}</span><div class="pips" data-pips="1"></div></div></div>
-  <div id="vy-feed"></div><div id="vy-banner"></div>
+  <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span data-tn="0">${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span data-tn="1">${b}</span><div class="pips" data-pips="1"></div></div></div>
+  <div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
   <div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><b data-ammo style="font-size:26px"></b><br><span data-gun></span><small data-nades></small><small data-coins></small></div>
   <div id="vy-tags"></div>
   <div id="vy-touch" hidden><div class="stick" hidden><i></i></div><div id="vy-nade">NADE</div><div id="vy-reload">R</div><div id="vy-fire">FIRE</div></div>
 </div>
-<div id="vy-pause" hidden>PAUSED<small>${'ontouchstart' in window ? 'Tap to keep playing' : 'Click to keep playing. Esc frees the mouse.'}</small></div>
+<div id="vy-pause" hidden><div>PAUSED<small>${'ontouchstart' in window ? 'Tap Resume to keep playing' : 'Click Resume to keep playing. Esc frees the mouse.'}</small><div class="btns"><button id="vy-resume">Resume</button><button class="leave" id="vy-leave">Leave match</button></div></div></div>
 <div id="vy-menu">
   <div class="card">
     <h1>TOKEN ARENA</h1>
     <div class="sub">First-person team shooter. Two token teams, best of three rounds, bots fill the empty seats so a match is always on. Play money only: nothing here touches a wallet. Prototype.</div>
     <label>Your name</label><input id="vy-name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
+    <label>Match type</label>
+    <div class="modes"><div class="mode on" data-mode="practice">Practice<small>Against bots, any time. Does not count on the ranked board.</small></div><div class="mode ${o.challengeLive ? '' : 'off'}" data-mode="challenge">Challenge a team<small>${o.challengeLive ? 'Waits for a player on each side. Counts.' : 'Needs the hosted match server. Not live yet.'}</small></div></div>
+    <label>Team names (a token each)</label>
+    <div class="two"><input id="vy-ta" type="text" maxlength="12" value="${a}" autocomplete="off" /><input id="vy-tb" type="text" maxlength="12" value="${b}" autocomplete="off" /></div>
     <label>Your team (a token)</label>
     <div class="teams">
-      <div class="team on" data-team="0" style="--c:${ca}">${a}<small>tap to join</small></div>
-      <div class="team" data-team="1" style="--c:${cb}">${b}<small>tap to join</small></div>
+      <div class="team on" data-team="0" style="--c:${ca}"><span data-tc="0">${a}</span><small>tap to join</small></div>
+      <div class="team" data-team="1" style="--c:${cb}"><span data-tc="1">${b}</span><small>tap to join</small></div>
     </div>
     <label>Loadout shop <span id="vy-coins" style="float:right;color:var(--lime);letter-spacing:0;font-size:14px;font-weight:800"></span></label>
     <div class="tabs" id="vy-tabs"></div>
     <div class="items" id="vy-items"></div>
     <label>Map</label>
     <div class="maps" id="vy-maps">${MAP_LIST.map(([id, name, blurb], i) => `<div class="map${i === 0 ? ' on' : ''}" data-map="${id}"><b>${name}</b><small>${blurb}</small></div>`).join('')}</div>
+    <label>Bot skill (practice)</label>
+    <select id="vy-diff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select>
     <label>Graphics</label>
     <select id="vy-gfx"><option value="auto">Auto (drops detail if slow)</option><option value="high">High</option><option value="mid">Medium</option><option value="low">Low (fastest)</option></select>
     <label>Seats per side (humans and bots together)</label>
     <select id="vy-seats">${SEATS.map((n) => `<option${n === DEFAULT_SEATS ? ' selected' : ''}>${n}</option>`).join('')}</select>
     <button class="go" id="vy-go">PLAY</button>
     <div class="err" id="vy-err"></div>
-    <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button. Grenade: G or the NADE button. Reload: R.</div>
+    <details id="vy-lb"><summary>LEADERBOARD</summary><div id="vy-lbbody"></div></details>
+    <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button. Grenade: G or the NADE button. Reload: R. Sprint: Shift (no firing while sprinting). Scoreboard: hold Tab. Esc pauses and lets you leave the match.</div>
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -144,12 +179,63 @@ export class Ui {
     this.el['vy-go'].addEventListener('click', () => {
       const name = (this.el['vy-name'] as HTMLInputElement).value.replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12) || 'Player';
       try { localStorage.setItem('vyre.arena.name', name); } catch { /* ignore */ }
-      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS, map: this.mapId, gfx: (this.el['vy-gfx'] as HTMLSelectElement).value });
+      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS, map: this.mapId, names: this.names(), mode: this.mode, difficulty: Number((this.el['vy-diff'] as HTMLSelectElement).value) || 0, gfx: (this.el['vy-gfx'] as HTMLSelectElement).value });
     });
-    this.el['vy-pause'].addEventListener('click', () => this.o.onResume());
+    this.el['vy-pause'].addEventListener('click', (e) => { if ((e.target as HTMLElement).id !== 'vy-leave') this.o.onResume(); });
+    this.el['vy-leave'].addEventListener('click', (e) => { e.stopPropagation(); this.o.onLeave(); });
+    root.querySelectorAll<HTMLElement>('.mode').forEach((t) => t.addEventListener('click', () => {
+      if (t.classList.contains('off')) { this.el['vy-err'].textContent = 'Challenges start when the match server is hosted. Practice now.'; return; }
+      this.mode = t.dataset.mode === 'challenge' ? 'challenge' : 'practice';
+      root.querySelectorAll('.mode').forEach((x) => x.classList.toggle('on', x === t));
+    }));
+    for (const k of ['vy-ta', 'vy-tb']) this.el[k].addEventListener('input', () => { const n = this.names(); this.setTeams(n, true); });
+    this.el['vy-lb'].addEventListener('toggle', () => this.renderBoard());
     this.renderShop();
     if (this.touch) this.wireTouch();
   }
+
+  /** the two team names as typed, cleaned the way the server cleans them, with the defaults when empty */
+  names(): [string, string] {
+    const clean = (v: string, d: string) => { const s = String(v ?? '').replace(/[^A-Za-z0-9$ ]/g, '').replace(/ +/g, ' ').trim().slice(0, 12); return s || d; };
+    return [clean((this.el['vy-ta'] as HTMLInputElement).value, this.o.teamNames[0]), clean((this.el['vy-tb'] as HTMLInputElement).value, this.o.teamNames[1])];
+  }
+  /** show the team names in the score bar and the team cards (typing: leave the input alone) */
+  setTeams(n: [string, string], typing = false): void {
+    for (const t of [0, 1]) { document.querySelectorAll<HTMLElement>(`[data-tn="${t}"],[data-tc="${t}"]`).forEach((e) => { e.textContent = n[t]; }); }
+    if (!typing) { (this.el['vy-ta'] as HTMLInputElement).value = n[0]; (this.el['vy-tb'] as HTMLInputElement).value = n[1]; }
+  }
+  /** the leaderboard of this device: practice results, and the ranked board that fills when challenges are live */
+  renderBoard(): void {
+    if (!(this.el['vy-lb'] as HTMLDetailsElement).open) return;
+    const d = this.o.leaders();
+    const teams = Object.entries(d.teams).sort((a, b) => b[1].w - a[1].w || a[1].l - b[1].l).slice(0, 8);
+    const players = Object.entries(d.players).sort((a, b) => b[1].kills - a[1].kills).slice(0, 8);
+    const rows = (r: string[][]) => r.map((c) => `<tr>${c.map((x) => `<td>${x}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--muted)">nothing yet: play a match</td></tr>';
+    this.el['vy-lbbody'].innerHTML = `<table class="lb"><tr><th>Team (practice wins, this device)</th><th>W</th><th>L</th></tr>${rows(teams.map(([n, v]) => [n, String(v.w), String(v.l)]))}</table>
+      <table class="lb"><tr><th>Player (this device)</th><th>Kills</th><th>Deaths</th><th>Wins</th></tr>${rows(players.map(([n, v]) => [n, String(v.kills), String(v.deaths), String(v.wins)]))}</table>
+      <div class="note">Practice results stay on this device. The ranked board across all teams opens with challenge matches once the match server is hosted.</div>`;
+  }
+  /** the in-match table (hold Tab, and at the end of a match) */
+  scoreboard(on: boolean, rows: BoardRow[], names: [string, string], score: number[], footer = ''): void {
+    const el = this.el['vy-score']; el.classList.toggle('on', on); if (!on) return;
+    const col = (t: number) => {
+      const r = rows.filter((x) => x.team === t).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+      return `<div><h3 style="color:${this.o.teamColors[t]}">${names[t]} &nbsp; ${score[t]}</h3><table><tr><th>Player</th><th>K</th><th>D</th></tr>${r.map((x) => `<tr class="${x.me ? 'me' : ''}${x.alive ? '' : ' dead'}"><td>${x.name}${x.bot ? ' <small style="opacity:.5">bot</small>' : ''}</td><td>${x.kills}</td><td>${x.deaths}</td></tr>`).join('')}</table></div>`;
+    };
+    el.innerHTML = `<div class="cols">${col(0)}${col(1)}</div>${footer ? `<div class="foot">${footer}</div>` : ''}`;
+  }
+  get mapCanvas(): HTMLCanvasElement { return this.el['vy-map'] as HTMLCanvasElement; }
+  /** a red wedge pointing at who hit you: `rel` is the angle from where you look (0 ahead, positive to the right) */
+  hitDir(rel: number): void {
+    const i = document.createElement('i'); i.style.transform = `rotate(${rel}rad)`; this.el['vy-dir'].appendChild(i);
+    window.setTimeout(() => i.remove(), 900);
+  }
+  medal(text: string, color = '#ffd24a'): void {
+    const m = this.el['vy-medal']; m.textContent = text; m.style.color = color; m.classList.remove('on'); void m.offsetWidth; m.classList.add('on');
+  }
+  lowHealth(frac: number): void { this.el['vy-low'].style.opacity = frac < 0.35 ? String(Math.min(1, (0.35 - frac) / 0.25)) : '0'; }
+  /** the line at the bottom while spectating, null hides it */
+  spec(text: string | null, sub = ''): void { const e = this.el['vy-spec']; e.classList.toggle('on', !!text); if (text) e.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`; }
 
   // ---- menu and shop ----
   renderShop(): void {
@@ -170,7 +256,7 @@ export class Ui {
       this.renderShop();
     }));
   }
-  showMenu(on: boolean): void { this.el['vy-menu'].hidden = !on; this.el.hud.hidden = on; if (on) this.renderShop(); }
+  showMenu(on: boolean): void { this.el['vy-menu'].hidden = !on; this.el.hud.hidden = on; if (on) { this.renderShop(); this.renderBoard(); this.spec(null); this.scoreboard(false, [], this.names(), [0, 0]); this.showPause(false); } }
   showPause(on: boolean): void { this.el['vy-pause'].hidden = !on; }
   menuOpen(): boolean { return !this.el['vy-menu'].hidden; }
 
@@ -215,10 +301,12 @@ export class Ui {
   private wireTouch(): void {
     const stick = this.el['vy-touch'].querySelector('.stick') as HTMLElement, knob = stick.firstElementChild as HTMLElement;
     this.el['vy-touch'].hidden = false;
+    const mb = this.el['vy-menubtn']; mb.style.display = 'grid'; mb.addEventListener('click', () => this.o.onPause());
+    (this.el.hud.querySelector('.bar') as HTMLElement).style.pointerEvents = 'auto'; (this.el.hud.querySelector('.bar') as HTMLElement).addEventListener('click', () => this.o.onScore());
     let mv: { id: number; x0: number; y0: number } | null = null, lk: { id: number; x: number; y: number } | null = null;
     const root = document.body;
     root.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest('#vy-fire,#vy-nade,#vy-reload,#vy-menu,#vy-pause')) return;
+      if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest('#vy-fire,#vy-nade,#vy-reload,#vy-menubtn,#vy-menu,#vy-pause,.bar')) return;
       if (e.clientX < innerWidth * 0.45 && !mv) { mv = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; stick.hidden = false; stick.style.left = `${e.clientX}px`; stick.style.top = `${e.clientY}px`; }
       else if (!lk) lk = { id: e.pointerId, x: e.clientX, y: e.clientY };
     });

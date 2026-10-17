@@ -72,10 +72,11 @@ export class ViewModel {
     // the action clips raise the arm well above the gun: tip the view down while one runs so the hands stay in sight
     const bell = (p) => Math.max(0, Math.min(1, p / 0.15, (1 - p) / 0.15));
     const tip = acting ? (acting[0] === 'Standing_Reload' ? 0.5 : 0.3) * bell(acting[1]) : 0;
+    this.spr = (this.spr ?? 0) + ((this.sprinting ? 1 : 0) - (this.spr ?? 0)) * Math.min(1, dt * 9); const spr = this.spr;
     const eq = this.equipT > 0 ? (this.equipT / 0.5) ** 2 : 0;
     const kick = this.recoil * this.recoil;
-    rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
-    rg.rotation.set(-tip + kick * (0.05 + (this.weapon === 'sniper' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
+    rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
+    rg.rotation.set(-tip - spr * 0.45 + kick * (0.05 + (this.weapon === 'sniper' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + spr * 0.35 + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
     rg.updateMatrixWorld(true); this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1)); rg.updateMatrixWorld(true);
     if (this.muzzle) {
       this.muzzle.visible = this.flash > 0 && !hidden;

@@ -203,3 +203,42 @@ test('shop gear changes the fight: a helmet cuts head-shot damage, mods change t
   };
   assert.equal(reach('frag2'), 0); assert.ok(reach('heavy3') > 0, 'the bigger blast reaches 345 px');
 });
+
+test('practice starts by itself against bots and never counts; a challenge waits for a human on each side, is one match, and counts', () => {
+  const pr = new Match({ teams: T, perSide: 3, bots: true });
+  run(pr, 8);
+  assert.notEqual(pr.phase, 'lobby', 'practice began on its own'); assert.equal(pr.count(0), 3);
+  const ch = new Match({ teams: T, perSide: 3, bots: true, mode: 'challenge' });
+  ch.addPlayer('a', { name: 'A', team: 0 });
+  run(ch, 30);
+  assert.equal(ch.phase, 'lobby', 'no start with one team missing'); assert.equal(ch.count(1), 0, 'no bots yet');
+  ch.addPlayer('b', { name: 'B', team: 1 });
+  run(ch, 9); assert.equal(ch.phase, 'lobby', 'a countdown, not an instant start');
+  run(ch, 4); assert.notEqual(ch.phase, 'lobby'); assert.equal(ch.count(0), 3); assert.equal(ch.count(1), 3, 'bots fill the rest once it starts');
+  // finish it: team 0 wins two rounds
+  const ev = [];
+  for (let r = 0; r < 2; r++) { for (const p of ch.players.values()) if (p.team === 1) p.alive = false; ch.step(1 / 60); ev.push(...ch.events); if (r === 0) run(ch, 8); }
+  assert.ok(ev.some((e) => e.type === 'match' && e.ranked === true && e.winner === 0), 'the result is marked as counting');
+  run(ch, 30); assert.equal(ch.phase, 'finished', 'a challenge match does not restart');
+});
+
+test('deaths are counted for the one who died, by shot or by grenade', () => {
+  const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 400, 150]]);
+  p.b.hp = 5; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true };
+  m.step(1 / 60);
+  assert.equal(p.b.deaths, 1); assert.equal(p.a.deaths, 0);
+  assert.equal(m.snapshot().p.find((q) => q[0] === 'b')[14], 1, 'the snapshot carries it');
+});
+
+test('sprinting is faster, and you cannot fire or throw while you sprint; bot difficulty is clamped', () => {
+  const run1 = (sprint) => { const [m, p] = setup('cargo', [['a', 0, 400, 1000]]); p.a.input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: false, sprint }; const x0 = p.a.x; for (let i = 0; i < 60; i++) m.step(1 / 60); return p.a.x - x0; };
+  const walk = run1(false), fast = run1(true);
+  assert.ok(fast > walk * 1.25 && fast < walk * 1.4, `sprint ${fast} vs walk ${walk}`);
+  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['b', 1, 900, 1000]]);
+  p.a.input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: true, nade: true, sprint: true };
+  m.step(1 / 60);
+  assert.ok(!m.events.some((e) => e.type === 'shot' || e.type === 'nade'), 'no shot and no throw while sprinting');
+  p.a.input.sprint = false; m.step(1 / 60);
+  assert.ok(m.events.some((e) => e.type === 'shot'), 'firing works again when you stop');
+  assert.equal(new Match({ teams: T, difficulty: 9 }).difficulty, 1); assert.equal(new Match({ teams: T, difficulty: 2 }).difficulty, 2);
+});
