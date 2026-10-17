@@ -1,12 +1,13 @@
 // The loadout catalogue, shared by the match server (which applies the stats and checks ownership) and the page (which shows the shop).
 // Prices are in play coins. Nothing here touches a wallet. A real-money version would be a separate, lawyer-reviewed decision.
 export const WEAPONS = {
-  pistol:  { slot: 'weapon', name: 'Pistol',          cost: 0,   dmg: 18, gap: 0.38, speed: 620,  life: 0.7,  spread: 0.04, pellets: 1, blurb: 'Reliable and free' },
-  smg:     { slot: 'weapon', name: 'SMG',             cost: 300, dmg: 8,  gap: 0.09, speed: 620,  life: 0.55, spread: 0.13, pellets: 1, blurb: 'Fast fire, close range' },
-  rifle:   { slot: 'weapon', name: 'Assault rifle',   cost: 600, dmg: 13, gap: 0.16, speed: 700,  life: 0.8,  spread: 0.06, pellets: 1, blurb: 'Good at every range' },
-  shotgun: { slot: 'weapon', name: 'Shotgun',         cost: 500, dmg: 9,  gap: 0.8,  speed: 600,  life: 0.32, spread: 0.3,  pellets: 6, blurb: 'Deadly up close' },
-  sniper:  { slot: 'weapon', name: 'Sniper rifle',    cost: 900, dmg: 60, gap: 1.15, speed: 1100, life: 1.1,  spread: 0.005, pellets: 1, blurb: 'One or two shots, slow' },
+  pistol:  { slot: 'weapon', name: 'Pistol',          cost: 0,   dmg: 18, gap: 0.38, speed: 620,  life: 0.7,  range: 1500, spread: 0.03, pellets: 1, blurb: 'Reliable and free' },
+  smg:     { slot: 'weapon', name: 'SMG',             cost: 300, dmg: 8,  gap: 0.09, speed: 620,  life: 0.55, range: 1300, spread: 0.07, pellets: 1, blurb: 'Fast fire, close range' },
+  rifle:   { slot: 'weapon', name: 'Assault rifle',   cost: 600, dmg: 13, gap: 0.16, speed: 700,  life: 0.8,  range: 2400, spread: 0.035, pellets: 1, blurb: 'Good at every range' },
+  shotgun: { slot: 'weapon', name: 'Shotgun',         cost: 500, dmg: 9,  gap: 0.8,  speed: 600,  life: 0.32, range: 800, spread: 0.12, pellets: 6, blurb: 'Deadly up close' },
+  sniper:  { slot: 'weapon', name: 'Sniper rifle',    cost: 900, dmg: 60, gap: 1.15, speed: 1100, life: 1.1,  range: 3400, spread: 0.002, pellets: 1, blurb: 'One or two shots, slow' },
 };
+export const GRENADE = { name: 'Frag grenade', count: 2, fuse: 2.2, radius: 300, dmg: 130, speed: 15 };
 export const ARMOR = {
   none:  { slot: 'armor', name: 'No armour',    cost: 0,   hp: 100, speed: 1.0,  blurb: '100 health' },
   light: { slot: 'armor', name: 'Light vest',   cost: 200, hp: 125, speed: 0.97, blurb: '+25 health' },

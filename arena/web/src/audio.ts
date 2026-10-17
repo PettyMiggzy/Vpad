@@ -37,3 +37,5 @@ export function hitMarker(): void { burst(1500, 0.06, 0.25, 'tone', -500); }
 export function hurt(): void { burst(260, 0.18, 0.5, 'tone', -150); }
 export function kill(): void { burst(900, 0.16, 0.3, 'tone', 600); }
 export function chime(): void { burst(520, 0.25, 0.2, 'tone', 260); }
+export function boom(dist: number): void { burst(420, 0.9, 1.0 / (1 + dist / 8)); burst(110, 0.7, 0.8 / (1 + dist / 8), 'tone', -60); }
+export function throwNade(): void { burst(700, 0.12, 0.2, 'tone', -300); }

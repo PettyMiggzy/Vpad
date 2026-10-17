@@ -7,7 +7,7 @@ export const UNIT_H = 1.85;
 const POOL = [['frog'], ['bulldog']];
 const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25 };
 // where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
-export const GUN_OFFSET = { pos: [0, 0, 0], rot: [0, 0, 0], k: 1 };
+export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _o = new THREE.Matrix4(), _e = new THREE.Euler();
 
@@ -20,6 +20,9 @@ export class Unit {
     this.body = SkeletonUtils.clone(src.scene);
     this.root.add(this.body);
     this.root.updateMatrixWorld(true);
+    // which way is the front of this model? the rig has a 'headfront' marker ahead of the head: turn the body so that is +Z
+    const hf = this.body.getObjectByName('headfront'), hd = this.body.getObjectByName('Head');
+    if (hf && hd) { const a = new THREE.Vector3(), b = new THREE.Vector3(); hf.getWorldPosition(a); hd.getWorldPosition(b); this.body.rotation.y = -Math.atan2(a.x - b.x, a.z - b.z); this.root.updateMatrixWorld(true); this.front = this.body.rotation.y; }
     const box = new THREE.Box3().setFromObject(this.body);
     this.scale = UNIT_H / (box.max.y - box.min.y);
     this.body.scale.multiplyScalar(this.scale);
@@ -72,16 +75,24 @@ export class Unit {
     this.syncGun();
     this.mark.position.y = UNIT_H + 0.45 + Math.sin(t * 3 + this.root.id) * 0.05; this.mark.rotation.y = t * 2;
   }
-  /** the weapon follows the hand bone (world pose, without the bone's scale) */
-  syncGun() {
+  /** first person: freeze the shooting stance (arms raised on the weapon) at one moment of the clip */
+  freezeAim(name = 'Walk_Forward_While_Shooting', at = 0.8) {
+    for (const a of Object.values(this.acts)) a.stop();
+    const a = this.acts[name]; a.reset().setEffectiveWeight(1).play(); a.paused = true; a.time = at; this.cur = name; this.mixer.update(0);
+    this.ring.visible = false; this.mark.visible = false;
+  }
+  /** the weapon sits at the right hand and always points the way the soldier faces (independent of how the bone is turned) */
+  syncGun(kMul = 1) {
     if (!this.hand) return;
     this.root.updateMatrixWorld(true);
     _inv.copy(this.root.matrixWorld).invert();
     _m.copy(this.hand.matrixWorld).premultiply(_inv);
-    _m.decompose(_p, _q, _s);
-    _e.set(GUN_OFFSET.rot[0], GUN_OFFSET.rot[1], GUN_OFFSET.rot[2]);
-    _o.compose(new THREE.Vector3(...GUN_OFFSET.pos), new THREE.Quaternion().setFromEuler(_e), new THREE.Vector3(GUN_OFFSET.k, GUN_OFFSET.k, GUN_OFFSET.k));
-    this.gun.matrix.compose(_p, _q, new THREE.Vector3(1, 1, 1)).multiply(_o);
+    _p.setFromMatrixPosition(_m);
+    const gp = GUN_OFFSET.pos, k = GUN_OFFSET.k * kMul;
+    _e.set(GUN_OFFSET.rot[0], GUN_OFFSET.rot[1] - Math.PI / 2, GUN_OFFSET.rot[2]);
+    _q.setFromEuler(_e);
+    _o.compose(new THREE.Vector3(_p.x + gp[0], _p.y + gp[1], _p.z + gp[2]), _q, new THREE.Vector3(k, k, k));
+    this.gun.matrix.copy(_o);
     this.gun.matrixWorldNeedsUpdate = true;
   }
   dispose() { this.root.removeFromParent(); this.root.traverse((o) => { if (o.isMesh && o.material.isMeshBasicMaterial) { o.geometry.dispose(); o.material.dispose(); } }); }

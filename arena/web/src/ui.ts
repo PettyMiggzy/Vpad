@@ -4,12 +4,13 @@
 import { CATALOG, SLOTS } from '../../server/items.js';
 import { buy, equip, type Profile } from './profile.js';
 import { SEATS, DEFAULT_SEATS } from './config.js';
+import { MAP_LIST } from './world.js';
 
 type Item = { slot: string; name: string; cost: number; blurb: string };
 const items = CATALOG as unknown as Record<string, Item>;
 const TAB_NAMES: Record<string, string> = { weapon: 'Weapon', armor: 'Armour', boots: 'Boots', camo: 'Camo' };
 
-export interface PlayChoice { name: string; team: 0 | 1; seats: number }
+export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string }
 export interface UiOptions {
   teamNames: [string, string];
   teamColors: readonly [string, string];
@@ -52,6 +53,8 @@ const CSS = `
 #vy-touch .stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(182,255,0,.4); background: rgba(182,255,0,.08); } #vy-touch .stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(182,255,0,.55); }
 #vy-fire { position: absolute; right: calc(22px + env(safe-area-inset-right)); bottom: calc(86px + env(safe-area-inset-bottom)); width: 86px; height: 86px; border-radius: 50%; background: rgba(255,60,40,.35); border: 2px solid rgba(255,120,100,.8); color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; letter-spacing: .06em; }
 #vy-fire.on { background: rgba(255,60,40,.7); }
+#vy-nade { position: absolute; right: calc(118px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 64px; height: 64px; border-radius: 50%; background: rgba(120,160,40,.35); border: 2px solid rgba(182,255,0,.7); color: #fff; font-weight: 900; font-size: 12px; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
+#vy-nade.on { background: rgba(182,255,0,.6); }
 #vy-pause { position: fixed; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(5,8,5,.72); color: #fff; font: 800 22px system-ui, sans-serif; letter-spacing: .06em; text-align: center; cursor: pointer; }
 #vy-pause small { display: block; color: var(--muted); font-size: 13px; font-weight: 600; margin-top: 8px; letter-spacing: .02em; }
 #vy-menu { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 15%, rgba(27,42,16,.9), rgba(5,8,5,.94) 70%); display: grid; place-items: center; padding: 14px; overflow-y: auto; z-index: 5; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--text); }
@@ -60,6 +63,7 @@ const CSS = `
 #vy-menu label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
 #vy-menu input, #vy-menu select { width: 100%; background: #0d160a; color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 16px; }
 #vy-menu .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } #vy-menu .team { border: 2px solid var(--line); border-radius: 14px; padding: 12px; text-align: center; font-weight: 900; cursor: pointer; background: #0d160a; } #vy-menu .team.on { border-color: var(--c); box-shadow: 0 0 18px var(--c); } #vy-menu .team small { display: block; color: var(--muted); font-weight: 600; margin-top: 3px; }
+#vy-menu .maps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; } #vy-menu .map { border: 2px solid var(--line); border-radius: 12px; padding: 10px 8px; background: #0d160a; cursor: pointer; text-align: center; font-size: 13px; } #vy-menu .map.on { border-color: var(--lime); box-shadow: 0 0 14px rgba(182,255,0,.4); } #vy-menu .map small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; line-height: 1.3; }
 #vy-menu .tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; } #vy-menu .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0d160a; font-weight: 800; font-size: 13px; cursor: pointer; } #vy-menu .tab.on { background: var(--lime); color: #071000; border-color: var(--lime); }
 #vy-menu .items { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; } #vy-menu .it { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); background: #0d160a; border-radius: 12px; padding: 8px 10px; } #vy-menu .it b { display: block; font-size: 14px; } #vy-menu .it small { color: var(--muted); font-size: 11px; }
 #vy-menu .it button { border: 0; border-radius: 9px; padding: 8px 12px; font-weight: 900; font-size: 13px; cursor: pointer; background: var(--lime); color: #071000; min-width: 78px; } #vy-menu .it button.eq { background: transparent; color: var(--lime); border: 1px solid var(--lime); } #vy-menu .it button:disabled { opacity: .45; }
@@ -71,6 +75,7 @@ export class Ui {
   private el: Record<string, HTMLElement> = {};
   private tab = 'weapon';
   private team: 0 | 1 = 0;
+  private mapId = 'cargo';
   private tags = new Map<string, HTMLElement>();
   private bannerTimer = 0;
   readonly touch: boolean;
@@ -78,6 +83,7 @@ export class Ui {
   move = { x: 0, y: 0 };
   lookDelta = { x: 0, y: 0 };
   fireTouch = false;
+  nadeTouch = false;
 
   constructor(private o: UiOptions) {
     this.touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -91,9 +97,9 @@ export class Ui {
   <div id="vy-feed"></div><div id="vy-banner"></div>
   <div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
-  <div id="vy-gun"><span data-gun></span><small data-coins></small></div>
+  <div id="vy-gun"><span data-gun></span><small data-nades></small><small data-coins></small></div>
   <div id="vy-tags"></div>
-  <div id="vy-touch" hidden><div class="stick" hidden><i></i></div><div id="vy-fire">FIRE</div></div>
+  <div id="vy-touch" hidden><div class="stick" hidden><i></i></div><div id="vy-nade">NADE</div><div id="vy-fire">FIRE</div></div>
 </div>
 <div id="vy-pause" hidden>PAUSED<small>${'ontouchstart' in window ? 'Tap to keep playing' : 'Click to keep playing. Esc frees the mouse.'}</small></div>
 <div id="vy-menu">
@@ -109,25 +115,31 @@ export class Ui {
     <label>Loadout shop <span id="vy-coins" style="float:right;color:var(--lime);letter-spacing:0;font-size:14px;font-weight:800"></span></label>
     <div class="tabs" id="vy-tabs"></div>
     <div class="items" id="vy-items"></div>
+    <label>Map</label>
+    <div class="maps" id="vy-maps">${MAP_LIST.map(([id, name, blurb], i) => `<div class="map${i === 0 ? ' on' : ''}" data-map="${id}"><b>${name}</b><small>${blurb}</small></div>`).join('')}</div>
     <label>Seats per side (humans and bots together)</label>
     <select id="vy-seats">${SEATS.map((n) => `<option${n === DEFAULT_SEATS ? ' selected' : ''}>${n}</option>`).join('')}</select>
     <button class="go" id="vy-go">PLAY</button>
     <div class="err" id="vy-err"></div>
-    <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button.</div>
+    <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button. Grenade: G or the NADE button.</div>
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
       root.querySelectorAll('.team').forEach((x) => x.classList.toggle('on', x === t));
     }));
+    root.querySelectorAll<HTMLElement>('.map').forEach((t) => t.addEventListener('click', () => {
+      this.mapId = t.dataset.map || 'cargo';
+      root.querySelectorAll('.map').forEach((x) => x.classList.toggle('on', x === t));
+    }));
     try { (this.el['vy-name'] as HTMLInputElement).value = localStorage.getItem('vyre.arena.name') || ''; } catch { /* storage may be blocked */ }
     this.el['vy-go'].addEventListener('click', () => {
       const name = (this.el['vy-name'] as HTMLInputElement).value.replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12) || 'Player';
       try { localStorage.setItem('vyre.arena.name', name); } catch { /* ignore */ }
-      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS });
+      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS, map: this.mapId });
     });
     this.el['vy-pause'].addEventListener('click', () => this.o.onResume());
     this.renderShop();
@@ -166,10 +178,10 @@ export class Ui {
     this.q('[data-time]').textContent = phase === 'live' || phase === 'countdown' ? String(time) : '-';
     this.q('[data-alive]').textContent = `${alive[0]} vs ${alive[1]} alive`;
   }
-  setMe(hp: number, hpMax: number, text: string, gun: string, coins: number): void {
+  setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0): void {
     this.q('[data-hp]').textContent = String(Math.max(0, Math.ceil(hp)));
     (this.q('#vy-me .hp i')).style.width = `${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%`;
-    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = gun; this.q('[data-coins]').textContent = `${coins} coins`;
+    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = gun; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`;
   }
   banner(title: string, sub = '', ms = 2200): void {
     const b = this.el['vy-banner']; b.innerHTML = `${title}${sub ? `<small>${sub}</small>` : ''}`; b.classList.add('on');
@@ -201,7 +213,7 @@ export class Ui {
     let mv: { id: number; x0: number; y0: number } | null = null, lk: { id: number; x: number; y: number } | null = null;
     const root = document.body;
     root.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest('#vy-fire,#vy-menu,#vy-pause')) return;
+      if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest('#vy-fire,#vy-nade,#vy-menu,#vy-pause')) return;
       if (e.clientX < innerWidth * 0.45 && !mv) { mv = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; stick.hidden = false; stick.style.left = `${e.clientX}px`; stick.style.top = `${e.clientY}px`; }
       else if (!lk) lk = { id: e.pointerId, x: e.clientX, y: e.clientY };
     });
@@ -218,6 +230,9 @@ export class Ui {
     root.addEventListener('pointerup', end); root.addEventListener('pointercancel', end);
     const fire = this.el['vy-fire'];
     fire.addEventListener('pointerdown', (e) => { e.preventDefault(); this.fireTouch = true; fire.classList.add('on'); fire.setPointerCapture(e.pointerId); });
+    const nd = this.el['vy-nade'];
+    nd.addEventListener('pointerdown', (e) => { e.preventDefault(); this.nadeTouch = true; nd.classList.add('on'); });
+    const noff = () => { nd.classList.remove('on'); }; nd.addEventListener('pointerup', noff); nd.addEventListener('pointercancel', noff);
     const off = () => { this.fireTouch = false; fire.classList.remove('on'); };
     fire.addEventListener('pointerup', off); fire.addEventListener('pointercancel', off);
   }

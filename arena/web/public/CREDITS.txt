@@ -1,0 +1,2 @@
+Ground and wall textures and sky panoramas: Poly Haven (polyhaven.com), CC0.
+Characters, weapons and props: generated for this project.

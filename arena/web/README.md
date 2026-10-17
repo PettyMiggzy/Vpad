@@ -1,8 +1,10 @@
 # Token Arena (3D)
 
-The first-person arena in three.js. The rules (movement, shots, bots, rounds) are the match server's own file (`../server/game.js`), read directly: one copy.
+The first-person arena in three.js. The rules (movement, height, shots, grenades, bots, rounds) and the three maps are the match server's own files (`../server/game.js`, `../server/maps.js`), read directly: one copy.
 
-- `npm install && npm run dev` to play against bots; `?a=NAME&b=NAME` sets the two token teams; `?q=low` turns off shadows and glow.
-- Soldiers and weapons are generated 3D models: pictures made with the image service, turned into rigged, textured models (24-bone humanoid rig, shared animation clips) and compressed (`gltf-transform optimize`, webp 1024, meshopt). Files in `public/models/hero`.
-- Map pieces are still Kenney's CC0 Industrial and Survival kits (https://kenney.nl, public domain): next to be replaced with generated models.
-- Not done: talking to the match server (needs it hosted), team-coloured soldiers, more characters, a better map than the shared one.
+- `npm install && npm run dev` to play against bots; `?a=NAME&b=NAME` sets the two token teams; `?q=low` turns off shadows and glow, `?q=mid` halves the shadow detail.
+- Three maps, each with its own sky, light and props, and high decks reached by long ramps (sniper spots): Cargo Yard (dusk, stacked containers, four decks), Dust Town (noon, rooftops and a tower), Refinery (night, tanks and a catwalk across the middle).
+- Controls: WASD move, mouse look, click fire, right click zoom (the sniper rifle zooms hard), G grenade (two a round), touch: left thumb moves, right thumb looks, FIRE and NADE buttons.
+- Soldiers, weapons and map props are generated 3D models: pictures made with the image service, turned into textured models (soldiers rigged on a 24-bone humanoid skeleton with shared animation clips) and compressed (`gltf-transform optimize`, webp 1024, meshopt). Files in `public/models`. A map loads only the props, textures and sky it uses.
+- Ground, wall and deck textures and the sky panoramas (which also light the scene) are Poly Haven, CC0 (see `public/CREDITS.txt`).
+- Not done: talking to the match server (needs it hosted), team-coloured soldiers, more characters, mobile performance tuning on real phones.
