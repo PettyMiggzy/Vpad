@@ -7,6 +7,13 @@
 <title>Vyre Bad Lands</title>
 <meta name="description" content="Vyre Bad Lands: token teams fight it out in a first-person team shooter. Play money only. Prototype." />
 <meta property="og:title" content="Vyre Bad Lands" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://play.vyrebadlands.com/" />
+<meta property="og:image" content="https://play.vyrebadlands.com/share.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://play.vyrebadlands.com/share.jpg" />
 <meta property="og:description" content="Token teams, best of three, loadouts you buy. Play money only. Prototype." />
 <link rel="icon" type="image/png" href="/favicon.png" />
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -27,6 +34,18 @@
 <body>
 <div id="game"></div>
 <div id="boot"><div><img src="/badlands-small.png" alt="Vyre Bad Lands" style="display:block;margin:0 auto 14px;width:min(220px,60vw)" /><small id="bootmsg">loading</small></div></div>
+<script>
+// if the game cannot start, say why on the loading screen, and how to open the page in a full browser
+(function () {
+  var msg = document.getElementById('bootmsg'), noGl = false;
+  var hint = '<br><br>Still stuck? Open this page in Safari or Chrome (in Telegram: tap the menu, then Open in Browser).';
+  function say(t) { if (msg && document.getElementById('boot')) msg.innerHTML = t; }
+  try { if (!document.createElement('canvas').getContext('webgl2')) { noGl = true; say('This browser cannot run the game (it needs WebGL 2).' + hint); } } catch (e) { /* ignore */ }
+  addEventListener('error', function (e) { say('Something went wrong while loading: ' + String(e.message || '').slice(0, 120) + hint); });
+  addEventListener('unhandledrejection', function (e) { say('Something went wrong while loading: ' + String((e.reason && e.reason.message) || e.reason || '').slice(0, 120) + hint); });
+  setTimeout(function () { if (!noGl) say((msg ? msg.textContent : 'loading') + '<br><br>Taking a while? The connection may be slow, or this browser is struggling.' + hint); }, 30000);
+})();
+</script>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

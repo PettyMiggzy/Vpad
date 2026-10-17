@@ -80,8 +80,10 @@ main() {
   fi
 
   if [ "$UPDATE" = 1 ]; then
-    systemctl restart arena
-    echo "Updated to $NEW."; return 0
+    # a page-only change must not end the matches being played: restart the match server only when its own files changed
+    if [ -z "$OLD" ] || ! git -C "$SRC" diff --quiet "$OLD" "$NEW" -- arena/server; then systemctl restart arena; echo "Updated to $NEW (match server restarted)."
+    else echo "Updated to $NEW (page only; matches keep running)."; fi
+    return 0
   fi
 
   say "Services"
