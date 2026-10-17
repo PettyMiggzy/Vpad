@@ -57,13 +57,33 @@ const CSS = `
 .vy-tag { position: absolute; transform: translate(-50%, -100%); font-size: 11px; font-weight: 800; text-shadow: 0 1px 4px #000; white-space: nowrap; }
 .vy-tag i { display: block; height: 3px; border-radius: 2px; background: currentColor; margin: 2px auto 0; width: 34px; }
 #vy-touch { position: absolute; inset: 0; pointer-events: none; }
-#vy-touch .stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(182,255,0,.4); background: rgba(182,255,0,.08); } #vy-touch .stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(182,255,0,.55); }
-#vy-fire { position: absolute; right: calc(22px + env(safe-area-inset-right)); bottom: calc(86px + env(safe-area-inset-bottom)); width: 86px; height: 86px; border-radius: 50%; background: rgba(255,60,40,.35); border: 2px solid rgba(255,120,100,.8); color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; letter-spacing: .06em; }
-#vy-fire.on { background: rgba(255,60,40,.7); }
-#vy-nade { position: absolute; right: calc(122px + env(safe-area-inset-right)); bottom: calc(112px + env(safe-area-inset-bottom)); width: 64px; height: 64px; border-radius: 50%; background: rgba(120,160,40,.35); border: 2px solid rgba(182,255,0,.7); color: #fff; font-weight: 900; font-size: 12px; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
-#vy-reload { position: absolute; right: calc(128px + env(safe-area-inset-right)); bottom: calc(40px + env(safe-area-inset-bottom)); width: 54px; height: 54px; border-radius: 50%; background: rgba(60,120,200,.35); border: 2px solid rgba(120,180,255,.7); color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; }
-#vy-reload.on { background: rgba(120,180,255,.6); }
-#vy-nade.on { background: rgba(182,255,0,.6); }
+#vy-pad { position: absolute; left: calc(max(5vw, 34px) + env(safe-area-inset-left)); bottom: calc(max(8vh, 28px) + env(safe-area-inset-bottom)); width: 132px; height: 132px; margin: 0; border-radius: 50%; border: 3px solid rgba(255,255,255,.35); background: rgba(255,255,255,.07); }
+#vy-pad.moved { margin: -66px 0 0 -66px; }
+#vy-pad::after { content: 'MOVE'; position: absolute; inset: 0; display: grid; place-items: center; font: 800 11px system-ui; letter-spacing: .12em; color: rgba(255,255,255,.4); }
+#vy-pad.live::after { content: ''; }
+#vy-pad i { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: rgba(255,255,255,.5); box-shadow: 0 0 12px rgba(0,0,0,.4); }
+#vy-pad.sprint { border-color: #ffd24a; } #vy-pad.sprint i { background: #ffd24a; }
+.vy-tb { position: absolute; border-radius: 50%; color: #fff; font-weight: 900; display: grid; place-items: center; pointer-events: auto; touch-action: none; text-align: center; letter-spacing: .04em; text-shadow: 0 1px 4px #000; user-select: none; -webkit-user-select: none; }
+#vy-fire { right: calc(26px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); width: 108px; height: 108px; font-size: 17px; background: rgba(255,70,50,.42); border: 3px solid rgba(255,140,120,.9); }
+#vy-fire.on { background: rgba(255,70,50,.78); }
+#vy-nade { right: calc(146px + env(safe-area-inset-right)); bottom: calc(26px + env(safe-area-inset-bottom)); width: 70px; height: 70px; font-size: 10px; background: rgba(120,170,40,.4); border: 3px solid rgba(190,255,60,.8); }
+#vy-nade.on { background: rgba(182,255,0,.7); }
+#vy-reload { right: calc(34px + env(safe-area-inset-right)); bottom: calc(142px + env(safe-area-inset-bottom)); width: 66px; height: 66px; font-size: 10px; background: rgba(60,120,210,.42); border: 3px solid rgba(130,185,255,.85); }
+#vy-reload.on { background: rgba(130,185,255,.7); }
+#vy-scope { right: calc(124px + env(safe-area-inset-right)); bottom: calc(110px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); display: none; }
+#vy-scope.on { background: rgba(255,255,255,.4); }
+body.touch #vy-me { left: 50%; transform: translateX(-108%); bottom: calc(8px + env(safe-area-inset-bottom)); width: min(180px, 26vw); }
+body.touch #vy-me b { font-size: 22px; } body.touch #vy-me small { display: none; }
+body.touch #vy-gun { right: auto; left: 50%; transform: translateX(8%); bottom: calc(8px + env(safe-area-inset-bottom)); text-align: left; font-size: 13px; }
+body.touch #vy-gun small { display: none; } body.touch #vy-gun b { font-size: 24px !important; }
+#vy-rotate { position: fixed; inset: 0; z-index: 20; background: #0b0d10; color: #fff; display: none; place-items: center; text-align: center; font: 800 20px system-ui, sans-serif; padding: 30px; }
+#vy-rotate small { display: block; margin-top: 10px; color: #9aa98e; font-weight: 600; font-size: 14px; } #vy-rotate .ph { font-size: 54px; display: block; transform: rotate(90deg); margin-bottom: 14px; }
+@media (pointer: coarse) and (orientation: portrait) { #vy-rotate { display: grid; } }
+#vy-tips { position: fixed; inset: 0; z-index: 8; background: rgba(5,8,5,.82); display: grid; place-items: center; color: #fff; font-family: system-ui, sans-serif; }
+#vy-tips[hidden] { display: none; }
+#vy-tips .card { width: min(560px, 92vw); background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+#vy-tips h2 { margin: 0 0 10px; color: var(--lime); font-size: 20px; letter-spacing: .06em; } #vy-tips li { margin: 8px 0; font-size: 15px; line-height: 1.35; list-style: none; } #vy-tips b { color: #ffd24a; }
+#vy-tips button { margin-top: 12px; width: 100%; border: 0; border-radius: 12px; padding: 14px; font-size: 17px; font-weight: 900; background: var(--lime); color: #071000; }
 #vy-score { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); width: min(720px, 94vw); background: rgba(6,10,6,.9); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: none; }
 #vy-score.on { display: block; }
 #vy-score .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } #vy-score h3 { margin: 0 0 6px; font-size: 14px; letter-spacing: .08em; } #vy-score table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -115,6 +135,10 @@ export class Ui {
   fireTouch = false;
   nadeTouch = false;
   reloadTouch = false;
+  zoomTouch = false;
+  sprintTouch = false;
+  easy = true;
+  tipsPending = false;
 
   constructor(private o: UiOptions) {
     this.touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -130,8 +154,10 @@ export class Ui {
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><b data-ammo style="font-size:26px"></b><br><span data-gun></span><small data-nades></small><small data-coins></small></div>
   <div id="vy-tags"></div>
-  <div id="vy-touch" hidden><div class="stick" hidden><i></i></div><div id="vy-nade">NADE</div><div id="vy-reload">R</div><div id="vy-fire">FIRE</div></div>
+  <div id="vy-touch" hidden><div id="vy-pad"><i></i></div><div class="vy-tb" id="vy-scope">ZOOM</div><div class="vy-tb" id="vy-reload">RELOAD</div><div class="vy-tb" id="vy-nade">GRENADE</div><div class="vy-tb" id="vy-fire">FIRE</div></div>
 </div>
+<div id="vy-rotate"><div><span class="ph">&#128241;</span>Turn your phone sideways<small>The game plays in landscape.</small></div></div>
+<div id="vy-tips" hidden><div class="card"><h2>HOW TO PLAY ON A PHONE</h2><ul><li><b>Left thumb</b>: move. Push the stick all the way out to sprint.</li><li><b>Right thumb</b>: drag anywhere to look around.</li><li><b>FIRE</b>: the big red button. You can hold it and drag to aim at the same time.</li><li><b>Easy aim</b> is on: it helps line up your shots and fires when you are on target.</li><li>Tap the scoreboard at the top to see everyone. The II button pauses.</li></ul><button id="vy-tipsok">GOT IT, PLAY</button></div></div>
 <div id="vy-pause" hidden><div>PAUSED<small>${'ontouchstart' in window ? 'Tap Resume to keep playing' : 'Click Resume to keep playing. Esc frees the mouse.'}</small><div class="btns"><button id="vy-resume">Resume</button><button class="leave" id="vy-leave">Leave match</button></div></div></div>
 <div id="vy-menu">
   <div class="card">
@@ -153,6 +179,7 @@ export class Ui {
     <div class="items" id="vy-items"></div>
     <label>Map</label>
     <div class="maps" id="vy-maps">${MAP_LIST.map(([id, name, blurb], i) => `<div class="map${i === 0 ? ' on' : ''}" data-map="${id}"><b>${name}</b><small>${blurb}</small></div>`).join('')}</div>
+    <label class="easyrow" id="vy-easyrow" style="display:none;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input id="vy-easy" type="checkbox" checked style="width:auto;margin-right:8px" />Easy aim (phones): helps line up shots and fires when you are on target</label>
     <label>Bot skill (practice)</label>
     <select id="vy-diff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select>
     <label>Graphics</label>
@@ -166,7 +193,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -258,6 +285,8 @@ export class Ui {
     }));
   }
   showMenu(on: boolean): void { this.el['vy-menu'].hidden = !on; this.el.hud.hidden = on; if (on) { this.renderShop(); this.renderBoard(); this.spec(null); this.scoreboard(false, [], this.names(), [0, 0]); this.showPause(false); } }
+  /** the phone how-to card, the first time only; returns true when it was shown (the match waits behind it) */
+  showTips(): boolean { if (!this.touch || !this.tipsPending) return false; this.tipsPending = false; this.el['vy-tips'].hidden = false; return true; }
   showPause(on: boolean): void { this.el['vy-pause'].hidden = !on; }
   menuOpen(): boolean { return !this.el['vy-menu'].hidden; }
 
@@ -273,7 +302,7 @@ export class Ui {
   setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0, ammo = 0, mag = 0, reloading = false): void {
     this.q('[data-hp]').textContent = String(Math.max(0, Math.ceil(hp)));
     (this.q('#vy-me .hp i')).style.width = `${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%`;
-    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = gun; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : `${ammo} / ${mag}`; this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
+    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = gun; this.el['vy-scope'].style.display = this.touch && gun === 'sniper' ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : `${ammo} / ${mag}`; this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
   }
   banner(title: string, sub = '', ms = 2200): void {
     const b = this.el['vy-banner']; b.innerHTML = `${title}${sub ? `<small>${sub}</small>` : ''}`; b.classList.add('on');
@@ -300,37 +329,49 @@ export class Ui {
 
   // ---- touch: a floating move stick on the left, look by dragging the right, a fire button ----
   private wireTouch(): void {
-    const stick = this.el['vy-touch'].querySelector('.stick') as HTMLElement, knob = stick.firstElementChild as HTMLElement;
+    document.body.classList.add('touch');
     this.el['vy-touch'].hidden = false;
+    this.el['vy-easyrow'] = document.getElementById('vy-easyrow') as HTMLElement; this.el['vy-easyrow'].style.display = 'block';
+    try { this.easy = localStorage.getItem('vyre.arena.easy') !== '0'; } catch { /* storage may be blocked */ }
+    const easyBox = this.el['vy-easy'] as HTMLInputElement; easyBox.checked = this.easy;
+    easyBox.addEventListener('change', () => { this.easy = easyBox.checked; try { localStorage.setItem('vyre.arena.easy', this.easy ? '1' : '0'); } catch { /* ignore */ } });
+    // the how-to card, once
+    let seen = false; try { seen = localStorage.getItem('vyre.arena.tips') === '1'; } catch { /* ignore */ }
+    this.tipsPending = !seen;
+    this.el['vy-tipsok'].addEventListener('click', () => { this.el['vy-tips'].hidden = true; try { localStorage.setItem('vyre.arena.tips', '1'); } catch { /* ignore */ } this.o.onResume(); });
     const mb = this.el['vy-menubtn']; mb.style.display = 'grid'; mb.addEventListener('click', () => this.o.onPause());
     (this.el.hud.querySelector('.bar') as HTMLElement).style.pointerEvents = 'auto'; (this.el.hud.querySelector('.bar') as HTMLElement).addEventListener('click', () => this.o.onScore());
-    let mv: { id: number; x0: number; y0: number } | null = null, lk: { id: number; x: number; y: number } | null = null;
+    const pad = this.el['vy-pad'], knob = pad.firstElementChild as HTMLElement, R = 62;
+    let mv: { id: number; x0: number; y0: number } | null = null, lk: { id: number; x: number; y: number } | null = null, fp: { id: number; x: number; y: number } | null = null;
     const root = document.body;
+    const SKIP = '#vy-fire,#vy-nade,#vy-reload,#vy-scope,#vy-menubtn,#vy-menu,#vy-pause,#vy-tips,.bar';
     root.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest('#vy-fire,#vy-nade,#vy-reload,#vy-menubtn,#vy-menu,#vy-pause,.bar')) return;
-      if (e.clientX < innerWidth * 0.45 && !mv) { mv = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; stick.hidden = false; stick.style.left = `${e.clientX}px`; stick.style.top = `${e.clientY}px`; }
-      else if (!lk) lk = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest(SKIP)) return;
+      if (e.clientX < innerWidth * 0.42 && !mv) { mv = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; pad.classList.add('moved', 'live'); pad.style.left = `${e.clientX}px`; pad.style.top = `${e.clientY}px`; pad.style.bottom = 'auto'; }
+      else if (e.clientX >= innerWidth * 0.42 && !lk) lk = { id: e.pointerId, x: e.clientX, y: e.clientY };
     });
     root.addEventListener('pointermove', (e) => {
       if (mv && e.pointerId === mv.id) {
-        const dx = e.clientX - mv.x0, dy = e.clientY - mv.y0, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 50);
-        this.move.x = (dx / d) * k; this.move.y = (dy / d) * k; knob.style.transform = `translate(${(dx / d) * Math.min(d, 50)}px, ${(dy / d) * Math.min(d, 50)}px)`;
+        const dx = e.clientX - mv.x0, dy = e.clientY - mv.y0, d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / R);
+        this.move.x = (dx / d) * k; this.move.y = (dy / d) * k; knob.style.transform = `translate(${(dx / d) * Math.min(d, R)}px, ${(dy / d) * Math.min(d, R)}px)`;
+        this.sprintTouch = d > R * 1.25 && dy < 0; pad.classList.toggle('sprint', this.sprintTouch);
       } else if (lk && e.pointerId === lk.id) { this.lookDelta.x += e.clientX - lk.x; this.lookDelta.y += e.clientY - lk.y; lk.x = e.clientX; lk.y = e.clientY; }
+      else if (fp && e.pointerId === fp.id) { this.lookDelta.x += e.clientX - fp.x; this.lookDelta.y += e.clientY - fp.y; fp.x = e.clientX; fp.y = e.clientY; }
     });
     const end = (e: PointerEvent) => {
-      if (mv && e.pointerId === mv.id) { mv = null; this.move.x = 0; this.move.y = 0; stick.hidden = true; knob.style.transform = ''; }
+      if (mv && e.pointerId === mv.id) { mv = null; this.move.x = 0; this.move.y = 0; this.sprintTouch = false; pad.classList.remove('moved', 'live', 'sprint'); pad.style.left = ''; pad.style.top = ''; pad.style.bottom = ''; knob.style.transform = ''; }
       if (lk && e.pointerId === lk.id) lk = null;
+      if (fp && e.pointerId === fp.id) { fp = null; this.fireTouch = false; this.el['vy-fire'].classList.remove('on'); }
     };
     root.addEventListener('pointerup', end); root.addEventListener('pointercancel', end);
+    // the fire button also turns the view: hold it and drag to aim and shoot with one thumb
     const fire = this.el['vy-fire'];
-    fire.addEventListener('pointerdown', (e) => { e.preventDefault(); this.fireTouch = true; fire.classList.add('on'); fire.setPointerCapture(e.pointerId); });
-    const nd = this.el['vy-nade'];
-    nd.addEventListener('pointerdown', (e) => { e.preventDefault(); this.nadeTouch = true; nd.classList.add('on'); });
-    const noff = () => { nd.classList.remove('on'); }; nd.addEventListener('pointerup', noff); nd.addEventListener('pointercancel', noff);
-    const rl = this.el['vy-reload'];
-    rl.addEventListener('pointerdown', (e) => { e.preventDefault(); this.reloadTouch = true; rl.classList.add('on'); });
-    const roff = () => { this.reloadTouch = false; rl.classList.remove('on'); }; rl.addEventListener('pointerup', roff); rl.addEventListener('pointercancel', roff);
-    const off = () => { this.fireTouch = false; fire.classList.remove('on'); };
-    fire.addEventListener('pointerup', off); fire.addEventListener('pointercancel', off);
+    fire.addEventListener('pointerdown', (e) => { e.preventDefault(); this.fireTouch = true; fire.classList.add('on'); fp = { id: e.pointerId, x: e.clientX, y: e.clientY }; fire.setPointerCapture(e.pointerId); });
+    const hold = (id: string, set: (v: boolean) => void) => {
+      const b = this.el[id];
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); b.classList.add('on'); b.setPointerCapture(e.pointerId); });
+      const off = () => { set(false); b.classList.remove('on'); }; b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
+    };
+    hold('vy-nade', (v) => { this.nadeTouch = v; }); hold('vy-reload', (v) => { this.reloadTouch = v; }); hold('vy-scope', (v) => { this.zoomTouch = v; });
   }
 }

@@ -5,8 +5,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { Match, MAPS, R, floorAt } from '../../server/game.js';
-import { REWARD } from '../../server/items.js';
+import { Match, MAPS, R, floorAt, clearLine } from '../../server/game.js';
+import { REWARD, WEAPONS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
 import { freshProfile, sanitize, award, teamNames } from './profile.ts';
 import { Ui } from './ui.ts';
@@ -113,6 +113,7 @@ const tracers = [], bits = [];
 let walkPhase = 0, hudT = 0, spectate = null, nadeQueued = false, zoom = false, eyeY = 1.6, shake = 0, boomT = 0;
 const nadeMeshes = new Map(), fx = [];
 let deathCam = null, showScore = false, specYaw = 0, specPitch = 0, scoreT = 0;
+let autoFire = false;
 let streak = 0, multi = { n: 0, t: 0 }, beatT = 0, lastShot = new Map(), mapBg = null, mapBgId = '';
 
 // the board of this device: practice results (ranked results arrive with challenge matches on the hosted server)
@@ -133,6 +134,7 @@ const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, sav
 
 async function start(c) {
   sfx.unlock();
+  if (ui.touch) { try { void document.documentElement.requestFullscreen?.(); void screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch { /* not allowed here */ } }
   if (c.gfx && (c.gfx === 'auto' || c.gfx in LEVELS)) { gfxMode = c.gfx; try { localStorage.setItem('vyre.arena.gfx', gfxMode); } catch { /* storage may be blocked */ } if (gfxMode !== 'auto' && LEVELS[gfxMode] !== level) applyLevel(LEVELS[gfxMode]); }
   ui.banner('LOADING MAP', MAPS[c.map]?.name || '', 0);
   await setMap(MAPS[c.map] ? c.map : 'cargo', (d, n) => ui.banner('LOADING MAP', `${d}/${n}`, 0));
@@ -143,6 +145,7 @@ async function start(c) {
   match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1 });
   me = match.addPlayer('me', { name: c.name, team: c.team, loadout: { ...profile.loadout } });
   match.startRound();
+  if (ui.showTips()) paused = true;
   playing = true; spectate = null; wasAlive = false; eyeY = 1.6; deathCam = null; paused = false; showScore = false;
   ui.showMenu(false); requestLock();
   ui.banner('ROUND 1', 'get ready', 2600);
@@ -189,7 +192,7 @@ function readInput() {
   let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - ui.move.y;
   let str = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + ui.move.x;
   const len = Math.hypot(fwd, str); if (len > 1) { fwd /= len; str /= len; }
-  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw, pitch: -look.pitch, fire: fire || ui.fireTouch, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') };
+  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw, pitch: -look.pitch, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch };
   ui.nadeTouch = false;
 }
 
@@ -358,6 +361,28 @@ function syncUnits(dt, t) {
   for (const [id, u] of units) if (!live.has(id)) { u.dispose(); units.delete(id); ui.dropTag(id); }
 }
 
+// ---- easy aim for phones: lines the view up with an enemy near the crosshair and fires when you are on target ----
+function assist(dt) {
+  autoFire = false;
+  if (!ui.touch || !ui.easy || !me || !me.alive || match.phase !== 'live' || paused) return;
+  const w = WEAPONS[me.weapon], eyeZ = me.z + R.EYE, held = fire || ui.fireTouch;
+  let best = null, bestA = 9;
+  for (const p of match.players.values()) {
+    if (!p.alive || p.team === me.team) continue;
+    const dx = p.x - me.x, dy = p.y - me.y, d = Math.hypot(dx, dy);
+    if (d > w.range * 0.95) continue;
+    let a = Math.atan2(dy, dx) - look.yaw; a = Math.atan2(Math.sin(a), Math.cos(a));
+    const lim = 0.05 + 0.22 * Math.min(1, 600 / Math.max(d, 150));          // a wider catch cone up close
+    if (Math.abs(a) > lim || Math.abs(a) >= bestA) continue;
+    if (!clearLine(match.map, me.x, me.y, eyeZ, p.x, p.y, p.z + 1.35)) continue;
+    best = { p, a, d }; bestA = Math.abs(a);
+  }
+  if (!best) return;
+  const pull = Math.min(1, dt * (held ? 8 : 3.5));
+  look.yaw += best.a * pull;
+  look.pitch += (-Math.atan2(best.p.z + 1.35 - eyeZ, best.d / PX_PER_M) - look.pitch) * pull;
+  if (Math.abs(best.a) < 0.05) autoFire = true;
+}
 // ---- the minimap: the map's own solids, your team, and any enemy that fired in the last second and a half ----
 function drawMinimap() {
   const cv = ui.mapCanvas, g = cv.getContext('2d'), W = cv.width, H = cv.height, m = match.map, sx = W / m.w, sy = H / m.h;
@@ -394,13 +419,14 @@ function frame(now) {
   const raw = (now - last) / 1000; last = now;
   const dt = Math.min(raw, 0.1), t = now / 1000;
   const sniping = me && me.alive && me.weapon === 'sniper';
-  const wantFov = zoom && playing ? (sniping ? 24 : 55) : FOV + (me && me.alive && me.sprinting ? 7 : 0);
+  const zoomNow = zoom || ui.zoomTouch;
+  const wantFov = zoomNow && playing ? (sniping ? 24 : 55) : FOV + (me && me.alive && me.sprinting ? 7 : 0);
   fov += (wantFov - fov) * Math.min(1, dt * 14);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   const sens = fov / FOV;
   if (ui.touch && (ui.lookDelta.x || ui.lookDelta.y)) { turn(ui.lookDelta.x * LOOK_TOUCH * sens, ui.lookDelta.y * LOOK_TOUCH * sens); ui.lookDelta.x = 0; ui.lookDelta.y = 0; }
   if ((playing && !paused && (ui.touch || locked || lockFailed)) || !playing) {
-    acc += dt;
+    acc += dt; assist(dt);
     for (let n = 0; acc >= SIM_STEP && n < 6; n++, acc -= SIM_STEP) { readInput(); match.step(SIM_STEP); nadeQueued = false; onEvents(match.events); }
     if (acc > SIM_STEP * 6) acc = 0;
   }
@@ -449,7 +475,7 @@ function frame(now) {
     camera.lookAt(cx, 2, cz);
   }
   if (shake > 0.002) { camera.rotation.x += (Math.random() - 0.5) * 0.05 * shake; camera.rotation.z += (Math.random() - 0.5) * 0.05 * shake; shake *= Math.pow(0.002, dt); }
-  vm.update(dt, alive && Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1, walkPhase, camera.aspect, !(playing && alive) || (zoom && sniping));
+  vm.update(dt, alive && Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1, walkPhase, camera.aspect, !(playing && alive) || (zoomNow && sniping));
   for (const u of units.values()) u.mark.lookAt(camera.position);
 
   for (let i = tracers.length - 1; i >= 0; i--) { tracers[i].life -= dt; if (tracers[i].life <= 0) { scene.remove(tracers[i].mesh); tracers.splice(i, 1); } }
