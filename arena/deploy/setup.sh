@@ -87,6 +87,19 @@ main() {
   fi
 
   say "Services"
+  # the match server runs as its own user, so it needs a node that user can run: not a copy under another folder or one only this shell's PATH knows
+  local NODE_BIN=""
+  for c in /usr/bin/node /usr/local/bin/node "$(command -v node || true)"; do
+    [ -n "$c" ] && [ -x "$c" ] || continue
+    if runuser -u arena -- "$c" -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' 2>/dev/null; then NODE_BIN="$c"; break; fi
+  done
+  if [ -z "$NODE_BIN" ]; then
+    echo "No Node 22 that the service user can run was found; installing it system-wide."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
+    apt-get install -y -qq nodejs >/dev/null
+    NODE_BIN=/usr/bin/node
+  fi
+  echo "service uses $NODE_BIN"
   cat > /etc/systemd/system/arena.service <<EOF
 [Unit]
 Description=Vyre Bad Lands match server
@@ -97,7 +110,7 @@ WorkingDirectory=$SRC/arena/server
 Environment=PORT=2567
 Environment=HOST=127.0.0.1
 Environment=ARENA_DATA=$DATA
-ExecStart=$(command -v node) index.js
+ExecStart=$NODE_BIN index.js
 Restart=always
 RestartSec=2
 User=arena
@@ -158,8 +171,12 @@ EOF
   fi
 
   say "Checking"
-  sleep 2
-  curl -fsS http://127.0.0.1:2567/health; echo
+  local UP=0
+  for _ in $(seq 1 20); do if curl -fsS http://127.0.0.1:2567/health >/dev/null 2>&1; then UP=1; break; fi; sleep 1; done
+  if [ "$UP" = 1 ]; then echo "match server: up"; else
+    echo "MATCH SERVER IS NOT RUNNING. Its last log lines:"; journalctl -u arena -n 15 --no-pager || true
+    echo "Send those lines to Jarvis."; return 1
+  fi
   # asked by name, the way a visitor asks (a plain address is refused once https redirects are on)
   local HOSTNAME_CHECK="${DOMAIN:-localhost}"
   curl -fsS -o /dev/null -w "page: %{http_code}\n" -H "Host: $HOSTNAME_CHECK" http://127.0.0.1/ || true
