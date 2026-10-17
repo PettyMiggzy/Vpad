@@ -59,16 +59,21 @@ main() {
   local NEW
   NEW="$(git -C "$SRC" rev-parse HEAD)"
   echo "at $NEW"
-  if [ "$OLD" = "$NEW" ] && [ -f "$WEB/index.html" ] && systemctl is-active --quiet arena 2>/dev/null && [ "${FORCE:-}" != 1 ]; then
-    echo "Nothing new since last time."; return 0
+  local SAME=0
+  if [ "$OLD" = "$NEW" ] && [ -f "$WEB/index.html" ] && systemctl is-active --quiet arena 2>/dev/null && [ "${FORCE:-}" != 1 ]; then SAME=1; fi
+  # the ten-minute check stops here when nothing changed; a run by hand goes on to set up the web server and https
+  if [ "$SAME" = 1 ] && [ "$UPDATE" = 1 ]; then echo "Nothing new since last time."; return 0; fi
+
+  if [ "$SAME" = 1 ]; then
+    echo "The game is already up to date; skipping the build."
+  else
+    say "Match server"
+    ( cd "$SRC/arena/server" && npm ci --omit=dev --no-audit --no-fund >/dev/null )
+
+    say "Game page (the build takes a minute)"
+    ( cd "$SRC/arena/web" && npm ci --no-audit --no-fund >/dev/null && VITE_SERVER=auto npx vite build >/dev/null )
+    rsync -a --delete "$SRC/arena/web/dist/" "$WEB/"
   fi
-
-  say "Match server"
-  ( cd "$SRC/arena/server" && npm ci --omit=dev --no-audit --no-fund >/dev/null )
-
-  say "Game page (the build takes a minute)"
-  ( cd "$SRC/arena/web" && npm ci --no-audit --no-fund >/dev/null && VITE_SERVER=auto npx vite build >/dev/null )
-  rsync -a --delete "$SRC/arena/web/dist/" "$WEB/"
 
   if [ "$UPDATE" = 1 ]; then
     systemctl restart arena
