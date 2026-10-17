@@ -162,6 +162,7 @@ async function start(c) {
   }
   if (ui.showTips()) paused = true;
   buildZone(); hintsOn = !ui.touch; ui.hints(hintsOn); if (hintsOn) setTimeout(() => { if (hintsOn && playing) { hintsOn = false; ui.hints(false); } }, 25000);
+  void keepAwake(true);
   playing = true; spectate = null; wasAlive = false; eyeY = 1.6; deathCam = null; paused = false; showScore = false;
   ui.showMenu(false); requestLock();
   ui.banner('ROUND 1', 'get ready', 2600);
@@ -190,6 +191,7 @@ async function startOnline(c) {
   return true;
 }
 function leave() {
+  void keepAwake(false);
   if (netH) { const h = netH; netH = null; void h.leave(); if (srv) void syncProfile(); }
   playing = false; paused = false; fire = false; zoom = false;
   try { document.exitPointerLock?.(); } catch { /* not locked */ }
@@ -264,7 +266,7 @@ function onEvents(evs) {
         sfx.impact(e.ez < 0.15 ? (curMapId === 'dust' ? 'dirt' : 'concrete') : curMapId === 'dust' ? 'concrete' : (e.x + e.y) % 3 < 1.6 ? 'metal' : 'concrete', ix, iz);
       }
     } else if (e.type === 'hit') {
-      if (me && e.victim === me.id) { ui.flash('vy-hurt'); sfx.hurtMe(); const at = match.players.get(e.by); if (at && at.id !== me.id) ui.hitDir(Math.atan2(at.y - me.y, at.x - me.x) - look.yaw); }
+      if (me && e.victim === me.id) { ui.flash('vy-hurt'); sfx.hurtMe(); buzz(45); const at = match.players.get(e.by); if (at && at.id !== me.id) ui.hitDir(Math.atan2(at.y - me.y, at.x - me.x) - look.yaw); }
       if (me && e.by === me.id) { ui.flash('vy-hitm'); sfx.hitMarker(); }
       sfx.impact('flesh', e.x / PX_PER_M, e.y / PX_PER_M);
       units.get(e.victim)?.hit();
@@ -273,7 +275,7 @@ function onEvents(evs) {
       const a = match.players.get(e.by), v = match.players.get(e.victim);
       if (a && v) ui.feed(`<span style="color:${TEAM_COLORS[a.team]}">${a.name}</span> ${e.melee ? '&#9876;' : e.nade ? '&#9679;' : e.head ? '&#9678;' : '&#9656;'} <span style="color:${TEAM_COLORS[v.team]}">${v.name}</span>`);
       if (me && e.by === me.id && e.victim !== me.id) {
-        sfx.kill(); if (!netH) { award(profile, REWARD.kill); save(); }
+        sfx.kill(); buzz(28); if (!netH) { award(profile, REWARD.kill); save(); }
         streak += 1; const now = performance.now() / 1000; multi = { n: now - multi.t < 4 ? multi.n + 1 : 1, t: now };
         const tags = []; if (e.melee) tags.push(e.back ? 'BACKSTAB' : 'KNIFE KILL');
         if (multi.n === 2) tags.push('DOUBLE KILL'); else if (multi.n === 3) tags.push('TRIPLE KILL'); else if (multi.n >= 4) tags.push('RAMPAGE');
@@ -628,5 +630,20 @@ function frame(now) {
     }
   }
 }
+// ---- phones: keep the screen awake while playing, buzz on a hit, pause when the app is switched away, recover from a lost graphics context ----
+let wake = null;
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); }
+    else if (!on && wake) { const w = wake; wake = null; await w.release(); }
+  } catch { wake = null; }
+}
+const buzz = (ms) => { if (ui.touch) try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (playing && ui.touch && !paused) { paused = true; ui.showPause(true); } void keepAwake(false); }
+  else if (playing) void keepAwake(true);
+});
+canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); ui.banner('GRAPHICS RESET', 'tap the screen to reload', 0); addEventListener('pointerdown', () => location.reload(), { once: true }); });
+canvas.addEventListener('webglcontextrestored', () => location.reload());
 document.getElementById('boot').remove();
 requestAnimationFrame(frame);

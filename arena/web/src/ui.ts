@@ -116,6 +116,21 @@ body.touch #vy-gun small { display: none; } body.touch #vy-gun b { font-size: 24
 #vy-pause small { display: block; color: var(--muted); font-size: 13px; font-weight: 600; margin-top: 8px; letter-spacing: .02em; }
 #vy-menu { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 15%, rgba(27,42,16,.9), rgba(5,8,5,.94) 70%); display: grid; place-items: center; padding: 14px; overflow-y: auto; z-index: 5; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--text); }
 #vy-menu .card { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; }
+#vy-menu .logo { display: block; width: min(360px, 80%); margin: 0 auto 2px; }
+#vy-menu .pick { margin-top: 10px; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .06em; color: var(--muted); }
+#vy-menu .pick b { color: var(--text); }
+#vy-menu .install { margin-top: 10px; font-size: 12px; line-height: 1.4; color: var(--muted); text-align: center; }
+#vy-menu .install button { margin-top: 6px; border: 1px solid var(--lime); background: transparent; color: var(--lime); border-radius: 10px; padding: 8px 14px; font-weight: 800; }
+/* wide screens (a computer, a phone turned sideways): who you are and PLAY stay on the left while the options scroll on the right */
+@media (min-width: 700px) {
+  #vy-menu { padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); overflow: hidden; }
+  #vy-menu .card { width: min(1000px, 100%); max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); display: grid; grid-template-columns: minmax(250px, 320px) 1fr; gap: 22px; padding: 16px 18px; overflow: hidden; }
+  #vy-menu .side { align-self: center; }
+  #vy-menu .main { overflow-y: auto; overscroll-behavior: contain; padding-right: 8px; max-height: calc(100vh - 56px); max-height: calc(100dvh - 56px); -webkit-overflow-scrolling: touch; }
+  #vy-menu .main > label:first-child { margin-top: 0; }
+  #vy-menu .logo { width: min(300px, 100%); }
+}
+@media (max-height: 520px) { #vy-menu .sub { display: none; } #vy-menu .side label { margin-top: 8px; } #vy-menu .logo { width: min(210px, 100%); } #vy-menu button.go { margin-top: 10px; padding: 12px; } }
  #vy-menu .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; line-height: 1.4; }
 #vy-menu label { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
 #vy-menu input, #vy-menu select { width: 100%; background: #0d160a; color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 16px; }
@@ -178,10 +193,18 @@ export class Ui {
 <div id="vy-pause" hidden><div>PAUSED<small>${'ontouchstart' in window ? 'Tap Resume to keep playing' : 'Click Resume to keep playing. Esc frees the mouse.'}</small><div class="btns"><button id="vy-resume">Resume</button><button class="leave" id="vy-leave">Leave match</button></div></div></div>
 <div id="vy-menu">
   <div class="card">
-    <img src="${import.meta.env.BASE_URL}badlands.webp" alt="Vyre Bad Lands" style="display:block;width:min(360px,80%);margin:0 auto 2px" />
+   <div class="side">
+    <img class="logo" src="${import.meta.env.BASE_URL}badlands.webp" alt="Vyre Bad Lands" />
     <div style="text-align:center;color:var(--lime);letter-spacing:.3em;font-size:11px;font-weight:800;margin-bottom:10px">TOKEN ARENA</div>
     <div class="sub">First-person team shooter. Two token teams, best of three rounds, bots fill the empty seats so a match is always on. Play money only: nothing here touches a wallet. Prototype.</div>
     <label>Your name</label><input id="vy-name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
+    <div class="pick" id="vy-pick"></div>
+    <button class="go" id="vy-go">PLAY</button>
+    <div class="err" id="vy-err"></div>
+    <div id="vy-level"></div>
+    <div class="install" id="vy-install" hidden></div>
+   </div>
+   <div class="main">
     <label>Match type</label>
     <div class="modes"><div class="mode on" data-mode="practice">Practice<small>Against bots, any time. Does not count on the ranked board.</small></div><div class="mode ${o.challengeLive ? '' : 'off'}" data-mode="challenge">Challenge a team<small>${o.challengeLive ? 'Waits for a player on each side. Counts.' : 'Needs the match server, which this page cannot reach.'}</small></div></div>
     <label>Game type</label>
@@ -193,7 +216,6 @@ export class Ui {
       <div class="team on" data-team="0" style="--c:${ca}"><span data-tc="0">${a}</span><small>tap to join</small></div>
       <div class="team" data-team="1" style="--c:${cb}"><span data-tc="1">${b}</span><small>tap to join</small></div>
     </div>
-    <div id="vy-level"></div>
     <label>Your classes (saved loadouts)</label>
     <div class="classes" id="vy-classes"></div>
     <label>Loadout shop <span id="vy-coins" style="float:right;color:var(--lime);letter-spacing:0;font-size:14px;font-weight:800"></span></label>
@@ -208,14 +230,13 @@ export class Ui {
     <select id="vy-gfx"><option value="auto">Auto (drops detail if slow)</option><option value="high">High</option><option value="mid">Medium</option><option value="low">Low (fastest)</option></select>
     <label>Seats per side (humans and bots together)</label>
     <select id="vy-seats">${SEATS.map((n) => `<option${n === DEFAULT_SEATS ? ' selected' : ''}>${n}</option>`).join('')}</select>
-    <button class="go" id="vy-go">PLAY</button>
-    <div class="err" id="vy-err"></div>
     <details id="vy-lb"><summary>LEADERBOARD</summary><div id="vy-lbbody"></div></details>
     <div class="note">Earn coins from kills and wins, spend them in the shop. Move: WASD or the left thumb. Look: the mouse or drag with the right thumb. Fire: click or the FIRE button. Grenade: G or the GRENADE button. Knife: F. Reload: R. Swap gun: Q. Jump: Space. Sprint: Shift (no firing while sprinting). Scoreboard: hold Tab. Esc pauses and lets you leave the match.</div>
+   </div>
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -242,7 +263,32 @@ export class Ui {
     this.el['vy-lb'].addEventListener('toggle', () => this.renderBoard());
     this.el['vy-tipsok'].addEventListener('click', () => { this.el['vy-tips'].hidden = true; try { if (this.touch) localStorage.setItem('vyre.arena.tips', '1'); } catch { /* ignore */ } this.o.onResume(); });
     this.renderShop();
+    const main = root.querySelector('.main') as HTMLElement;
+    for (const ev of ['click', 'input', 'change']) main.addEventListener(ev, () => this.updatePick());
+    this.updatePick(); this.installHint();
     if (this.touch) this.wireTouch();
+  }
+
+  /** the one line under the name: what PLAY will start */
+  updatePick(): void {
+    const n = this.names(), obj = (this.el['vy-obj'] as HTMLSelectElement).value === 'zone' ? 'Hold the Zone' : 'Elimination';
+    const m = MAP_LIST.find(([id]) => id === this.mapId)?.[1] ?? '';
+    this.el['vy-pick'].innerHTML = `<b>${this.mode === 'challenge' ? 'Challenge' : 'Practice'}</b> &middot; ${obj} &middot; ${m}<br>you join <b style="color:${this.o.teamColors[this.team]}">${n[this.team]}</b>`;
+  }
+  /** on a phone, how to get the game full screen: iPhones only get it from the home screen, Android can install it */
+  private installHint(): void {
+    const box = this.el['vy-install'];
+    const nav = navigator as Navigator & { standalone?: boolean };
+    const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || nav.standalone === true;
+    if (!this.touch || standalone) return;
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios) { box.hidden = false; box.innerHTML = 'For full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>, and open the game from the new icon.'; return; }
+    addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      const ev = e as Event & { prompt: () => Promise<void>; userChoice: Promise<unknown> };
+      box.hidden = false; box.innerHTML = 'Install the game to play full screen<br><button id="vy-inst">Install</button>';
+      box.querySelector('#vy-inst')!.addEventListener('click', async () => { try { await ev.prompt(); await ev.userChoice; } catch { /* dismissed */ } box.hidden = true; });
+    });
   }
 
   /** the two team names as typed, cleaned the way the server cleans them, with the defaults when empty */
