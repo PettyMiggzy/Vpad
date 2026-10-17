@@ -70,6 +70,8 @@ test('room options are clamped: map, seats, mode, difficulty, objective, and bot
   assert.equal(low.room.match.perSide, 2);
   const wide = await harness({ perSide: 100 });
   assert.equal(wide.room.match.perSide, 32);
+  assert.equal(wide.room.maxClients, 64, 'the room seats at most 32 a side');
+  assert.equal(h.room.maxClients, 2, 'and a one-a-side room seats two');
   h.stop(); low.stop(); wide.stop();
 });
 
