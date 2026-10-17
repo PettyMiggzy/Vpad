@@ -7,6 +7,8 @@ export const UNIT_H = 1.85;
 const POOL = [['frog'], ['bulldog']];
 const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25 };
 // where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
+// the pistol model is drawn pointing the other way from the rest: turn it half a circle so every weapon's muzzle leads
+const GUN_TURN = { pistol: Math.PI };
 export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _o = new THREE.Matrix4(), _e = new THREE.Euler();
@@ -34,7 +36,7 @@ export class Unit {
     const gb = new THREE.Box3().setFromObject(g), gs = gb.getSize(new THREE.Vector3()), gc = gb.getCenter(new THREE.Vector3());
     const long = Math.max(gs.x, gs.y, gs.z);
     g.position.sub(gc); g.scale.setScalar((GUN_LEN[weapon] ?? 0.8) / long);
-    this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gun.add(this.gunInner);
+    this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gunInner.rotation.y = GUN_TURN[weapon] ?? 0; this.gun.add(this.gunInner);
     this.gun.matrixAutoUpdate = false; this.root.add(this.gun);
     this.hand = this.body.getObjectByName('RightHand');
     // team marks
