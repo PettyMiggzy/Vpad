@@ -56,3 +56,20 @@ test('a reload shows its time running down', () => {
   row[13] = 0; nm.apply(snap, 1600);
   assert.equal(nm.players.get('p1').rl, 0);
 });
+
+test('your own recoil is replayed from your own shots: one pull of a shotgun counts once, the sights rise over time, the kick settles', () => {
+  const m = setup(), nm = new NetMatch(hello(m), teams);
+  nm.apply(m.snapshot());
+  const me = nm.players.get('p1');
+  me.weapon = 'shotgun';
+  for (let i = 0; i < 6; i++) nm.push({ type: 'shot', by: 'p1' }, 1000);      // six pellets, one pull
+  nm.push({ type: 'shot', by: 'bot' }, 1000);                                  // someone else's shot is not yours
+  assert.equal(me.rc.n, 1);
+  nm.push({ type: 'shot', by: 'p1' }, 1500);                                   // the next pull
+  assert.equal(me.rc.n, 2); assert.ok(me.rc.p > 0, 'the shots lifted the aim');
+  me.input.ads = true; me.sprinting = false; me.rl = 0; me.alive = true; me.weapon = 'rifle';
+  nm.tick(0.05); assert.ok(me.ads > 0 && me.ads < 1);
+  for (let i = 0; i < 20; i++) nm.tick(0.05); assert.equal(me.ads, 1);
+  me.input.ads = false; for (let i = 0; i < 40; i++) nm.tick(0.05); assert.equal(me.ads, 0);
+  for (let i = 0; i < 80; i++) nm.tick(0.05); assert.equal(me.rc.p, 0); assert.equal(me.rc.n, 0);
+});

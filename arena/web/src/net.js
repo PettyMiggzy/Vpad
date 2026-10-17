@@ -4,6 +4,7 @@
 import { Client } from '@colyseus/sdk';
 import { tryMove, floorAt, MAPS, R } from '../../server/game.js';
 import { WEAPONS } from '../../server/items.js';
+import { feelOf } from '../../server/gunfeel.js';
 
 export const INTERP_MS = 100;
 export const SNAP_POS = 80;
@@ -29,7 +30,7 @@ export function stepLocal(s, inp, dt, live) {
   const len = Math.hypot(dx, dy);
   if (len > 1) { dx /= len; dy /= len; }
   const w = WEAPONS[s.weapon] || WEAPONS.pistol;
-  const sp = R.SPEED * (s.speedMul || 1) * (w.move ?? 1) * ((inp.sprint && len > 0.3) ? 1.32 : 1) * (s.boost ? 1.22 : 1);
+  const sp = R.SPEED * (s.speedMul || 1) * (w.move ?? 1) * ((inp.sprint && len > 0.3) ? 1.32 : 1) * (s.boost ? 1.22 : 1) * (inp.ads && !inp.sprint ? feelOf(s.weapon).ads.move : 1);
   const [nx, ny] = tryMove(s.map, s.x, s.y, s.z, s.x + dx * sp * dt, s.y + dy * sp * dt);
   const f = floorAt(s.map, nx, ny);
   let z = s.z, vz = s.vz || 0, air = !!s.air;
@@ -94,7 +95,7 @@ export function decayOffset(offset, dt) {
 }
 
 function blankInput() {
-  return { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false };
+  return { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, ads: false };
 }
 
 function cleanInput(m) {
@@ -108,7 +109,7 @@ function cleanInput(m) {
   return {
     dx: clamp(n('dx'), -1, 1), dy: clamp(n('dy'), -1, 1), aim, pitch: clamp(n('pitch'), -PITCH, PITCH),
     fire: src.fire === true, nade: src.nade === true, reload: src.reload === true, sprint: src.sprint === true,
-    jump: src.jump === true, melee: src.melee === true, swap: src.swap === true,
+    jump: src.jump === true, melee: src.melee === true, swap: src.swap === true, ads: src.ads === true,
   };
 }
 

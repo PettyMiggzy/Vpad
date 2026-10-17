@@ -3,12 +3,15 @@
 // and the events that arrived since the page last looked. step() does nothing: nobody simulates here.
 import { MAPS } from '../../server/game.js';
 import { WEAPONS } from '../../server/items.js';
+import { Recoil, feelOf } from '../../server/gunfeel.js';
 
-const blank = () => ({ dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false });
+const blank = () => ({ dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, ads: false });
 
 export class NetMatch {
   constructor(hello, teams) {
     this.teams = teams;
+    this.meId = hello.id;
+    this.pull = -1e9;
     this.map = MAPS[hello.map] || MAPS.cargo;
     this.mode = hello.mode === 'challenge' ? 'challenge' : 'practice';
     this.objective = hello.objective === 'zone' ? 'zone' : 'elim';
@@ -41,7 +44,23 @@ export class NetMatch {
   step() { /* the server steps the rules */ }
   /** the page takes the events that arrived since its last look */
   takeEvents() { const e = this.events; this.events = []; return e; }
-  push(e) { if (this.events.length < 400) this.events.push(e); }
+  push(e, now = performance.now()) {
+    // your own recoil is replayed here from your own shots, with the same rules the server runs (a shotgun's pellets are one pull)
+    if (e.type === 'shot' && e.by === this.meId) {
+      const me = this.players.get(this.meId);
+      if (me && me.rc && !((WEAPONS[me.weapon]?.pellets ?? 1) > 1 && now - this.pull < 25)) me.rc.shot(me.weapon, me.ads, 1);
+      this.pull = now;
+    }
+    if (this.events.length < 400) this.events.push(e);
+  }
+  /** time passes for you: the sights come up or go down, and the recoil settles */
+  tick(dt) {
+    const me = this.players.get(this.meId);
+    if (!me || !me.rc) return;
+    const ft = feelOf(me.weapon), want = !!me.input?.ads && !me.sprinting && !(me.rl > 0) && me.alive;
+    me.ads = Math.max(0, Math.min(1, me.ads + (want ? 1 : -1) * dt / ft.ads.t));
+    me.rc.step(dt, me.weapon);
+  }
 
   /** one snapshot, as net.js places it for this frame */
   apply(s, now = performance.now()) {
@@ -56,8 +75,9 @@ export class NetMatch {
     for (const row of s.p) {
       seen.add(row[0]);
       let p = this.players.get(row[0]);
-      if (!p) { p = { id: row[0], name: 'Player', input: blank(), rlSince: 0, hpMax: 100, rl: 0, reloadTime: 1.5, magSize: 12, sprinting: false, slot: 0, speedMul: 1 }; this.players.set(row[0], p); this.dress(p, this.roster.get(row[0])); }
-      p.team = row[1]; p.x = row[2]; p.y = row[3]; p.aim = row[4]; p.hp = row[5]; p.alive = row[6] === 1; p.kills = row[7]; p.bot = row[8] === 1;
+      if (!p) { p = { id: row[0], name: 'Player', input: blank(), rlSince: 0, hpMax: 100, rl: 0, reloadTime: 1.5, magSize: 12, sprinting: false, slot: 0, speedMul: 1, rc: new Recoil(), ads: 0 }; this.players.set(row[0], p); this.dress(p, this.roster.get(row[0])); }
+      const wasAlive = p.alive;
+      p.team = row[1]; p.x = row[2]; p.y = row[3]; p.aim = row[4]; p.hp = row[5]; p.alive = row[6] === 1; if (p.alive && wasAlive === false) { p.rc = new Recoil(); p.ads = 0; } p.kills = row[7]; p.bot = row[8] === 1;
       p.z = row[9]; p.pitch = row[10]; p.grenades = row[11]; p.ammo = row[12]; p.deaths = row[14]; p.boost = row[16] === 1;
       if (row[15] !== p.weapon) {
         p.weapon = row[15] || 'pistol';

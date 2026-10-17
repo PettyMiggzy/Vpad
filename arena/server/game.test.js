@@ -89,14 +89,14 @@ test('walking up a ramp takes you onto the deck; the side of the deck stops you;
 
 test('a shot lands at once: it stops at a wall, passes team-mates, headshots hit twice as hard, shotguns spread six rays', () => {
   const [m, p] = setup('cargo', [['a', 0, 200, 150], ['c', 0, 300, 150], ['b', 1, 500, 150]]);
-  p.a.weapon = 'sniper'; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true };
+  p.a.weapon = 'sniper'; p.a.ads = 1; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true, ads: true };   // scoped: an unscoped sniper rifle is wild
   m.step(1 / 60);
   assert.equal(p.c.hp, p.c.hpMax, 'team-mate untouched');
   assert.ok(p.b.hp < p.b.hpMax, 'enemy hit');
   assert.equal(p.b.hpMax - p.b.hp, 60, 'a body shot is the weapon damage');
   assert.ok(m.events.some((e) => e.type === 'shot' && e.hit === 1));
   // headshot: aim up so the ray crosses the target at head height
-  p.b.hp = p.b.hpMax; p.a.cd = 0; p.a.input.pitch = Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50);
+  p.b.hp = p.b.hpMax; p.a.cd = 0; p.a.rc.p = 0; p.a.rc.y = 0; p.a.input.pitch = Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50);
   m.step(1 / 60);
   assert.ok(p.b.hpMax - p.b.hp >= 120 || !p.b.alive, 'a head shot is double');
   assert.ok(m.events.some((e) => (e.type === 'kill' || e.type === 'hit') && e.head === 1), 'and is marked as a head shot');
@@ -188,8 +188,8 @@ test('shop gear changes the fight: a helmet cuts head-shot damage, mods change t
   // the same sniper head shot: a bare head takes double, a heavy helmet far less
   const hs = (helmet) => {
     const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 500, 150]]);
-    Object.assign(p.a, statsOf({ weapon: 'sniper' }), { weapon: 'sniper' }); Object.assign(p.b, statsOf({ weapon: 'pistol', helmet }), { hp: 1000 });
-    p.a.ammo = 5; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50), fire: true };
+    Object.assign(p.a, statsOf({ weapon: 'sniper' }), { weapon: 'sniper', ads: 1 }); Object.assign(p.b, statsOf({ weapon: 'pistol', helmet }), { hp: 1000 });
+    p.a.ammo = 5; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50), fire: true, ads: true };
     m.step(1 / 60); return 1000 - p.b.hp;
   };
   assert.equal(hs('nohelm'), 120); assert.ok(hs('helmet2') < 80);

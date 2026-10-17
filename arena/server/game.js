@@ -3,12 +3,13 @@
 // Positions are pixels (50 to the metre), heights are metres.
 import { WEAPONS, ARMOR, BOOTS, FREE, GRENADE, MODS, HELMETS, KITS, MELEE } from './items.js';
 import { MAPS, STEP } from './maps.js';
+import { Recoil, feelOf, spreadFor, falloff } from './gunfeel.js';
 export { MAPS };
 // the retired top-down client still reads the flat wall list of the first map
 export const MAP = { w: MAPS.cargo.w, h: MAPS.cargo.h };
 export const WALLS = MAPS.cargo.solids.map((s) => [s.x, s.y, s.w, s.h]);
 const M = 50;
-export const R = { RADIUS: 15, SPEED: 200, HP: 100, ROUND_SECONDS: 120, WIN_ROUNDS: 2, EYE: 1.6, BODY: 1.85, HEAD: 1.68, DROP: 1.3, FALL: 12, GRAV: 15, JUMP: 5.48, REGEN_AFTER: 5, REGEN_RATE: 14, ZONE_SECONDS: 25, UAV_SECONDS: 12, BOOST_SECONDS: 8 };
+export const R = { RADIUS: 15, SPEED: 200, HP: 100, ROUND_SECONDS: 120, WIN_ROUNDS: 2, EYE: 1.6, BODY: 1.85, HEAD: 1.68, LEGS: 0.8, DROP: 1.3, FALL: 12, GRAV: 15, JUMP: 5.48, REGEN_AFTER: 5, REGEN_RATE: 14, ZONE_SECONDS: 25, UAV_SECONDS: 12, BOOST_SECONDS: 8 };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -200,8 +201,8 @@ export class Match {
   makePlayer(id, team, name, loadout, bot) {
     const st = statsOf(loadout);
     const p = { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, alive: false, kills: 0, deaths: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
-      primary: st.weapon, slot: 0, stash: 0, swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, moveMul: st.speedMul,
-      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
+      primary: st.weapon, slot: 0, stash: 0, swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, moveMul: st.speedMul, rc: new Recoil(), ads: 0, moveFrac: 0,
+      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, ads: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
     p.stash = magFor(p, 'pistol');
     return p;
   }
@@ -212,7 +213,7 @@ export class Match {
     let x = sp[0] + rnd(-12, 12), y = sp[1] + rnd(-12, 12);
     [x, y] = pushOut(this.map, x, y, 0);
     Object.assign(p, { x, y, z: floorAt(this.map, x, y), hp: p.hpMax, alive: true, cd: 0, nadeCd: 0, grenades: p.nadeCount, rl: 0, aim: p.team === 0 ? 0 : Math.PI, pitch: 0,
-      weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false });
+      weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, rc: new Recoil(), ads: 0, moveFrac: 0 });
     p.ammo = p.magSize; p.stash = magFor(p, 'pistol');
   }
 
@@ -308,7 +309,13 @@ export class Match {
       let w = WEAPONS[p.weapon];
       // sprinting: faster, but only movement counts and you cannot fire or throw while doing it
       p.sprinting = !!inp.sprint && len > 0.3;
-      const sp = R.SPEED * p.speedMul * (w.move ?? 1) * (p.sprinting ? 1.32 : 1) * (p.boostT > 0 ? 1.22 : 1);
+      // the sights: raised over the weapon's own time while you are not sprinting, reloading or swapping; they slow you and tighten the spread
+      const ft = feelOf(p.weapon);
+      const wantAds = !!inp.ads && !p.sprinting && p.rl === 0 && p.swapT === 0;
+      p.ads = clamp(p.ads + (wantAds ? 1 : -1) * dt / ft.ads.t, 0, 1);
+      p.rc.step(dt, p.weapon);
+      const sp = R.SPEED * p.speedMul * (w.move ?? 1) * (p.sprinting ? 1.32 : 1) * (p.boostT > 0 ? 1.22 : 1) * (1 + (ft.ads.move - 1) * p.ads);
+      p.moveFrac = len > 0.05 ? Math.min(1, (len * (p.sprinting ? 1.32 : 1))) : 0;
       const [nx, ny] = tryMove(this.map, p.x, p.y, p.z, p.x + dx * sp * dt, p.y + dy * sp * dt);
       p.x = nx; p.y = ny;
       const f = floorAt(this.map, nx, ny);       // the true floor here (a blocked move reports your own height, which is not it)
@@ -377,26 +384,33 @@ export class Match {
 
   /** a shot lands the instant it is fired: each pellet is a ray that stops at the first solid, the ground or an enemy (head, body) */
   shoot(p, w) {
-    const range = (w.range ?? w.speed * w.life) * p.rangeMul, eye = p.z + R.EYE;
+    const range = (w.range ?? w.speed * w.life) * p.rangeMul, eye = p.z + R.EYE, f = feelOf(p.weapon);
+    // the shot goes where the sights point plus what the recoil has done to them; computer players hold the weapon steady, and aim down the sights
+    const rcMul = p.bot ? 0.25 : 1, ads = p.bot ? 1 : p.ads;
+    const aimA = p.aim + p.rc.y * rcMul, aimP = p.pitch + p.rc.p * rcMul;
+    const sp = spreadFor(p.weapon, w.spread * p.spreadMul, { ads, move: p.moveFrac, air: p.air, bloom: p.rc.bloom * (p.bot ? 0.5 : 1) });
     for (let i = 0; i < w.pellets; i++) {
-      const sp = w.spread * p.spreadMul, a = p.aim + rnd(-sp, sp), pt = p.pitch + rnd(-sp, sp) * 0.7;
+      const a = aimA + rnd(-sp, sp), pt = aimP + rnd(-sp, sp) * 0.7;
       const dx = Math.cos(a), dy = Math.sin(a), slope = Math.tan(pt) / M;
-      let hitD = raySolids(this.map, p.x, p.y, eye, dx, dy, slope, range), hit = null, head = false;
+      let hitD = raySolids(this.map, p.x, p.y, eye, dx, dy, slope, range), hit = null, head = false, zone = 'body';
       for (const q of this.players.values()) {
         if (!q.alive || q.team === p.team) continue;
         const d = rayCircle(p.x, p.y, dx, dy, q.x, q.y, R.RADIUS + 3);
         if (!(d < hitD)) continue;
         const hz = eye + slope * d;
         if (hz < q.z || hz > q.z + R.BODY) continue;
-        hitD = d; hit = q; head = hz >= q.z + R.HEAD;
+        hitD = d; hit = q; head = hz >= q.z + R.HEAD; zone = head ? 'head' : hz < q.z + R.LEGS ? 'legs' : 'body';
       }
       const ex = p.x + dx * hitD, ey = p.y + dy * hitD, ez = eye + slope * hitD;
       this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0 });
       if (!hit) continue;
-      hit.hp -= w.dmg * p.dmgMul * (head ? hit.headMul : 1); hit.hurtT = 0;
+      // damage drops with distance, a leg hit is worth less, a head hit more (less behind a helmet)
+      const dmg = w.dmg * p.dmgMul * falloff(p.weapon, hitD) * (head ? hit.headMul : zone === 'legs' ? f.leg : 1);
+      hit.hp -= dmg; hit.hurtT = 0;
       if (hit.hp <= 0) this.kill(p, hit, { head: head ? 1 : 0, weapon: p.weapon });
-      else this.events.push({ type: 'hit', by: p.id, victim: hit.id, x: ex, y: ey, z: ez, head: head ? 1 : 0 });
+      else this.events.push({ type: 'hit', by: p.id, victim: hit.id, x: ex, y: ey, z: ez, head: head ? 1 : 0, zone, dmg: Math.round(dmg) });
     }
+    p.rc.shot(p.weapon, ads, rcMul);
   }
 
   // ---- grenades: thrown along your aim, arc under gravity, bounce off solids and floors, burst after the fuse ----

@@ -17,6 +17,10 @@ export class ViewModel {
     this.flashLight = new THREE.PointLight(0xffd080, 0, 3, 2); this.scene.add(this.flashLight);
     this.recoil = 0; this.flash = 0; this.key = ''; this.unit = null; this.muzzle = null;
     this.tune = { x: -0.04, y: -0.08, z: 0.0, yaw: 0, scale: 0.6, gunK: 1.35 };
+    this.ads = 0; this.adsS = 0;                 // how far the sights are up (set from the rules), and the smoothed copy that moves the gun
+    this.shells = []; this.shellGeo = new THREE.CylinderGeometry(0.0065, 0.0065, 0.026, 6);
+    this.brass = new THREE.MeshStandardMaterial({ color: 0xd4a437, metalness: 0.9, roughness: 0.35 });
+    this.red = new THREE.MeshStandardMaterial({ color: 0xb02a20, metalness: 0.2, roughness: 0.6 });
   }
   set(weapon, team, color) {
     const key = `${weapon}|${team}`; if (key === this.key) return false; this.key = key; this.equipT = this.unit ? 0.5 : 0; this.rl = null; this.nd = null;
@@ -32,7 +36,7 @@ export class ViewModel {
     this.oneHand = weapon === 'pistol' || weapon === 'revolver';
     return true;
   }
-  fire() { this.recoil = 1; this.flash = 0.05; this.kick = (Math.random() - 0.5) * 2; }
+  fire() { this.recoil = 1; this.flash = 0.05; this.kick = (Math.random() - 0.5) * 2; if (this.weapon !== 'revolver' && this.weapon !== 'sniper') this.eject = true; }
   startReload(d) { this.rl = { t: 0, d: Math.max(0.6, d) }; }
   throwNade() { this.nd = { t: 0 }; }
   /** the knife: the arms play a slash */
@@ -44,6 +48,7 @@ export class ViewModel {
     this.rig.visible = !hidden && !!this.unit;
     this.recoil = Math.max(0, this.recoil - dt * 8); this.flash = Math.max(0, this.flash - dt);
     this.swayX = (this.swayX ?? 0) * Math.pow(0.02, dt); this.swayY = (this.swayY ?? 0) * Math.pow(0.02, dt);
+    for (let i = this.shells.length - 1; i >= 0; i--) { const sh = this.shells[i]; sh.t += dt; sh.v.y -= 6 * dt; sh.m.position.addScaledVector(sh.v, dt); sh.m.rotation.x += sh.sx * dt; sh.m.rotation.z += sh.sz * dt; if (sh.t > 0.8) { this.scene.remove(sh.m); this.shells.splice(i, 1); } }
     this.equipT = Math.max(0, (this.equipT ?? 0) - dt);
     if (!this.unit) return;
     const t = this.tune, r = this.unit.root;
@@ -69,10 +74,12 @@ export class ViewModel {
     const head = this.headBone;
     const la = this.unit.body.getObjectByName('LeftShoulder');
     if (la) la.scale.setScalar(this.oneHand && !acting ? 0.001 : 1);
-    if (head) { head.scale.setScalar(1); r.updateMatrixWorld(true); head.getWorldPosition(_h); r.position.set(-_h.x + t.x, -_h.y + t.y, -_h.z + t.z); head.scale.setScalar(0.001); }
+    this.adsS += (this.ads - this.adsS) * Math.min(1, dt * 14); const A = this.adsS, ap = ADS_POSE[this.weapon] ?? ADS_POSE.rifle;
+    if (head) { head.scale.setScalar(1); r.updateMatrixWorld(true); head.getWorldPosition(_h); r.position.set(-_h.x + t.x + (ap.x - t.x) * A, -_h.y + t.y + (ap.y - t.y) * A, -_h.z + t.z + (ap.z - t.z) * A); head.scale.setScalar(0.001); }
     // the whole viewmodel moves about the eye: walking bob, breathing, turn lag, recoil, drawing the weapon
     const tm = performance.now() / 1000;
-    const bobX = moving ? Math.sin(walkPhase * 0.5) * 0.012 : Math.sin(tm * 1.3) * 0.002, bobY = moving ? -Math.abs(Math.sin(walkPhase)) * 0.016 : Math.sin(tm * 1.9) * 0.0025;
+    const calm = 1 - 0.75 * this.adsS;       // the sights steady the gun
+    const bobX = (moving ? Math.sin(walkPhase * 0.5) * 0.012 : Math.sin(tm * 1.3) * 0.002) * calm, bobY = (moving ? -Math.abs(Math.sin(walkPhase)) * 0.016 : Math.sin(tm * 1.9) * 0.0025) * calm;
     // the action clips raise the arm well above the gun: tip the view down while one runs so the hands stay in sight
     const bell = (p) => Math.max(0, Math.min(1, p / 0.15, (1 - p) / 0.15));
     const tip = acting ? (acting[0] === 'Standing_Reload' ? 0.5 : acting[0] === 'Right_Hand_Sword_Slash' ? 0.1 : 0.3) * bell(acting[1]) : 0;
@@ -82,6 +89,14 @@ export class ViewModel {
     rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
     rg.rotation.set(-tip - spr * 0.45 + kick * (0.05 + (this.weapon === 'sniper' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + spr * 0.35 + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
     rg.updateMatrixWorld(true); this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1)); rg.updateMatrixWorld(true);
+    if (this.eject) {
+      this.eject = false;
+      const shotgun = this.weapon === 'shotgun' || this.weapon === 'autosg', m = new THREE.Mesh(this.shellGeo, shotgun ? this.red : this.brass);
+      if (shotgun) m.scale.set(1.6, 1.8, 1.6);
+      m.position.set(0.05 + (this.adsS * -0.02), -0.06, -0.32); this.scene.add(m);
+      this.shells.push({ m, t: 0, v: new THREE.Vector3(0.9 + Math.random() * 0.8, 0.9 + Math.random() * 0.7, 0.25 + Math.random() * 0.4), sx: 12 + Math.random() * 16, sz: 9 + Math.random() * 12 });
+      if (this.shells.length > 24) { this.scene.remove(this.shells.shift().m); }
+    }
     if (this.muzzle) {
       this.muzzle.visible = this.flash > 0 && !hidden;
       this.unit.gun.getWorldPosition(this.muzzle.position);
@@ -91,3 +106,5 @@ export class ViewModel {
   }
 }
 const _h = new THREE.Vector3();
+// where the rig sits when the sights are up (the gun brought to the middle of the view); tuned by eye
+const ADS_POSE = { rifle: { x: -0.2, y: -0.035, z: 0.04 }, pistol: { x: -0.17, y: -0.03, z: 0.03 }, smg: { x: -0.19, y: -0.04, z: 0.04 }, shotgun: { x: -0.2, y: -0.04, z: 0.04 }, sniper: { x: -0.2, y: -0.04, z: 0.04 }, revolver: { x: -0.17, y: -0.03, z: 0.03 }, burst: { x: -0.2, y: -0.035, z: 0.04 }, lmg: { x: -0.2, y: -0.045, z: 0.05 }, autosg: { x: -0.2, y: -0.04, z: 0.04 }, dmr: { x: -0.2, y: -0.04, z: 0.04 } };

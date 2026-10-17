@@ -10,6 +10,7 @@ import { REWARD, WEAPONS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
 import { freshProfile, sanitize, award, teamNames, gainXp, level as playerLevel } from './profile.ts';
 import { XP } from '../../server/progress.js';
+import { feelOf, spreadFor } from '../../server/gunfeel.js';
 import { Ui } from './ui.ts';
 import * as sfx from './audio.ts';
 import { loadAssets, loadGun } from './assets.js';
@@ -237,7 +238,7 @@ function readInput() {
   let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - ui.move.y;
   let str = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + ui.move.x;
   const len = Math.hypot(fwd, str); if (len > 1) { fwd /= len; str /= len; }
-  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw, pitch: -look.pitch, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch };
+  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw, pitch: -look.pitch, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch, ads: zoom || ui.zoomTouch };
   ui.nadeTouch = false;
 }
 
@@ -452,7 +453,8 @@ function assist(dt) {
     if (!p.alive || p.team === me.team) continue;
     const dx = p.x - me.x, dy = p.y - me.y, d = Math.hypot(dx, dy);
     if (d > w.range * 0.95) continue;
-    let a = Math.atan2(dy, dx) - look.yaw; a = Math.atan2(Math.sin(a), Math.cos(a));
+    const rc = me.rc || NO_RC;
+    let a = Math.atan2(dy, dx) - look.yaw - rc.y; a = Math.atan2(Math.sin(a), Math.cos(a));
     const lim = 0.05 + 0.22 * Math.min(1, 600 / Math.max(d, 150));          // a wider catch cone up close
     if (Math.abs(a) > lim || Math.abs(a) >= bestA) continue;
     if (!clearLine(match.map, me.x, me.y, eyeZ, p.x, p.y, p.z + 1.35)) continue;
@@ -461,7 +463,7 @@ function assist(dt) {
   if (!best) return;
   const pull = Math.min(1, dt * (held ? 8 : 3.5));
   look.yaw += best.a * pull;
-  look.pitch += (-Math.atan2(best.p.z + 1.35 - eyeZ, best.d / PX_PER_M) - look.pitch) * pull;
+  look.pitch += ((-Math.atan2(best.p.z + 1.35 - eyeZ, best.d / PX_PER_M) + (me.rc || NO_RC).p) - look.pitch) * pull;
   if (Math.abs(best.a) < 0.05) autoFire = true;
 }
 // ---- the minimap: the map's own solids, your team, and any enemy that fired in the last second and a half ----
@@ -492,14 +494,14 @@ function drawMinimap() {
 // ---- a hosted match: what the player is doing goes to the server, only when it changes (and every tenth of a second so nothing sticks) ----
 function sendInput(now, idle = false) {
   if (!me || !netInfo) return;
-  if (idle || !me.alive) me.input = { dx: 0, dy: 0, aim: look.yaw, pitch: -look.pitch, fire: false, nade: false, reload: false, jump: false, melee: false, swap: false, sprint: false };
+  if (idle || !me.alive) me.input = { dx: 0, dy: 0, aim: look.yaw, pitch: -look.pitch, fire: false, nade: false, reload: false, jump: false, melee: false, swap: false, sprint: false, ads: false };
   else readInput();
   const inp = me.input, ed = netInfo.edge;
   // a throw, a stab or a swap is a moment, not a state: keep it up for a little over a server step so a busy frame cannot lose it
   for (const k of ['nade', 'melee', 'swap']) { if (inp[k]) ed[k] = now + 120; inp[k] = now < ed[k]; }
   nadeQueued = false; meleeQueued = false; swapQueued = false; ui.swapTouch = false;
   me.sprinting = !!inp.sprint && Math.hypot(inp.dx, inp.dy) > 0.3;
-  const key = [inp.dx.toFixed(2), inp.dy.toFixed(2), inp.aim.toFixed(2), inp.pitch.toFixed(2), +inp.fire, +inp.nade, +inp.reload, +inp.jump, +inp.melee, +inp.swap, +inp.sprint].join();
+  const key = [inp.dx.toFixed(2), inp.dy.toFixed(2), inp.aim.toFixed(2), inp.pitch.toFixed(2), +inp.fire, +inp.nade, +inp.reload, +inp.jump, +inp.melee, +inp.swap, +inp.sprint, +!!inp.ads].join();
   if (key !== netInfo.key || now - netInfo.sent > 100) { netInfo.key = key; netInfo.sent = now; netH.send(inp); }
 }
 let lobbyUp = false;
@@ -523,6 +525,7 @@ function draw() {
   renderer.autoClear = false; renderer.clearDepth(); renderer.render(vm.scene, vm.cam); renderer.autoClear = true;
 }
 let acc = 0, last = performance.now(), fov = FOV;
+const NO_RC = { p: 0, y: 0, bloom: 0 };
 window.__arena = { get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
 function frame(now) {
@@ -531,7 +534,7 @@ function frame(now) {
   const dt = Math.min(raw, 0.1), t = now / 1000;
   const sniping = me && me.alive && me.weapon === 'sniper';
   const zoomNow = zoom || ui.zoomTouch;
-  const wantFov = zoomNow && playing ? (sniping ? 24 : 55) : FOV + (me && me.alive && me.sprinting ? 7 : 0);
+  const wantFov = zoomNow && playing && me ? feelOf(me.weapon).ads.zoom : FOV + (me && me.alive && me.sprinting ? 7 : 0);
   fov += (wantFov - fov) * Math.min(1, dt * 14);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   const sens = fov / FOV;
@@ -544,7 +547,7 @@ function frame(now) {
       if (acc > SIM_STEP * 6) acc = 0;
     }
   } else if (netH) sendInput(now, true);
-  if (netH) { onEvents(match.takeEvents()); lobbyBanner(); }
+  if (netH) { match.tick(dt); onEvents(match.takeEvents()); lobbyBanner(); }
   const alive = !!(me && me.alive);
   if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
   wasAlive = alive;
@@ -558,7 +561,9 @@ function frame(now) {
     const moving = Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1;
     walkPhase += moving ? dt * (me.sprinting ? 13 : 9) : 0;
     eyeY += (me.z + R.EYE - eyeY) * Math.min(1, dt * 22);
-    place(me.x / PX_PER_M, eyeY + (moving ? Math.sin(walkPhase) * 0.03 : 0), me.y / PX_PER_M, look.yaw, look.pitch);
+    const rc = me.rc || NO_RC;
+    place(me.x / PX_PER_M, eyeY + (moving ? Math.sin(walkPhase) * 0.03 * (1 - 0.7 * (me.ads ?? 0)) : 0), me.y / PX_PER_M, look.yaw + rc.y, look.pitch - rc.p);
+    vm.ads = me.ads ?? 0;
     if (vm.set(me.weapon, me.team, TEAM_COLORS[me.team])) sfx.equip();
     vm.reloading = me.rl > 0 ? 1 - me.rl / me.reloadTime : -1; vm.sprinting = !!me.sprinting;
     if (me.hp / me.hpMax < 0.3 && match.phase === 'live') { beatT -= dt; if (beatT <= 0) { sfx.heartbeat(); beatT = 0.5 + (me.hp / me.hpMax) * 2; } } else beatT = 0;
@@ -619,6 +624,7 @@ function frame(now) {
       ui.scoreboard(showScore || ended, [...match.players.values()].map((p) => ({ name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, bot: p.bot, me: p === me, alive: p.alive })), names, match.score,
         ended && match.winner !== null ? `${names[match.winner]} wins the match${match.mode === 'practice' ? ' &middot; practice, not counted on the ranked board' : ''}` : '');
       document.getElementById('vy-cross').style.display = me && me.alive ? '' : 'none';
+      if (me && me.alive) { const w = WEAPONS[me.weapon] || WEAPONS.pistol, mv = Math.min(1, Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) * (me.sprinting ? 1.32 : 1)); const sp = spreadFor(me.weapon, w.spread, { ads: me.ads ?? 0, move: mv, air: !!me.air, bloom: me.rc?.bloom ?? 0 }) * (w.pellets > 1 ? 1 : 1); ui.cross(Math.tan(sp) * (host.clientHeight / 2) / Math.tan(camera.fov * Math.PI / 360), me.ads ?? 0); }
       ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       ui.setZone(match.objective === 'zone' && !!match.map.zone, match.zoneP[0], match.zoneP[1], match.zoneIn[0], match.zoneIn[1], TEAM_COLORS);
       if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0);
