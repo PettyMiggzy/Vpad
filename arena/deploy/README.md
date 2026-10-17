@@ -2,7 +2,7 @@
 
 One command, run as root on the Ubuntu server (for example `ssh root@137.184.29.10`):
 
-    curl -fsSL https://raw.githubusercontent.com/PettyMiggzy/vpad/main/arena/deploy/setup.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/PettyMiggzy/Vpad/main/arena/deploy/setup.sh | bash
 
 It installs what is needed (web server, Node 22), downloads the game, builds the page, starts the match server, and puts the web server in front of both. When it ends it prints the address to open, for example `http://137.184.29.10/`.
 
@@ -18,7 +18,7 @@ It installs what is needed (web server, Node 22), downloads the game, builds the
 
 Browsers want https for some things on a public site, and a plain IP address cannot get a certificate. Make a name for the server (for example `play.vyrebadlands.com`) with an **A record** pointing at the server's address in GoDaddy, wait a few minutes, then run:
 
-    curl -fsSL https://raw.githubusercontent.com/PettyMiggzy/vpad/main/arena/deploy/setup.sh | bash -s -- play.vyrebadlands.com
+    curl -fsSL https://raw.githubusercontent.com/PettyMiggzy/Vpad/main/arena/deploy/setup.sh | bash -s -- play.vyrebadlands.com
 
 That also gets a free certificate (Let's Encrypt, renewed by itself) and sends http to https.
 

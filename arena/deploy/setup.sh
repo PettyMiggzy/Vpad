@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Puts Vyre Bad Lands: Token Arena on an Ubuntu server: the game page, the match server, and a web server in front of both.
-# Run it as root, on the server:   curl -fsSL https://raw.githubusercontent.com/PettyMiggzy/vpad/main/arena/deploy/setup.sh | bash
+# Run it as root, on the server:   curl -fsSL https://raw.githubusercontent.com/PettyMiggzy/Vpad/main/arena/deploy/setup.sh | bash
 # With a name that already points at this server (for https):   ... | bash -s -- play.example.com
 # It is safe to run again. It changes nothing outside /opt/arena, /var/lib/arena, /var/www/arena, the arena services and the
 # web server's own site list. Once installed it checks for a new build every ten minutes by itself (`--update`).
@@ -10,7 +10,7 @@ main() {
   local UPDATE=0
   if [ "${1:-}" = "--update" ]; then UPDATE=1; shift; fi
   local DOMAIN="${1:-}"
-  local REPO="${REPO:-https://github.com/PettyMiggzy/vpad}"
+  local REPO="${REPO:-https://github.com/PettyMiggzy/Vpad}"
   local BRANCH="${BRANCH:-main}"
   local APP=/opt/arena DATA=/var/lib/arena WEB=/var/www/arena
   local SRC="$APP/repo"
