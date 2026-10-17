@@ -65,3 +65,21 @@ export async function mirrorShop(url, pid, profile, op, a, b) {
     return adopt(profile, r);
   } catch { return false; }
 }
+
+/** a short line saying which part of the way to the match server is broken, shown when joining fails */
+export async function diagnose(url) {
+  const out = [];
+  out.push(`server ${(await reachable(url)) ? 'answers' : 'does not answer'}`);
+  const ws = await new Promise((res) => {
+    let done = false;
+    const fin = (v) => { if (!done) { done = true; res(v); } };
+    try {
+      const w = new WebSocket(url.replace(/^http/, 'ws') + '/diagprobe/diagprobe2');
+      w.onopen = () => { fin('connects'); try { w.close(); } catch { /* closed */ } };
+      w.onerror = () => fin('is blocked');
+      setTimeout(() => fin('timed out'), 4000);
+    } catch (e) { fin(`failed (${e?.message || e})`); }
+  });
+  out.push(`live link ${ws}`);
+  return out.join(', ');
+}

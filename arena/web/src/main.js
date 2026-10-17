@@ -18,7 +18,7 @@ import { Unit, UNIT_H, GUN_OFFSET } from './units.js';
 import { ViewModel } from './view.js';
 import { connect } from './net.js';
 import { NetMatch } from './netmatch.js';
-import { serverUrl, reachable, playerId, pullProfile, mirrorShop } from './online.js';
+import { serverUrl, reachable, playerId, pullProfile, mirrorShop, diagnose } from './online.js';
 
 const qs = new URLSearchParams(location.search);
 const dbg = qs.get('dbg') || '';
@@ -171,10 +171,13 @@ async function start(c) {
 async function startOnline(c) {
   const back = (msg) => { ui.hideBanner(); ui.showMenu(true); ui.error(msg); return false; };
   ui.banner('CONNECTING', 'to the match server', 0);
-  let h;
-  try {
-    h = await connect(srv, { pid, name: c.name, team: c.team, names: [...names], map: curMapId, perSide: c.seats, mode: c.mode, difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', solo: c.mode === 'practice' ? pid : 'shared' });
-  } catch (err) { return back('Could not join a match on the server. Try again in a moment.'); }
+  let h = null, why = '';
+  for (let attempt = 0; attempt < 2 && !h; attempt++) {
+    try {
+      h = await connect(srv, { pid, name: c.name, team: c.team, names: [...names], map: curMapId, perSide: c.seats, mode: c.mode, difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', solo: c.mode === 'practice' ? pid : 'shared' });
+    } catch (err) { why = String(err?.message || err).slice(0, 90); if (attempt === 0) await new Promise((r) => setTimeout(r, 1500)); }
+  }
+  if (!h) return back(`Could not join a match (${why || 'no reason given'}). ${await diagnose(srv)}.`);
   const hello = await new Promise((res) => { const t = setTimeout(() => res(null), 8000); h.onHello((m) => { clearTimeout(t); res(m); }); });
   if (!hello) { void h.leave(); return back('The server did not answer. Try again.'); }
   if (Array.isArray(hello.teams)) { names[0] = hello.teams[0].name; names[1] = hello.teams[1].name; teams[0].name = names[0]; teams[1].name = names[1]; ui.setTeams(names); }

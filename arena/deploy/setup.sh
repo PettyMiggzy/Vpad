@@ -72,7 +72,11 @@ main() {
 
     say "Game page (the build takes a minute)"
     ( cd "$SRC/arena/web" && npm ci --no-audit --no-fund >/dev/null && VITE_SERVER=auto npx vite build >/dev/null )
-    rsync -a --delete "$SRC/arena/web/dist/" "$WEB/"
+    # the page's scripts have new names each build; a phone with the old page open must still find its old ones, so those stay for a week
+  rsync -a --delete --exclude='/assets/' "$SRC/arena/web/dist/" "$WEB/"
+  mkdir -p "$WEB/assets"
+  rsync -a "$SRC/arena/web/dist/assets/" "$WEB/assets/"
+  find "$WEB/assets" -type f -mtime +7 -delete
   fi
 
   if [ "$UPDATE" = 1 ]; then

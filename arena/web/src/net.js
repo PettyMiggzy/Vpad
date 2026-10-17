@@ -1,6 +1,7 @@
 // The page's side of the match server. connect() joins a room and returns a small handle. Other soldiers are drawn a tenth of a
 // second behind the snapshots, so a late packet has something to blend with. The local soldier is stepped with the same movement
 // the server uses (tryMove, floorAt) and eased back when a snapshot disagrees.
+import { Client } from '@colyseus/sdk';
 import { tryMove, floorAt, MAPS, R } from '../../server/game.js';
 import { WEAPONS } from '../../server/items.js';
 
@@ -117,7 +118,6 @@ function cleanInput(m) {
  * onSnapshot receives the same shape as Match.snapshot(), with soldiers already placed for this frame.
  */
 export async function connect(url, opts = {}) {
-  const { Client } = await import('@colyseus/sdk');
   const names = Array.isArray(opts.names) ? opts.names : ['BLUE', 'RED'];
   const options = {
     pid: opts.pid, name: opts.name, team: opts.team, names, colors: opts.colors,
