@@ -182,11 +182,12 @@ async function start(c) {
     me = match.addPlayer('me', { name: c.name, team: c.team, loadout: { ...profile.loadout } });
     match.startRound();
   }
-  if (ui.showTips()) paused = true;
+  const tipsUp = ui.showTips();   // the how-to card needs a free mouse to click its button: the pointer is only captured once it is closed
+  if (tipsUp) paused = true;
   buildZone(); hintsOn = !ui.touch; ui.hints(hintsOn); if (hintsOn) setTimeout(() => { if (hintsOn && playing) { hintsOn = false; ui.hints(false); } }, 25000);
   void keepAwake(true);
   playing = true; spectate = null; wasAlive = false; eyeY = 1.6; deathCam = null; paused = false; showScore = false;
-  ui.showMenu(false); requestLock();
+  ui.showMenu(false); if (!tipsUp) requestLock();
   if (got !== 'full') ui.banner('ROUND 1', 'get ready', 2600);
 }
 /** joins a room on the match server and waits for the first picture of the match; false (with the menu back up) when it cannot */
@@ -254,7 +255,7 @@ addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code ===
 addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Tab') showScore = false; });
 addEventListener('blur', () => { keys.clear(); fire = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-canvas.addEventListener('click', () => { if (playing && !locked && !ui.touch && !lockFailed && !ui.menuOpen()) requestLock(); });
+canvas.addEventListener('click', () => { if (playing && !locked && !ui.touch && !lockFailed && !ui.menuOpen() && !ui.tipsOpen()) requestLock(); });
 
 function readInput() {
   if (!me || !me.alive) return;

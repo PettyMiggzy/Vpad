@@ -8,7 +8,7 @@ const POOL = [['frog'], ['bulldog']];
 const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25, revolver: 0.42, burst: 0.72, lmg: 1.15, autosg: 0.95, dmr: 1.1 };
 // where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
 // the pistol model is drawn pointing the other way from the rest: turn it half a circle so every weapon's muzzle leads
-const GUN_TURN = { pistol: Math.PI };
+const GUN_TURN = {};
 export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
 /** the soldiers and weapons are painted with lime accents: swap those for the team's colour (blue 0.61 or red 0.0 on the hue wheel), leave browns and greys alone */

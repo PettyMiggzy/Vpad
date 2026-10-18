@@ -4,7 +4,7 @@ import { Unit } from './units.js';
 
 // how much bigger than life each weapon is drawn in the hands, so it fills the view like a real shooter's
 
-const GUN_K = { pistol: 0.78, smg: 0.95, rifle: 1, shotgun: 1, sniper: 0.75, revolver: 0.8, burst: 1, lmg: 0.95, autosg: 1, dmr: 0.95 };
+const GUN_K = { pistol: 1.0, smg: 0.85, rifle: 0.85, shotgun: 0.85, sniper: 0.75, revolver: 1.0, burst: 0.85, lmg: 0.8, autosg: 0.85, dmr: 0.8 };
 
 export class ViewModel {
   constructor(A) {

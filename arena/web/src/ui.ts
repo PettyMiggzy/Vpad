@@ -407,6 +407,7 @@ export class Ui {
   showMenu(on: boolean): void { this.el['vy-menu'].hidden = !on; this.el.hud.hidden = on; if (on) { this.renderShop(); this.renderBoard(); this.spec(null); this.scoreboard(false, [], this.names(), [0, 0]); this.showPause(false); } }
   /** the key list at the bottom left on a computer: shown for a while at the start, H toggles it */
   hints(show: boolean): void { if (!this.touch) this.el['vy-hints'].classList.toggle('on', show); }
+  tipsOpen(): boolean { return !this.el['vy-tips'].hidden; }
   /** the phone how-to card, the first time only; returns true when it was shown (the match waits behind it) */
   showTips(): boolean {
     if (!this.touch) {
