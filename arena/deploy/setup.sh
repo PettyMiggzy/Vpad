@@ -94,6 +94,20 @@ main() {
     if nginx -t >/dev/null 2>&1; then systemctl reload nginx || true; echo "Web server: added the /stats route."; else cp "$NGX.bak" "$NGX"; echo "Web server: the /stats route did not fit this config; left as it was."; fi
   fi
 
+  # an installed config answers every name pointed at the server (a domain set there by mistake showed the game): answer only the game's own name
+  # (and the address itself). Added in place to every server block certbot made from it.
+  if [ -f "$NGX" ] && ! grep -q 'arena host guard' "$NGX"; then
+    local NAME
+    NAME="$(awk '/^[[:space:]]*server_name/ {gsub(";", ""); print $2; exit}' "$NGX")"
+    if [ -n "$NAME" ] && [ "$NAME" != "_" ]; then
+      cp "$NGX" "$NGX.bak"
+      local RE
+      RE="$(printf '%s' "$NAME" | sed 's/\./\\\\./g')"
+      sed -i "/^[[:space:]]*server_name[[:space:]]/a\\    if (\$host !~* \"^($RE|[0-9]{1,3}(\\\\.[0-9]{1,3}){3})\$\") { return 444; } # arena host guard" "$NGX"
+      if nginx -t >/dev/null 2>&1; then systemctl reload nginx || true; echo "Web server: other names pointed at this server now get nothing."; else cp "$NGX.bak" "$NGX"; echo "Web server: the host guard did not fit this config; left as it was."; fi
+    fi
+  fi
+
   if [ "$UPDATE" = 1 ]; then
     # a page-only change must not end the matches being played: restart the match server only when its own files changed
     if [ -z "$OLD" ] || ! git -C "$SRC" diff --quiet "$OLD" "$NEW" -- arena/server; then systemctl restart arena; echo "Updated to $NEW (match server restarted)."
@@ -162,7 +176,9 @@ EOF
   systemctl enable --now arena-update.timer >/dev/null 2>&1
 
   say "Web server"
-  sed -e "s/__SERVER_NAME__/${DOMAIN:-_}/" -e "s#__WEBROOT__#$WEB#" "$SRC/arena/deploy/nginx-arena.conf" > /etc/nginx/sites-available/arena
+  local HOSTRE='.*'
+  if [ -n "$DOMAIN" ]; then HOSTRE="$(printf '%s' "$DOMAIN" | sed 's/\./\\\\./g')"; fi
+  sed -e "s/__SERVER_NAME__/${DOMAIN:-_}/" -e "s/__HOST_RE__/$HOSTRE/" -e "s#__WEBROOT__#$WEB#" "$SRC/arena/deploy/nginx-arena.conf" > /etc/nginx/sites-available/arena
   ln -sf /etc/nginx/sites-available/arena /etc/nginx/sites-enabled/arena
   # the stock "Welcome to nginx" page is the only thing this replaces
   if [ -L /etc/nginx/sites-enabled/default ]; then rm -f /etc/nginx/sites-enabled/default; fi
