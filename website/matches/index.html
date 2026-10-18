@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Matches: live and upcoming | Vyre Bad Lands</title>
+<meta name="description" content="See which Vyre Bad Lands matches are running right now and when the next community matches start, then jump in with one click.">
+<meta property="og:title" content="Matches | Vyre Bad Lands"><meta property="og:image" content="https://vyrebadlands.com/img/share.jpg"><meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#060905"><link rel="icon" href="/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body data-page="matches">
+<div id="site-header"></div>
+<main>
+<section style="padding-top:60px"><div class="wrap">
+  <div class="eyebrow">Matches</div>
+  <h1 style="font-size:clamp(38px,6vw,68px)">What is on right now</h1>
+  <p class="sub" style="margin-top:14px">Live matches update every few seconds. Open one of the scheduled sessions below to meet other players in the same lobby.</p>
+  <div class="grid g4" style="margin-bottom:26px">
+    <div class="stat"><b id="s-rooms">–</b><span>matches running</span></div>
+    <div class="stat"><b id="s-players">–</b><span>people playing</span></div>
+    <div class="stat"><b id="s-bots">–</b><span>computer players</span></div>
+    <div class="stat"><b id="s-cap">–</b><span>match slots free</span></div>
+  </div>
+  <div class="card" style="padding:0">
+    <table class="t" id="live"><thead><tr><th>Map</th><th>Game</th><th class="hide-s">Players</th><th>Score</th><th class="hide-s">State</th><th>Clock</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+    <div class="empty" id="empty" hidden>No matches are running at the moment. Be the first: <a href="https://play.vyrebadlands.com/" rel="noopener">start one</a>, it takes ten seconds.</div>
+    <div class="empty" id="offline" hidden>The game server did not answer just now. It may be restarting; try again in a minute.</div>
+  </div>
+  <p class="muted" style="font-size:14px;margin-top:12px">Practice matches are private games against computer players, so you will only see their numbers here, not who is in them. No names are shown on this page.</p>
+</div></section>
+
+<section class="alt"><div class="wrap">
+  <div class="eyebrow">Upcoming</div>
+  <h2>Scheduled community sessions</h2>
+  <p class="sub">Times are shown in your own time zone. A session is a standing lobby: open the Join link at the start time and you land in the same match as everyone else who does.</p>
+  <div class="card" style="padding:0"><table class="t"><thead><tr><th>Starts</th><th>Session</th><th class="hide-s">Game</th><th class="hide-s">Map</th><th></th></tr></thead><tbody id="fixtures"></tbody></table></div>
+  <div class="grid g2" style="margin-top:30px">
+    <div class="card"><h3>Practice or challenge?</h3><p><b>Practice</b> starts at once against computer players and never counts. <b>Challenge</b> waits until there is a player on each team, plays one match and counts.</p></div>
+    <div class="card"><h3>Want a session on the list?</h3><p>Tell us on X at <a href="https://x.com/vyrebadlands" rel="noopener">@vyrebadlands</a> which map, game and time you want, and we will add it.</p></div>
+  </div>
+</div></section>
+</main>
+<div id="site-footer"></div>
+<script type="module">
+import { watchLive, MAPS, TYPES, fmtClock, PLAY } from '/site.js';
+const q = (o) => `${PLAY}/?${new URLSearchParams(o)}`;
+const rows = document.getElementById('rows');
+const state = { live: 'live', countdown: 'starting', roundover: 'between rounds', matchover: 'finished', lobby: 'waiting', finished: 'finished' };
+watchLive((s) => {
+  document.getElementById('offline').hidden = !!s; document.getElementById('empty').hidden = !s || s.rooms > 0;
+  document.getElementById('s-rooms').textContent = s ? s.rooms : '–'; document.getElementById('s-players').textContent = s ? s.players : '–';
+  document.getElementById('s-bots').textContent = s ? s.bots : '–'; document.getElementById('s-cap').textContent = s ? Math.max(0, (s.maxRooms || 12) - s.rooms) : '–';
+  rows.innerHTML = (s?.matches || []).map((m) => {
+    const dm = m.objective === 'dm';
+    const join = m.mode === 'challenge' && m.seats > 0 ? `<a class="btn primary small" href="${q({ mode: 'challenge', type: m.objective, map: m.map, a: m.names?.[0], b: m.names?.[1], min: m.minutes })}" rel="noopener">Join</a>` : '';
+    return `<tr><td><b>${MAPS[m.map] || m.map}</b></td><td>${TYPES[m.objective] || 'Elimination'}${dm ? ` ${m.minutes} min` : ''} <span class="chip ${m.mode === 'challenge' ? 'amber' : ''}">${m.mode}</span></td><td class="hide-s">${m.humans} + ${m.bots} computer</td><td>${m.score?.[0] ?? 0} : ${m.score?.[1] ?? 0}</td><td class="hide-s">${state[m.phase] || m.phase}</td><td>${dm || m.phase === 'live' ? fmtClock(m.timer ?? 0) : '–'}</td><td>${join}</td></tr>`;
+  }).join('');
+});
+// the schedule: standing sessions (daily or weekly) turned into their next start in the visitor's own time
+const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const next = (s, from = new Date()) => {
+  if (s.startsAt) return new Date(s.startsAt);
+  const [h, m] = s.at.split(':').map(Number); const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), h, m));
+  for (let i = 0; i < 8; i++, d.setUTCDate(d.getUTCDate() + 1)) { if (d - from < -20 * 60 * 1000) continue; if (s.repeat === 'weekly' && DAYS[d.getUTCDay()] !== s.day) continue; return new Date(d); }
+  return null;
+};
+const rel = (d) => { const ms = d - Date.now(); if (ms < -20 * 60000) return ''; if (ms <= 0) return 'happening now'; const m = Math.round(ms / 60000); return m < 60 ? `in ${m} min` : m < 1440 ? `in ${Math.floor(m / 60)} h ${m % 60} min` : `in ${Math.floor(m / 1440)} d ${Math.floor(m % 1440 / 60)} h`; };
+fetch('/fixtures.json').then((r) => r.json()).then((f) => {
+  const list = f.sessions.map((s) => ({ s, at: next(s) })).filter((x) => x.at).sort((a, b) => a.at - b.at);
+  const fmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const draw = () => { document.getElementById('fixtures').innerHTML = list.map(({ s, at }) => { const r = rel(at), now = r === 'happening now'; return `<tr><td><b>${fmt.format(at)}</b><br><span class="chip ${now ? 'red' : ''}">${r}</span></td><td><b>${s.title}</b><br><span class="muted" style="font-size:14px">${s.note || ''}</span></td><td class="hide-s">${TYPES[s.type]}${s.type === 'dm' ? ' ' + s.minutes + ' min' : ''}</td><td class="hide-s">${MAPS[s.map]}</td><td><a class="btn ${now ? 'primary' : 'ghost'} small" href="${q({ mode: 'challenge', type: s.type, map: s.map, a: s.a, b: s.b, min: s.minutes })}" rel="noopener">Join</a></td></tr>`; }).join('') || '<tr><td colspan="5" class="empty">Nothing is scheduled yet.</td></tr>'; };
+  draw(); setInterval(draw, 30000);
+}).catch(() => { document.getElementById('fixtures').innerHTML = '<tr><td colspan="5" class="empty">The schedule could not be loaded.</td></tr>'; });
+</script>
+</body></html>

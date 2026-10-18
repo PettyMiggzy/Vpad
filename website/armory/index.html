@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Armory and loadouts | Vyre Bad Lands</title>
+<meta name="description" content="Every gun, mod, armour and grenade in Vyre Bad Lands with real numbers from the game, a loadout planner with five saved classes, and the level you need to unlock each piece.">
+<meta property="og:title" content="Armory | Vyre Bad Lands"><meta property="og:image" content="https://vyrebadlands.com/img/share.jpg"><meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#060905"><link rel="icon" href="/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body data-page="armory">
+<div id="site-header"></div>
+<main>
+<section style="padding-top:60px"><div class="wrap">
+  <div class="eyebrow">Armory</div>
+  <h1 style="font-size:clamp(38px,6vw,68px)">Plan your loadout</h1>
+  <p class="sub" style="margin-top:14px">Every number here comes straight from the game's own rules. Pick a gun, build a class, and see the level you need. You unlock and equip gear in the game with the coins and levels you earn there.</p>
+  <div class="armory" id="app"><div class="empty">Loading the armory…</div></div>
+</div></section>
+</main>
+<div id="site-footer"></div>
+<script type="module">
+import '/site.js';
+import { PLAY } from '/site.js';
+const cat = await fetch('/catalog.json').then((r) => r.json());
+const W = Object.fromEntries(cat.weapons.map((w) => [w.id, w]));
+const by = (a) => Object.fromEntries(a.map((x) => [x.id, x]));
+const MODS = by(cat.mods), ARMOR = by(cat.armor), HELM = by(cat.helmets), BOOT = by(cat.boots), NADE = by(cat.grenades), CAMO = by(cat.camo);
+const FREE = { weapon: 'pistol', mod: 'nomod', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' };
+const KEY = 'vyre.site.classes.v1';
+let sel = (location.hash.slice(1) in W) ? location.hash.slice(1) : 'rifle';
+let classes, cur = 0;
+try { classes = JSON.parse(localStorage.getItem(KEY)); } catch {}
+if (!Array.isArray(classes) || classes.length !== cat.classes) classes = Array.from({ length: cat.classes }, (_, i) => ({ name: `Class ${i + 1}`, loadout: { ...FREE } }));
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(classes)); } catch {} };
+const L = () => classes[cur].loadout;
+const opts = (T, cur) => Object.values(T).map((o) => `<option value="${o.id}" ${o.id === cur ? 'selected' : ''}>${o.name}${o.unlock > 1 ? ` (level ${o.unlock})` : ''}${o.cost ? ` · ${o.cost} coins` : ''}</option>`).join('');
+const pct = (v, max) => Math.max(4, Math.min(100, (v / max) * 100));
+const app = document.getElementById('app');
+function draw() {
+  const w = W[sel], l = L(), m = MODS[l.mod], a = ARMOR[l.armor], h = HELM[l.helmet], b = BOOT[l.boots], g = NADE[l.grenade], k = CAMO[l.camo];
+  const primary = W[l.weapon];
+  const hp = a.hp, speed = a.speed * b.speed * h.speed;
+  const mag = Math.round(primary.magazine * (m.mag ?? 1)), reload = +(primary.reload * (m.reload ?? 1)).toFixed(1);
+  const dmg = Math.round(primary.damage * (m.dmg ?? 1) * 10) / 10, rpm = Math.round(primary.rpm / (m.gap ?? 1)), range = Math.round(primary.rangeM * (m.range ?? 1));
+  const parts = [primary, m, a, h, b, g, k].filter((x) => x && x.id !== 'nomod'), needLevel = Math.max(1, ...parts.map((x) => x.unlock || 1));
+  const cost = parts.reduce((n, x) => n + (x.cost || 0), 0);
+  const ttk = (d) => { const t = w.ttk[d]; return t ? `<b>${t.seconds}s</b><small>${t.shots} shot${t.shots === 1 ? '' : 's'} at ${d} m</small>` : `<b>–</b><small>out of reach at ${d} m</small>`; };
+  app.innerHTML = `
+  <div class="wlist">${cat.weapons.map((x) => `<button class="wbtn ${x.id === sel ? 'on' : ''}" data-w="${x.id}"><img src="/img/guns/${x.id}.webp" alt=""><span>${x.name}<small>level ${x.unlock} · ${x.cost || 'free'}${x.cost ? ' coins' : ''}</small></span></button>`).join('')}</div>
+  <div class="stage">
+    <div class="pic"><img src="/img/guns/${w.id}.webp" alt="${w.name}"></div>
+    <h2>${w.name}</h2><p class="muted" style="margin:6px 0 18px">${w.blurb}. Unlocks at level ${w.unlock}${w.cost ? `, ${w.cost} play coins` : ', free'}.</p>
+    <div class="bar"><span>Damage</span><div class="tr"><i style="width:${pct(w.damage * (w.pellets > 1 ? w.pellets * 0.8 : 1), 80)}%"></i></div><span>${w.damage}${w.pellets > 1 ? ' x ' + w.pellets : ''}</span></div>
+    <div class="bar"><span>Rate of fire</span><div class="tr"><i style="width:${pct(w.rpm, 700)}%"></i></div><span>${w.rpm}/min</span></div>
+    <div class="bar"><span>Range</span><div class="tr"><i style="width:${pct(w.rangeM, 240)}%"></i></div><span>${w.rangeM} m</span></div>
+    <div class="bar"><span>Magazine</span><div class="tr"><i style="width:${pct(w.magazine, 75)}%"></i></div><span>${w.magazine}</span></div>
+    <div class="bar"><span>Reload</span><div class="tr"><i style="width:${pct(5 - w.reload, 4)}%"></i></div><span>${w.reload}s</span></div>
+    <div class="bar"><span>Aim speed</span><div class="tr"><i style="width:${pct(0.35 - w.aimSeconds, 0.3)}%"></i></div><span>${w.aimSeconds}s</span></div>
+    <div class="bar"><span>Zoom</span><div class="tr"><i style="width:${pct(70 - w.zoom, 50)}%"></i></div><span>${Math.round(60 / w.zoom * 10) / 10}x</span></div>
+    <div class="muted" style="margin-top:20px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Time to kill, body shots, perfect aim</div>
+    <div class="ttk">${[10, 30, 60, 120].map((d) => `<div>${ttk(d)}</div>`).join('')}</div>
+    <p style="margin:22px 0 0"><button class="btn small ${l.weapon === w.id ? 'ghost' : 'primary'}" id="use">${l.weapon === w.id ? 'In your build' : 'Use in my build'}</button></p>
+  </div>
+  <div class="build">
+    <div class="classes">${classes.map((c, i) => `<button class="${i === cur ? 'on' : ''}" data-c="${i}">${i + 1}</button>`).join('')}</div>
+    <input type="text" id="cname" maxlength="14" value="${classes[cur].name}" aria-label="Class name">
+    <label>Primary gun</label><select data-s="weapon">${opts(W, l.weapon)}</select>
+    <label>Gun mod</label><select data-s="mod">${opts(MODS, l.mod)}</select>
+    <label>Armour</label><select data-s="armor">${opts(ARMOR, l.armor)}</select>
+    <label>Helmet</label><select data-s="helmet">${opts(HELM, l.helmet)}</select>
+    <label>Boots</label><select data-s="boots">${opts(BOOT, l.boots)}</select>
+    <label>Grenades</label><select data-s="grenade">${opts(NADE, l.grenade)}</select>
+    <label>Camo</label><select data-s="camo">${opts(CAMO, l.camo)}</select>
+    <div class="sum"><div><b>${hp}</b><small>health</small></div><div><b>${Math.round(speed * 100)}%</b><small>move speed</small></div><div><b>${dmg}</b><small>damage a hit</small></div><div><b>${mag}</b><small>rounds / ${reload}s reload</small></div><div><b>${rpm}</b><small>shots a minute</small></div><div><b>${range} m</b><small>reach</small></div></div>
+    <div class="need ${needLevel <= 1 ? 'ok' : ''}">${needLevel <= 1 ? 'Everything in this build is open from the start.' : `You need level ${needLevel} to carry this build. Total ${cost} play coins.`}</div>
+    <p style="margin:16px 0 0"><a class="btn primary" style="width:100%" href="${PLAY}/" rel="noopener">EQUIP IT IN THE GAME</a></p>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">Plans are saved on this device. In the game, open the menu and pick the same gear in the loadout shop.</p>
+  </div>`;
+  app.querySelectorAll('[data-w]').forEach((e) => e.onclick = () => { sel = e.dataset.w; history.replaceState(null, '', '#' + sel); draw(); });
+  app.querySelector('#use').onclick = () => { L().weapon = sel; save(); draw(); };
+  app.querySelectorAll('[data-s]').forEach((e) => e.onchange = () => { L()[e.dataset.s] = e.value; if (e.dataset.s === 'weapon') sel = e.value; save(); draw(); });
+  app.querySelectorAll('[data-c]').forEach((e) => e.onclick = () => { cur = Number(e.dataset.c); sel = classes[cur].loadout.weapon; draw(); });
+  app.querySelector('#cname').onchange = (e) => { classes[cur].name = e.target.value.replace(/[^A-Za-z0-9 ]/g, '').slice(0, 14) || `Class ${cur + 1}`; save(); };
+}
+draw();
+addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h in W) { sel = h; draw(); } });
+</script>
+</body></html>

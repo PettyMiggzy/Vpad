@@ -1,0 +1,8 @@
+{
+  "note": "Scheduled community matches. Edit this file to add or change sessions; anyone can join a session by opening its Join link, which opens the game with the same match settings so everyone lands in the same lobby.",
+  "sessions": [
+    { "title": "Dust Town deathmatch", "repeat": "daily", "at": "18:00", "type": "dm", "minutes": 10, "map": "dust", "a": "BLUE", "b": "RED", "note": "Ten minutes, everyone respawns. Most kills wins." },
+    { "title": "Cargo Yard elimination", "repeat": "daily", "at": "02:00", "type": "elim", "minutes": 5, "map": "cargo", "a": "BLUE", "b": "RED", "note": "Best of three rounds. Late-night lobby." },
+    { "title": "Refinery zone fight", "repeat": "weekly", "day": "sat", "at": "20:00", "type": "zone", "minutes": 5, "map": "refinery", "a": "BLUE", "b": "RED", "note": "Hold the middle. Saturday night lobby." }
+  ]
+}
