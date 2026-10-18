@@ -67,6 +67,42 @@ if (q.get('chase')) {
   const tr = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.6, 1.0), toneMapped: false, transparent: true, opacity: 0.95 })); tr.visible = false; scene.add(tr);
   const cdur = () => unit.acts.Run_and_Shoot.getClip().duration;
   window.__st.chaseSetup = () => { for (const a of Object.values(unit.acts)) a.stop(); act = unit.acts.Run_and_Shoot; act.reset().setEffectiveWeight(1).play(); act.paused = true; dur = act.getClip().duration; };
+  // the story version: he sprints in, stops, throws a grenade at the viewer; the mascot is far behind, firing as he runs in
+  const fire2 = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 256; const g = cv.getContext('2d'); const gr = g.createRadialGradient(128, 128, 4, 128, 128, 126); gr.addColorStop(0, 'rgba(255,255,235,1)'); gr.addColorStop(0.3, 'rgba(255,205,90,1)'); gr.addColorStop(0.62, 'rgba(255,100,25,0.6)'); gr.addColorStop(0.85, 'rgba(160,30,0,0.12)'); gr.addColorStop(1, 'rgba(120,20,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256); return new THREE.CanvasTexture(cv); })();
+  const boom = new THREE.Sprite(new THREE.SpriteMaterial({ map: fire2, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false })); boom.visible = false; scene.add(boom);
+  const nade = new THREE.Group(); nade.add(new THREE.Mesh(new THREE.SphereGeometry(0.1, 20, 14), new THREE.MeshStandardMaterial({ color: 0x2c3a22, metalness: 0.6, roughness: 0.4 })));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.101, 0.015, 8, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 2.2, 0.4), toneMapped: false })); ring.rotation.x = Math.PI / 2; nade.add(ring); nade.visible = false; scene.add(nade);
+  const hand = runner.body.getObjectByName('RightHand');
+  const only = (u, name) => { for (const [k, a] of Object.entries(u.acts)) { if (k === name) { if (!a.isRunning()) a.reset().setEffectiveWeight(1).play(); a.paused = true; } else a.stop(); } return u.acts[name]; };
+  const ease = (x) => x * x * (3 - 2 * x);
+  window.__st.story = (t) => {
+    const T_STOP = 0.9, T_REL = 1.64, T_HIT = 2.34, RX = 0.9;
+    // the runner
+    let rx, ryaw, clip, ct;
+    if (t < T_STOP) { rx = THREE.MathUtils.lerp(-3.7, RX, t / T_STOP); ryaw = Math.PI / 2 - 0.3; clip = rn; ct = (t * 1.15) % rDur; }
+    else { rx = RX; ryaw = THREE.MathUtils.lerp(Math.PI / 2 - 0.3, -0.25, ease(Math.min(1, (t - T_STOP) / 0.18))); clip = 'Crouch_Pull_and_Throw'; ct = Math.min(t - T_STOP, 0.8); }
+    const ra = only(runner, clip); ra.time = ct; runner.root.rotation.y = ryaw; runner.root.position.set(rx, 0, 0); runner.mixer.update(0);
+    // the mascot, a long way back, then slowing to a stop
+    const cxp = Math.min(-2.2, -7.6 + 3.0 * t); const yaw = Math.PI / 2 - 0.3;
+    unit.root.rotation.y = yaw; unit.root.position.set(cxp, 0, 0.05); act.time = (t * 1.0) % dur; unit.mixer.update(0); unit.syncGun();
+    runner.root.updateMatrixWorld(true); unit.root.updateMatrixWorld(true);
+    const inFrame = cxp > -3.0;
+    const shoot = inFrame && (Math.floor(t * 14) % 2 === 0) && t < T_HIT;
+    fx.visible = shoot; tr.visible = shoot && rx > -2.0;
+    if (shoot) { const m = new THREE.Vector3(); (unit.muzzleObj ?? unit.gun).getWorldPosition(m); fx.position.copy(m); fx.scale.setScalar(0.38 + 0.1 * Math.sin(t * 90)); fx.material.rotation = t * 40;
+      const target = new THREE.Vector3(rx + 0.1, 1.0, 0), d = target.clone().sub(m), L = d.length(); tr.position.copy(m).addScaledVector(d.normalize(), L / 2 + 0.2); tr.scale.set(1, 1, Math.max(0.1, L - 0.4)); tr.lookAt(target); }
+    // the grenade: from his hand at the release, in an arc at the camera, then the blast
+    const camZ = 5.4;
+    nade.visible = t >= T_REL && t < T_HIT;
+    if (nade.visible) { const s = (t - T_REL) / (T_HIT - T_REL); const h0 = new THREE.Vector3(); hand.getWorldPosition(h0); if (!window.__h0) window.__h0 = h0.clone(); const a = window.__h0;
+      nade.position.set(THREE.MathUtils.lerp(a.x, 0.1, s), THREE.MathUtils.lerp(a.y, 0.95, s) + 0.6 * Math.sin(Math.PI * s), THREE.MathUtils.lerp(a.z, camZ - 1.6, s * s)); nade.rotation.set(s * 18, s * 9, 0); }
+    else if (t < T_REL) window.__h0 = null;
+    const b = (t - T_HIT) / (3 - T_HIT); boom.visible = b >= 0 && b < 1;
+    if (boom.visible) { boom.position.set(0.1, 0.95, camZ - 3.2); boom.scale.setScalar(0.5 + 2.3 * Math.sqrt(b)); boom.material.opacity = Math.pow(1 - b, 1.5); boom.material.rotation = b * 2; }
+    const c = new THREE.Vector3(0, 0.92, 0), r = 1.4, dist = r / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    cam.position.set(c.x, c.y + 0.1, c.z + dist); cam.lookAt(c.x, c.y, c.z);
+    renderer.render(scene, cam);
+  };
   window.__st.chase = (t, o = {}) => {
     const yaw = Math.PI / 2 - 0.3, W = o.half ?? 3.5;
     const rx = THREE.MathUtils.lerp(-W, W, (t - 0.0) / 1.9), cx0 = THREE.MathUtils.lerp(-W, W, (t - 0.75) / 1.9);
