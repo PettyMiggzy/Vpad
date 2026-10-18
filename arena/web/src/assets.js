@@ -9,6 +9,7 @@ const BASE = import.meta.env.BASE_URL;
 // phones get the lighter set (smaller textures and sky, `-m` folders): a phone browser gives up on a page that holds hundreds of megabytes of pictures.
 // ?lite=1 forces it, ?lite=0 turns it off.
 export const LITE = (() => {
+  if (import.meta.env.VITE_LITE === '1') return true;   // the store apps carry only the light set
   const q = new URLSearchParams(location.search).get('lite');
   if (q === '1') return true;
   if (q === '0') return false;

@@ -160,6 +160,7 @@ if (srv) await pullProfile(srv, pid, profile);
 let shopQ = Promise.resolve();
 const onShop = (op, a, b) => { if (srv) shopQ = shopQ.then(() => mirrorShop(srv, pid, profile, op, a, b)).then(() => { save(); if (ui.menuOpen()) ui.renderShop(); }); };
 const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => { paused = false; ui.showPause(false); requestLock(); }, onLeave: () => leave(), challengeLive: !!srv, onShop, leaders: () => lb, onPause: () => { paused = true; ui.showPause(true); }, onScore: () => { showScore = !showScore; } });
+if (pid) ui.setPid(pid);
 
 async function start(c) {
   sfx.unlock();
@@ -299,7 +300,7 @@ function onEvents(evs) {
       if (me && e.by === me.id) { ui.flash('vy-hitm'); sfx.hitMarker(); }
       sfx.impact('flesh', e.x / PX_PER_M, e.y / PX_PER_M);
       units.get(e.victim)?.hit();
-      if (bloodOn) { const at = match.players.get(e.by); if (!e.nade) bloodHit(e.x / PX_PER_M, e.z ?? 1.2, e.y / PX_PER_M, at ? e.x - at.x : 0, at ? e.y - at.y : 0, !!e.head); }
+      if (bloodOn && e.victim !== me?.id) { const at = match.players.get(e.by); if (!e.nade) bloodHit(e.x / PX_PER_M, e.z ?? 1.2, e.y / PX_PER_M, at ? e.x - at.x : 0, at ? e.y - at.y : 0, !!e.head); }
       else burst(e.x / PX_PER_M, e.z ?? 1.2, e.y / PX_PER_M, 0xffd890, e.nade ? 0 : 5);
     } else if (e.type === 'kill') {
       const a = match.players.get(e.by), v = match.players.get(e.victim);
@@ -316,7 +317,7 @@ function onEvents(evs) {
       }
       if (me && e.victim === me.id) { streak = 0; multi = { n: 0, t: 0 }; }
       if (v) sfx.dieAt(v.x / PX_PER_M, v.y / PX_PER_M, !!(me && e.victim === me.id));
-      if (v && bloodOn) { bloodHit(v.x / PX_PER_M, v.z + 1.2, v.y / PX_PER_M, 0, 0, !!e.head); stain(v.x / PX_PER_M, v.y / PX_PER_M, 0.9 + Math.random() * 0.3, 26, (Math.random() * 3) | 0); }
+      if (v && v !== me && bloodOn) { bloodHit(v.x / PX_PER_M, v.z + 1.2, v.y / PX_PER_M, 0, 0, !!e.head); stain(v.x / PX_PER_M, v.y / PX_PER_M, 0.9 + Math.random() * 0.3, 26, (Math.random() * 3) | 0); }
       if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; ui.banner('ELIMINATED', `${a && a.id !== me.id ? `by ${a.name}` : ''}${match.objective === 'dm' ? ` · back in ${R.RESPAWN} s` : ''}`.replace(/^ · /, ''), match.objective === 'dm' ? R.RESPAWN * 1000 - 400 : 2200); }
     } else if (e.type === 'melee') {
       const at = match.players.get(e.by), own = !!(me && e.by === me.id);

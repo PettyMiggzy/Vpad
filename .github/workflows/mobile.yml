@@ -1,0 +1,58 @@
+# Builds the phone apps from arena/mobile. Android: an installable test app (debug APK) on every change, and a signed bundle for the Play Store
+# when the signing secrets are set. iOS: a compile check on a Mac runner (the store build needs the owner's Apple signing, see arena/mobile/README.md).
+name: mobile apps
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['arena/mobile/**', 'arena/web/**', 'arena/server/game.js', 'arena/server/items.js', 'arena/server/gunfeel.js', 'arena/server/maps.js', 'arena/server/progress.js', '.github/workflows/mobile.yml']
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: arena/mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci --prefix ../web
+      - run: npm ci
+      - run: npm run sync
+      - name: Test app (debug APK)
+        run: cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with: { name: vyre-bad-lands-debug-apk, path: arena/mobile/android/app/build/outputs/apk/debug/app-debug.apk }
+      - name: Store bundle (needs ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD)
+        if: ${{ github.event_name != 'pull_request' && vars.ANDROID_SIGNING == 'on' }}
+        run: |
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+          cd android && ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/upload.keystore" \
+            -Pandroid.injected.signing.store.password="$KSP" \
+            -Pandroid.injected.signing.key.alias="$KA" \
+            -Pandroid.injected.signing.key.password="$KP"
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KSP: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KP: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('arena/mobile/android/app/build/outputs/bundle/release/app-release.aab') != '' }}
+        with: { name: vyre-bad-lands-release-aab, path: arena/mobile/android/app/build/outputs/bundle/release/app-release.aab }
+  ios-check:
+    runs-on: macos-latest
+    defaults: { run: { working-directory: arena/mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --prefix ../web
+      - run: npm ci
+      - run: npm run build:web
+      - run: npx cap add ios
+      - run: npx cap sync ios
+      - name: Compile for the simulator (no signing)
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -20

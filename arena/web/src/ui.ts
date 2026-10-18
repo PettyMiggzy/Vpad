@@ -128,6 +128,7 @@ body.touch #vy-gun small { display: none; } body.touch #vy-gun b { font-size: 24
 #vy-menu .logo { display: block; width: min(360px, 80%); margin: 0 auto 2px; }
 #vy-menu .pick { margin-top: 10px; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .06em; color: var(--muted); }
 #vy-menu .pick b { color: var(--text); }
+#vy-menu .pid { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; cursor: pointer; word-break: break-all; opacity: .7; }
 #vy-menu .install { margin-top: 10px; font-size: 12px; line-height: 1.4; color: var(--muted); text-align: center; }
 #vy-menu .install button { margin-top: 6px; border: 1px solid var(--lime); background: transparent; color: var(--lime); border-radius: 10px; padding: 8px 14px; font-weight: 800; }
 /* wide screens (a computer, a phone turned sideways): who you are and PLAY stay on the left while the options scroll on the right */
@@ -213,6 +214,7 @@ export class Ui {
     <div class="err" id="vy-err"></div>
     <div id="vy-level"></div>
     <div class="install" id="vy-install" hidden></div>
+    <div class="pid" id="vy-pid" hidden></div>
    </div>
    <div class="main">
     <label>Match type</label>
@@ -251,7 +253,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-minrow', 'vy-min', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -300,6 +302,11 @@ export class Ui {
     this.objective();
   }
 
+  /** the random id this device plays under, shown small at the bottom of the menu (tap to copy) so a player can quote it when asking for their data to be deleted */
+  setPid(id: string): void {
+    const e = this.el['vy-pid']; e.hidden = false; e.textContent = `Player id ${id} (tap to copy)`;
+    e.onclick = () => { try { void navigator.clipboard.writeText(id); e.textContent = 'Player id copied'; } catch { /* clipboard may be blocked */ } };
+  }
   /** the game type chosen in the menu; the time limit only shows for deathmatch */
   private objective(): 'elim' | 'zone' | 'dm' {
     const v = (this.el['vy-obj'] as HTMLSelectElement).value;
@@ -314,6 +321,7 @@ export class Ui {
   }
   /** on a phone, how to get the game full screen: iPhones only get it from the home screen, Android can install it */
   private installHint(): void {
+    if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) return;   // already the installed app
     const box = this.el['vy-install'];
     const nav = navigator as Navigator & { standalone?: boolean };
     const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || nav.standalone === true;

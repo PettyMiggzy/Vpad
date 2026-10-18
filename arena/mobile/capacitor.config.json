@@ -1,0 +1,12 @@
+{
+  "appId": "com.vyrebadlands.arena",
+  "appName": "Vyre Bad Lands",
+  "webDir": "www",
+  "backgroundColor": "#060905",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never", "backgroundColor": "#060905" },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 0, "backgroundColor": "#060905" },
+    "StatusBar": { "style": "DARK", "overlaysWebView": true }
+  }
+}

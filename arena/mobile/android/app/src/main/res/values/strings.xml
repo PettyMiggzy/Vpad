@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vyre Bad Lands</string>
+    <string name="title_activity_main">Vyre Bad Lands</string>
+    <string name="package_name">com.vyrebadlands.arena</string>
+    <string name="custom_url_scheme">com.vyrebadlands.arena</string>
+</resources>

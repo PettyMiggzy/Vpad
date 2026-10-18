@@ -16,6 +16,7 @@ document.querySelector('#site-footer').innerHTML = `
     <div><img src="/img/logo-badlands.webp" alt="" width="120" height="55" style="margin-bottom:12px"><div style="max-width:300px">A first-person team shooter for token communities. Free to play, play money only for now.</div></div>
     <div><h4>Play</h4><a href="${PLAY}/">Play in your browser</a><a href="/matches/">Live and upcoming matches</a><a href="/armory/">Armory and loadouts</a></div>
     <div><h4>Ecosystem</h4><a href="${PAD}" rel="noopener">WARHEADZ launchpad (testnet)</a><a href="${X}" rel="noopener">@vyrebadlands on X</a></div>
+    <div><h4>Help</h4><a href="/support/">Support and controls</a><a href="/privacy/">Privacy policy</a><a href="/terms/">Terms of play</a></div>
   </div>
   <div class="legal">Vyre Bad Lands is a prototype. Everything in the game uses play money; nothing on this website or in the game moves real money or touches a wallet. Paying with a wallet may come later and only after a legal review. The WARHEADZ launchpad runs on a test network. This is not financial advice, and no result or reward is promised to anyone.</div>
 </div></footer>`;
