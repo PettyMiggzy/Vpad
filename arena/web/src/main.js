@@ -353,13 +353,16 @@ function onEvents(evs) {
 }
 const tracerMat = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(3), toneMapped: false, transparent: true }));
 const tracerGeo = new THREE.BoxGeometry(0.03, 0.03, 1);
-const _a = new THREE.Vector3(), _b = new THREE.Vector3();
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 function tracer(e, sh) {
   _a.set(e.x / PX_PER_M, e.z - 0.3, e.y / PX_PER_M); _b.set(e.ex / PX_PER_M, e.ez, e.ey / PX_PER_M);
   const len = _a.distanceTo(_b);
   if (len < 0.6) return;
-  const s0 = Math.min(1.1, len * 0.1), L = len - s0;
+  const s0 = Math.min(1.1, len * 0.1);
   _a.lerp(_b, s0 / len);
+  // a shot that ends at your own head would draw its glowing end face right in front of the camera as a huge square: stop it short of the camera
+  { const dc = _b.distanceTo(camera.position); if (dc < 2.5) _b.addScaledVector(_c.subVectors(_b, _a).normalize(), -(2.5 - dc)); }
+  const L = _a.distanceTo(_b); if (L < 0.3) return;
   const mesh = new THREE.Mesh(tracerGeo, tracerMat[sh ? sh.team : 0]);
   mesh.scale.z = L; mesh.position.copy(_a).lerp(_b, 0.5); mesh.lookAt(_b);
   scene.add(mesh); tracers.push({ mesh, life: 0.07 });
