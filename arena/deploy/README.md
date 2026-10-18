@@ -39,6 +39,6 @@ It does not protect against a lot of traffic beyond nginx's own limits (20 reque
 
 ## How many matches one server can run
 
-Open `/sessions.html` on the game's address to see what is running now (matches, people, the server's clock delay). The server refuses new matches past `MAX_ROOMS` (32 unless the service sets the `MAX_ROOMS` environment variable).
+Open `/sessions.html` on the game's address to see what is running now (matches, people, the server's clock delay). The server refuses new matches past `MAX_ROOMS` (12 unless the service sets the `MAX_ROOMS` environment variable; 12 is what the 2-core, 2 GB droplet measured: fine at 8 matches, stuttering at 16). A practice player who finds the server full plays the same match on their own device instead..
 
 To measure a server (do this on the droplet itself, with nobody playing): `cd /opt/arena/repo/arena/server && umask 022 && npm install --no-save @colyseus/sdk && node capacity.js` (the install is needed once: the server install leaves the client library out; the next automatic update removes it again). It starts matches of one person and eleven computer players, 4 up to 48 at a time, and prints for each count the slowest player's snapshot rate (20 is perfect), the server's CPU as a share of one core, and the clock delay (`loopP99Ms`). A count is fine while `ok` is true; set `MAX_ROOMS` a few below the last count that was fine. One match server uses one core, so a bigger droplet needs a second server process before it helps.

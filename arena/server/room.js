@@ -10,7 +10,7 @@ import { History, rewindMs } from './lag.js';
 import { slimSnap } from './snap.js';
 
 export { MAP_IDS };
-export const MAX_ROOMS = Math.max(1, Number(process.env.MAX_ROOMS) || 32);
+export const MAX_ROOMS = Math.max(1, Number(process.env.MAX_ROOMS) || 12);
 export const INPUT_RATE = 60;
 export const SIM_HZ = 30;
 const STEP = 1 / SIM_HZ;

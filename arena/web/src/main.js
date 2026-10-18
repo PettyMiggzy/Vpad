@@ -174,8 +174,10 @@ async function start(c) {
   if (Array.isArray(c.names)) { names[0] = c.names[0]; names[1] = c.names[1]; teams[0].name = names[0]; teams[1].name = names[1]; ui.setTeams(names); }
   if (typeof c.blood === 'boolean') { bloodOn = c.blood; try { localStorage.setItem('vyre.arena.blood', bloodOn ? '1' : '0'); } catch { /* storage may be blocked */ } }
   clearBlood();
-  if (srv) { if (!(await startOnline(c))) return; }
-  else {
+  const got = srv ? await startOnline(c) : false;
+  if (srv && got === false) return;
+  if (!srv || got === 'full') {
+    if (got === 'full') { ui.banner('SERVER BUSY', 'playing this practice match on your own device', 2600); }
     match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', minutes: c.minutes ?? 5 });
     me = match.addPlayer('me', { name: c.name, team: c.team, loadout: { ...profile.loadout } });
     match.startRound();
@@ -185,7 +187,7 @@ async function start(c) {
   void keepAwake(true);
   playing = true; spectate = null; wasAlive = false; eyeY = 1.6; deathCam = null; paused = false; showScore = false;
   ui.showMenu(false); requestLock();
-  ui.banner('ROUND 1', 'get ready', 2600);
+  if (got !== 'full') ui.banner('ROUND 1', 'get ready', 2600);
 }
 /** joins a room on the match server and waits for the first picture of the match; false (with the menu back up) when it cannot */
 async function startOnline(c) {
@@ -197,6 +199,8 @@ async function startOnline(c) {
       h = await connect(srv, { pid, name: c.name, team: c.team, names: [...names], map: curMapId, perSide: c.seats, mode: c.mode, difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', minutes: c.minutes ?? 5, solo: c.mode === 'practice' ? pid : 'shared' });
     } catch (err) { why = String(err?.message || err).slice(0, 90); if (attempt === 0) await new Promise((r) => setTimeout(r, 1500)); }
   }
+  // a full server must not shut a practice player out: the same rules run in the page, so the match is played here instead
+  if (!h && c.mode === 'practice' && /full/i.test(why)) { ui.hideBanner(); return 'full'; }
   if (!h) return back(`Could not join a match (${why || 'no reason given'}). ${await diagnose(srv)}.`);
   const hello = await new Promise((res) => { const t = setTimeout(() => res(null), 8000); h.onHello((m) => { clearTimeout(t); res(m); }); });
   if (!hello) { void h.leave(); return back('The server did not answer. Try again.'); }
