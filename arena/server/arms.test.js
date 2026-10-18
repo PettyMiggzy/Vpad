@@ -47,3 +47,11 @@ test('fast action shortens the time between shots by a fifth; long scope and ste
   const r = m2.roster().find((x) => x.id === 'a'); assert.equal(r.steady, 1); assert.equal(r.zoomMul, 1);
   assert.ok(MODS.bolt.cost > 0 && MODS.scope.cost > 0 && MODS.steady.cost > 0);
 });
+
+test('every class has a range where it is the best choice: SMG and shotguns beat the rifle close up, the rifle beats them far off', async () => {
+  const { falloff } = await import('./gunfeel.js');
+  const ttk = (id, m) => { const w = WEAPONS[id], d = m * 50; if (d > w.range) return Infinity; const per = w.dmg * (w.pellets > 1 ? w.pellets * 0.8 : 1) * falloff(id, d); return (Math.ceil(100 / per) - 1) * w.gap; };
+  for (const id of ['smg', 'shotgun', 'autosg']) assert.ok(ttk(id, 4) < ttk('rifle', 4), `${id} should beat the rifle at 4 m (${ttk(id, 4)} vs ${ttk('rifle', 4)})`);
+  for (const id of ['smg', 'shotgun', 'autosg', 'pistol']) assert.ok(ttk('rifle', 40) < ttk(id, 40), `the rifle should beat ${id} at 40 m`);
+  assert.ok(ttk('dmr', 100) < Infinity && ttk('sniper', 200) < Infinity && ttk('rifle', 200) === Infinity);
+});

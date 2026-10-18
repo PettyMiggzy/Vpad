@@ -2,14 +2,14 @@
 // Prices are in play coins. Nothing here touches a wallet. A real-money version would be a separate, lawyer-reviewed decision.
 export const WEAPONS = {
   pistol:  { slot: 'weapon', name: 'Pistol',          cost: 0,   dmg: 18, gap: 0.38, speed: 620,  life: 0.7,  range: 2200, spread: 0.03, pellets: 1, mag: 12, reload: 1.4, blurb: 'Reliable and free' },
-  smg:     { slot: 'weapon', name: 'SMG',             cost: 300, dmg: 8,  gap: 0.09, speed: 620,  life: 0.55, range: 1900, spread: 0.07, pellets: 1, mag: 30, reload: 1.9, blurb: 'Fast fire, close range' },
+  smg:     { slot: 'weapon', name: 'SMG',             cost: 300, dmg: 10, gap: 0.09, speed: 620,  life: 0.55, range: 1900, spread: 0.07, pellets: 1, mag: 30, reload: 1.9, blurb: 'Fast fire, close range' },
   rifle:   { slot: 'weapon', name: 'Assault rifle',   cost: 600, dmg: 13, gap: 0.16, speed: 700,  life: 0.8,  range: 4500, spread: 0.035, pellets: 1, mag: 30, reload: 2.3, blurb: 'Good at every range' },
-  shotgun: { slot: 'weapon', name: 'Shotgun',         cost: 500, dmg: 9,  gap: 0.8,  speed: 600,  life: 0.32, range: 800, spread: 0.12, pellets: 6, mag: 6, reload: 2.4, blurb: 'Deadly up close' },
+  shotgun: { slot: 'weapon', name: 'Shotgun',         cost: 500, dmg: 14, gap: 0.8,  speed: 600,  life: 0.32, range: 800, spread: 0.12, pellets: 6, mag: 6, reload: 2.4, blurb: 'Deadly up close' },
   sniper:  { slot: 'weapon', name: 'Sniper rifle',    cost: 900, dmg: 60, gap: 1.15, speed: 1100, life: 1.1,  range: 12000, spread: 0.002, pellets: 1, mag: 5, reload: 2.7, blurb: 'One or two shots, slow' },
   revolver:{ slot: 'weapon', name: 'Magnum revolver', cost: 350, dmg: 42, gap: 0.65, speed: 900, life: 0.9, range: 3000, spread: 0.008, pellets: 1, mag: 6, reload: 2.3, blurb: 'Three body shots, two to the head' },
   burst:   { slot: 'weapon', name: 'Burst carbine',  cost: 700, dmg: 15, gap: 0.065, burst: 3, burstGap: 0.4, speed: 800, life: 0.8, range: 4200, spread: 0.018, pellets: 1, mag: 30, reload: 2.0, blurb: 'Three-round bursts, accurate' },
   lmg:     { slot: 'weapon', name: 'Light machine gun', cost: 1000, dmg: 12, gap: 0.1, speed: 700, life: 0.8, range: 4500, spread: 0.06, pellets: 1, mag: 75, reload: 4.2, move: 0.92, blurb: 'A huge magazine, heavy to carry' },
-  autosg:  { slot: 'weapon', name: 'Auto shotgun',   cost: 1100, dmg: 7, gap: 0.28, speed: 600, life: 0.32, range: 700, spread: 0.13, pellets: 6, mag: 8, reload: 3.0, blurb: 'A shotgun that keeps firing' },
+  autosg:  { slot: 'weapon', name: 'Auto shotgun',   cost: 1100, dmg: 9, gap: 0.28, speed: 600, life: 0.32, range: 700, spread: 0.13, pellets: 6, mag: 8, reload: 3.0, blurb: 'A shotgun that keeps firing' },
   dmr:     { slot: 'weapon', name: 'Marksman rifle', cost: 1300, dmg: 34, gap: 0.38, speed: 1000, life: 1.0, range: 7500, spread: 0.004, pellets: 1, mag: 10, reload: 2.6, blurb: 'Fast, hard-hitting, long range' },
 };
 // close range: the knife (key F). From behind it kills outright.
