@@ -20,16 +20,17 @@ Needs the owner: the store accounts, the final app id (`com.vyrebadlands.arena` 
 Android (Google Play)
 1. New app in the Play Console, package `com.vyrebadlands.arena`. Let Play manage the app signing key; make an upload key (keytool), keep it safe, and add it to the repository secrets as `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, then set the repository variable `ANDROID_SIGNING` to `on`. The workflow then builds a signed `.aab`.
 2. Upload the bundle to a closed testing track first. A personal developer account created after November 2023 must run a closed test with 12 testers for 14 days before it can publish; an organisation account does not.
-3. Store listing: short and long text, icon (`web/public/icon-512.png`), feature graphic, phone screenshots (take them from the game), privacy policy URL `https://vyrebadlands.com/privacy/`.
+3. Store listing: short and long text, icon (`store/icon-512.png`), feature graphic, phone screenshots (take them from the game), privacy policy URL `https://vyrebadlands.com/privacy/`.
 4. Data safety form: collects a user id (random, for app function), a chosen name (shown to other players); no data sold or shared; no ads; data can be deleted on request by email. Content rating questionnaire: cartoon-style shooter with a blood option.
 5. Do not mention tokens, wallets or earning in the listing. The app is a free shooter with play coins.
 
 iPhone (App Store)
-1. App id in the Apple developer account, then a Mac (or a cloud Mac service) runs `npx cap add ios`, `npx cap sync ios`, sets the team and signing, archives and uploads to TestFlight. The workflow only checks that it compiles.
-2. Test with TestFlight (external testers need a short beta review).
-3. App Privacy answers match the Android data safety answers. Age rating: frequent or intense cartoon violence puts it at 12+ or higher; answer the questionnaire honestly and keep the blood switch.
-4. Review note for Apple: no login needed, open the app and press PLAY; explain that matches run on our server and the app is more than a website because it is a full 3D game with touch controls.
-5. Apple rejects apps that are only a website in a frame; this one is a full 3D game with its own touch controls and bundled assets. Keep it that way.
+The iPhone project is in `ios/` (landscape only, iPhone only, icon and launch picture in place; Capacitor 8 with Swift Package Manager, so there are no pods).
+1. App id `com.vyrebadlands.arena` in the Apple developer account (Certificates, Identifiers and Profiles), and the app record in App Store Connect.
+2. No Mac needed: the workflow job `ios-store` (run by hand from the Actions tab) signs in the cloud with an App Store Connect key and uploads the build to TestFlight. In App Store Connect: Users and Access, Integrations, App Store Connect API, make a key with the App Manager role. Add four repository secrets: `APPLE_TEAM_ID` (the 10-character team id), `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_KEY_P8` (the text of the downloaded .p8 file). This path has not been run yet.
+3. When the build shows in TestFlight, attach it to version 1.0, answer the export question (standard https only, already declared in the project), and submit for review. External testers need a short beta review.
+4. App Privacy answers match the Android data safety answers. Age rating: frequent or intense cartoon violence puts it at 12+ or higher; answer the questionnaire honestly and keep the blood switch.
+5. Review note for Apple: no login needed, open the app and press PLAY; matches run on our server; it is a full 3D game with touch controls and bundled assets, not a web page in a frame (Apple rejects those).
 
 ## Money rule
 
