@@ -12,7 +12,7 @@ const m = (px) => px / PX_PER_M;
 export const THEMES = {
   cargo: {
     hdr: 'industrial_sunset_puresky', ground: 'asphalt_02', gtile: 7, wall: 'concrete_wall_008', metal: 'corrugated_iron', deck: 'metal_plate', roof: 'concrete_floor_worn_001',
-    sun: 3.8, sunColor: 0xffb070, env: 0.55, exposure: 0.9, fogNear: 150, fogFar: 520, hazeLum: 0.22, night: false,
+    sun: 3.8, sunColor: 0xffb070, env: 1.0, exposure: 0.9, fogNear: 150, fogFar: 520, hazeLum: 0.22, night: false,
     grade: { sat: 1.1, contrast: 1.1, vig: 0.34, grain: 0.022, shadow: [0.93, 0.99, 1.07], high: [1.07, 1.0, 0.9] },
     props: ['container_blue', 'container_grey', 'container_orange', 'container_red', 'container_blue_far', 'container_grey_far', 'container_orange_far', 'container_red_far', 'crate_wood', 'crate_steel', 'barrel_blue', 'barrel_red', 'barrier_concrete', 'sandbags', 'pallet_boxes', 'lamp_flood', 'water_tower', 'truck_cargo', 'forklift', 'pickup_truck', 'fence_chainlink', 'pipe_rack', 'watchtower', 'tires'],
   },

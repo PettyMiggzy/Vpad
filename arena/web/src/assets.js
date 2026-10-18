@@ -28,7 +28,8 @@ export async function retrying(fn, tries = 3) {
 const load = (url) => retrying(() => new Promise((res, rej) => loader.load(url, res, undefined, () => rej(new Error('could not load ' + url)))));
 
 function shade(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = 8; } }); }
-function shadeProp(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = 8; } }); }
+// a generated model's metal reflects the sky and the ground only, so a flat face turned away from the sun reads as a black mirror: keep the metal shine, but never a full mirror
+function shadeProp(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; for (const m of [].concat(o.material)) { if (m.map) m.map.anisotropy = 8; if (m.metalness > 0.5) m.metalness = 0.5; if (m.roughness < 0.6) m.roughness = 0.6; } } }); }
 
 export const WEAPON_IDS = ['pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'revolver', 'burst', 'lmg', 'autosg', 'dmr'];
 export const GUN_FILE = { pistol: 'a', smg: 'j', rifle: 'd', shotgun: 'l', sniper: 'e' };
