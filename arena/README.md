@@ -10,6 +10,8 @@ server never touches a wallet, and a finished match is only logged (`reportResul
 
 Rules: two teams of up to 32 seats each, bots fill empty seats, 80 s rounds, first team to win two rounds takes the match.
 
+A shot is judged a short moment in the past, so it lands where the shooter could see the target. That moment is the connection's round trip plus a tenth of a second, and it is never more than a quarter of a second. The walls are not rewound: a wall that is shut now still stops the shot. The server keeps about a second of where everyone stood. Snapshots still go out 20 times a second. Positions are quantised, and a soldier who has not changed is left out of the next one (`full: 1` means the whole list is there again).
+
 ## Hosting the match server
 
 Node 22. The process listens on `PORT` (2567 if unset) and keeps profiles in `ARENA_DATA` (the `data` folder next to the server if unset). Those are play coins. Nothing in this server talks to a wallet.

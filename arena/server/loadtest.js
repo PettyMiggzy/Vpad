@@ -1,4 +1,5 @@
-// 64 players in one match, each sending input, while the server broadcasts snapshots.
+// One full match of players, each sending input, while the server broadcasts snapshots.
+// LOAD_N is how many clients join (64 if unset). LOAD_SIDE is seats on a team.
 // Prints the snapshot rate, the JSON payload per second, and the server process CPU.
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -7,7 +8,7 @@ import path from 'node:path';
 import { Client } from '@colyseus/sdk';
 
 const PORT = 25991;
-const N = 64;
+const N = Number(process.env.LOAD_N) || 64;
 const SECONDS = 5;
 const data = fs.mkdtempSync(path.join(os.tmpdir(), 'arena-load-'));
 const clk = Number(execFileSync('getconf', ['CLK_TCK'], { encoding: 'utf8' }).trim());
@@ -28,10 +29,11 @@ child.stdout.on('data', (b) => { log += b; });
 child.stderr.on('data', (b) => { log += b; });
 
 const pidOf = (i) => `b${i.toString(16).padStart(31, '0')}`;
+const perSide = Math.min(32, Math.max(1, Number(process.env.LOAD_SIDE) || Math.ceil(N / 2)));
 const opts = (i) => ({
-  names: ['LOAD', 'TEST'], a: 'LOAD', b: 'TEST', map: 'cargo', perSide: 32,
+  names: ['LOAD', 'TEST'], a: 'LOAD', b: 'TEST', map: 'cargo', perSide,
   mode: 'practice', difficulty: 1, objective: 'elim',
-  name: `P${i}`, team: i < 32 ? 0 : 1, pid: pidOf(i),
+  name: `P${i}`, team: i < perSide ? 0 : 1, pid: pidOf(i),
 });
 
 const rooms = [];
@@ -46,6 +48,9 @@ try {
   for (let i = 0; i < N; i++) {
     const client = new Client(`ws://127.0.0.1:${PORT}`);
     const room = await client.joinOrCreate('match', opts(i));
+    room.onMessage('hello', () => {});
+    room.onMessage('roster', () => {});
+    room.onMessage('probe', (n) => { if (typeof n === 'number') room.send('probe', n); });
     rooms.push(room);
   }
 

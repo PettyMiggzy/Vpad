@@ -5,6 +5,8 @@ import { Match, cleanName, cleanColor } from './game.js';
 import { REWARD } from './items.js';
 import { loadoutFor, award, grantXp, validPid } from './profiles.js';
 import { XP } from './progress.js';
+import { History, rewindMs } from './lag.js';
+import { slimSnap } from './snap.js';
 
 export const MAP_IDS = ['cargo', 'dust', 'refinery'];
 export const MAX_ROOMS = 32;
@@ -112,9 +114,17 @@ export class MatchRoom extends Room {
     this.pids = new Map();
     this.lockedLoadout = new Map(); // the gear a profile brought in; buying during the match cannot change it
     this.tick = 0;
+    this.simTime = 0;
+    this.shotTime = 0;
     this.reported = false;
     this.pending = [];
     this.lastRv = this.match.rv;
+    this.lag = new History();
+    this.rtt = new Map();
+    this.snapState = null;
+    const shoot = this.match.shoot.bind(this.match);
+    // rewind inside shoot(), before the ray test, then put everyone back so the rest of the step sees the present
+    this.match.shoot = (p, w) => this.lag.rewind(this.match, p, this.shotTime - rewindMs(this.rtt.get(p.id) || 0) / 1000, shoot, w);
     liveRooms.add(this);
     if (this._listing) {
       try {
@@ -125,6 +135,7 @@ export class MatchRoom extends Room {
       } catch { /* the listing is filled in by the matchmaker when this room was not opened through it */ }
     }
     this.onMessage('input', (client, m) => this.takeInput(client, m));
+    this.onMessage('probe', (client, n) => this.takeProbe(client, n));
     // the rules step 30 times a second; a snapshot goes out on 20 of those steps, and the steps in between keep their events
     this.setSimulationInterval(() => this.tickMatch(), 1000 / SIM_HZ);
   }
@@ -143,9 +154,19 @@ export class MatchRoom extends Room {
     };
   }
 
+  takeProbe(client, n) {
+    if (typeof n !== 'number' || !Number.isFinite(n) || n !== client._probe) return;
+    const dt = Date.now() - client._probeAt;
+    client._probe = 0;
+    if (dt >= 0 && dt <= 4000) this.rtt.set(client.sessionId, dt);
+  }
+
   tickMatch() {
     const before = this.match.phase;
+    this.shotTime = this.simTime + STEP;
     this.match.step(STEP);
+    this.simTime = this.shotTime;
+    this.lag.record(this.match, this.simTime);
     for (const p of this.match.players.values()) if (!p.bot && !p.alive) zeroInput(p);
     for (const e of this.match.events) {
       this.pending.push(e);
@@ -161,6 +182,7 @@ export class MatchRoom extends Room {
       this.broadcast('roster', this.match.roster());
     }
     if (this.tick % 3 !== 0 || this.match.phase !== before) this.sendSnap();
+    if (this.tick % 60 === 0) this.probe();
     if (this.match.phase === 'finished' && !this.didLock) { this.didLock = true; this.lock().catch(() => {}); }
   }
 
@@ -168,7 +190,26 @@ export class MatchRoom extends Room {
     const snap = this.match.snapshot();
     snap.ev = this.pending.slice();
     this.pending.length = 0;
-    this.broadcast('snap', snap);
+    const slim = slimSnap(this.snapState, snap);
+    this.snapState = slim.state;
+    this.broadcast('snap', slim.snap);
+  }
+
+  /** a full picture for one client, without clearing the events the next broadcast still owes */
+  picture() {
+    const snap = this.match.snapshot();
+    snap.ev = [];
+    const slim = slimSnap(null, snap);
+    return slim.snap;
+  }
+
+  probe() {
+    if (!this.clients) return;
+    for (const c of this.clients) {
+      c._probe = (c._probeN = (c._probeN || 0) + 1);
+      c._probeAt = Date.now();
+      try { c.send('probe', c._probe); } catch { /* already gone */ }
+    }
   }
 
   onJoin(client, options = {}) {
@@ -183,10 +224,12 @@ export class MatchRoom extends Room {
     const p = this.match.addPlayer(client.sessionId, { name: options.name, team, loadout });
     if (!p) { client.leave(4001, 'that match is full'); return; }
     if (pid) { seated.set(pid, client.sessionId); this.pids.set(client.sessionId, pid); }
+    this.lag.note(p, this.simTime);
     client.send('hello', {
       id: p.id, team: p.team, teams: this.match.teams, perSide: this.match.perSide, roster: this.match.roster(),
       map: this.match.map.id, mode: this.match.mode, objective: this.match.objective, difficulty: this.match.difficulty, spd: p.speedMul,
     });
+    try { client.send('snap', this.picture()); } catch { /* the socket is not open */ }
     this.broadcast('roster', this.match.roster());
     this.lastRv = this.match.rv;
   }
