@@ -164,8 +164,12 @@ EOF
   say "Web server"
   sed -e "s/__SERVER_NAME__/${DOMAIN:-_}/" -e "s#__WEBROOT__#$WEB#" "$SRC/arena/deploy/nginx-arena.conf" > /etc/nginx/sites-available/arena
   ln -sf /etc/nginx/sites-available/arena /etc/nginx/sites-enabled/arena
-  # the stock "Welcome to nginx" page is the only thing this replaces
-  if [ -L /etc/nginx/sites-enabled/default ]; then rm -f /etc/nginx/sites-enabled/default; fi
+  # the stock "Welcome to nginx" page is the only thing this replaces: a "default" that proxies somewhere or names a site is someone's own site, and stays
+  if [ -L /etc/nginx/sites-enabled/default ]; then
+    if grep -Eq 'proxy_pass|fastcgi_pass|server_name[[:space:]]+[^_[:space:];]' /etc/nginx/sites-enabled/default; then
+      echo "Web server: the 'default' site is not the stock page (it proxies or names a site), so it is left in place."
+    else rm -f /etc/nginx/sites-enabled/default; fi
+  fi
   nginx -t
   systemctl enable nginx >/dev/null 2>&1
   systemctl reload nginx || systemctl restart nginx
