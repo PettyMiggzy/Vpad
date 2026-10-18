@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { PX_PER_M } from './config.js';
 import { fitModel, propHeight, loadMapAssets } from './assets.js';
+import { weather } from './weather.js';
 
 const m = (px) => px / PX_PER_M;
 
@@ -124,15 +125,19 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
 
   // ---- materials ----
   const matCache = new Map();
-  const pbr = (name, tint = 0xffffff, rough = 1) => {
-    const k = name + tint; if (matCache.has(k)) return matCache.get(k);
+  const pbr = (name, tint = 0xffffff, rough = 1, wopts = null) => {
+    const k = name + tint + JSON.stringify(wopts); if (matCache.has(k)) return matCache.get(k);
     const t = A.tex[name];
     const mat = new THREE.MeshStandardMaterial({ map: t.map, normalMap: t.normalMap, roughnessMap: t.roughnessMap, roughness: rough, metalness: name.includes('metal') || name.includes('corrugated') ? 0.5 : 0.02, color: tint });
+    if (wopts) weather(mat, wopts);
     matCache.set(k, mat); return mat;
   };
   const warm = map.theme === 'dust';
-  const wallMat = pbr(th.wall, warm ? 0xf0d4a0 : 0xffffff), metalMat = pbr(th.metal), deckMat = pbr(th.deck, warm ? 0x9c8868 : 0xffffff), roofMat = pbr(th.roof, warm ? 0x6e604a : 0xffffff), groundMat = pbr(th.ground);
-  const railMat = pbr(th.metal, 0xa88c78);
+  const wet = map.theme === 'dust' ? 0 : th.night ? 0.9 : 0.7;       // puddles on the dry sand would look wrong
+  const wallMat = pbr(th.wall, warm ? 0xf4dcb0 : 0xffffff, 1, warm ? { patches: 0.7, grime: 0.45, streaks: 0.35 } : { patches: 0.9, grime: 0.9, streaks: 0.7 }), metalMat = pbr(th.metal, 0xffffff, 1, { patches: 0.5, grime: 0.6, streaks: 0.8 });
+  const deckMat = pbr(th.deck, warm ? 0x9c8868 : 0xffffff, 1, { patches: 0.6, grime: 0.3, streaks: 0.2, puddles: wet * 0.8 }), roofMat = pbr(th.roof, warm ? 0x6e604a : 0xffffff, 1, { patches: 0.8, grime: 0.3, streaks: 0.2, puddles: wet * 0.6 });
+  const groundMat = pbr(th.ground, 0xffffff, 1, { patches: 0.9, grime: 0, streaks: 0, puddles: wet });
+  const railMat = pbr(th.metal, 0xa88c78, 1, { patches: 0.5, grime: 0.5, streaks: 0.6 });
   const hazard = new THREE.MeshStandardMaterial({ color: 0xe8b800, roughness: 0.7 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x14100c, roughness: 0.9 });
   const mesh = (geo, mat, x, y, z, shadow = true) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = shadow; o.receiveShadow = true; group.add(o); return o; };

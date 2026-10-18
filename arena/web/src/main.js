@@ -170,6 +170,8 @@ async function start(c) {
   for (const [id, u] of units) { u.dispose(); ui.dropTag(id); }
   units.clear();
   if (Array.isArray(c.names)) { names[0] = c.names[0]; names[1] = c.names[1]; teams[0].name = names[0]; teams[1].name = names[1]; ui.setTeams(names); }
+  if (typeof c.blood === 'boolean') { bloodOn = c.blood; try { localStorage.setItem('vyre.arena.blood', bloodOn ? '1' : '0'); } catch { /* storage may be blocked */ } }
+  clearBlood();
   if (srv) { if (!(await startOnline(c))) return; }
   else {
     match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim' });
@@ -210,6 +212,7 @@ async function startOnline(c) {
   return true;
 }
 function leave() {
+  clearBlood();
   void keepAwake(false);
   if (netH) { const h = netH; netH = null; void h.leave(); if (srv) void syncProfile(); }
   playing = false; paused = false; fire = false; zoom = false;
@@ -289,7 +292,8 @@ function onEvents(evs) {
       if (me && e.by === me.id) { ui.flash('vy-hitm'); sfx.hitMarker(); }
       sfx.impact('flesh', e.x / PX_PER_M, e.y / PX_PER_M);
       units.get(e.victim)?.hit();
-      burst(e.x / PX_PER_M, e.z ?? 1.2, e.y / PX_PER_M, 0xff3a2a, e.nade ? 0 : 7);
+      if (bloodOn) { const at = match.players.get(e.by); if (!e.nade) bloodHit(e.x / PX_PER_M, e.z ?? 1.2, e.y / PX_PER_M, at ? e.x - at.x : 0, at ? e.y - at.y : 0, !!e.head); }
+      else burst(e.x / PX_PER_M, e.z ?? 1.2, e.y / PX_PER_M, 0xffd890, e.nade ? 0 : 5);
     } else if (e.type === 'kill') {
       const a = match.players.get(e.by), v = match.players.get(e.victim);
       if (a && v) ui.feed(`<span style="color:${TEAM_COLORS[a.team]}">${a.name}</span> ${e.melee ? '&#9876;' : e.nade ? '&#9679;' : e.head ? '&#9678;' : '&#9656;'} <span style="color:${TEAM_COLORS[v.team]}">${v.name}</span>`);
@@ -305,6 +309,7 @@ function onEvents(evs) {
       }
       if (me && e.victim === me.id) { streak = 0; multi = { n: 0, t: 0 }; }
       if (v) sfx.dieAt(v.x / PX_PER_M, v.y / PX_PER_M, !!(me && e.victim === me.id));
+      if (v && bloodOn) { bloodHit(v.x / PX_PER_M, v.z + 1.2, v.y / PX_PER_M, 0, 0, !!e.head); stain(v.x / PX_PER_M, v.y / PX_PER_M, 0.9 + Math.random() * 0.3, 26, (Math.random() * 3) | 0); }
       if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; ui.banner('ELIMINATED', a && a.id !== me.id ? `by ${a.name}` : '', 2200); }
     } else if (e.type === 'melee') {
       const at = match.players.get(e.by), own = !!(me && e.by === me.id);
@@ -352,6 +357,58 @@ function tracer(e, sh) {
   scene.add(mesh); tracers.push({ mesh, life: 0.07 });
   if (!e.hit) burst(_b.x, _b.y, _b.z, 0xffc060, 5);
 }
+// ---- blood: a short spray where a hit lands, drops that stain the floor and fade, and a pool where someone falls. Kept clean: no gore, nothing lasting.
+// The menu switch turns it off (sparks instead). ----
+let bloodOn = true; try { bloodOn = localStorage.getItem('vyre.arena.blood') !== '0'; } catch { /* storage may be blocked */ }
+const LIGHT_FX = matchMedia('(pointer: coarse)').matches;
+const bloodGeo = new THREE.IcosahedronGeometry(0.02, 0);
+const bloodMats = [0x4a0707, 0x5e0b0b, 0x3a0505].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.25 }));
+function splatTexture(seed) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
+  let s = seed * 7919 + 17; const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const blob = (x, y, rad, a) => { const gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(0.7, `rgba(255,255,255,${a * 0.85})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill(); };
+  blob(64, 64, 26 + r() * 8, 1);
+  for (let i = 0; i < 5; i++) blob(64 + (r() - 0.5) * 30, 64 + (r() - 0.5) * 30, 10 + r() * 12, 0.95);
+  for (let i = 0; i < 16; i++) { const a = r() * 6.28, d = 30 + r() * 30; blob(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, 2 + r() * 6, 0.9); }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const bloodTex = [1, 2, 3].map(splatTexture);
+const stainGeo = new THREE.PlaneGeometry(1, 1);
+const stainPool = []; let stainAt = 0;
+const drops = [], stains = [];
+function stain(x, z, size, life, kind = 0) {
+  let s = stainPool[stainAt]; stainAt = (stainAt + 1) % 40;
+  if (!s) { s = new THREE.Mesh(stainGeo, new THREE.MeshStandardMaterial({ map: bloodTex[0], color: 0x4a0707, transparent: true, depthWrite: false, roughness: 0.16, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); s.rotation.x = -Math.PI / 2; stainPool.push(s); }
+  const i = stains.findIndex((q) => q.mesh === s); if (i >= 0) stains.splice(i, 1);
+  s.material.map = bloodTex[kind % 3]; s.material.opacity = 0.9; s.material.needsUpdate = true;
+  s.position.set(x, floorAt(match.map, x * PX_PER_M, z * PX_PER_M) + 0.012, z); s.rotation.z = Math.random() * 6.28; s.scale.setScalar(size * 0.4); scene.add(s);
+  stains.push({ mesh: s, t: 0, life, size });
+}
+/** a hit: drops thrown along the bullet's way on, and a faint red mist */
+function bloodHit(x, y, z, dx, dz, head) {
+  const n = (LIGHT_FX ? 5 : 9) + (head ? (LIGHT_FX ? 4 : 8) : 0), len = Math.hypot(dx, dz) || 1;
+  for (let i = 0; i < n && drops.length < 140; i++) {
+    const m = new THREE.Mesh(bloodGeo, bloodMats[i % 3]); m.position.set(x, y, z); m.scale.setScalar(0.7 + Math.random() * 1.1); scene.add(m);
+    const sp = 1.2 + Math.random() * 2.6;
+    drops.push({ m, vx: (dx / len) * sp + (Math.random() - 0.5) * 1.6, vy: Math.random() * 1.6 + 0.2, vz: (dz / len) * sp + (Math.random() - 0.5) * 1.6, life: 0.7 });
+  }
+  const mist = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, color: 0x5a0a0a, transparent: true, depthWrite: false, opacity: 0.5 }));
+  mist.position.set(x, y, z); scene.add(mist); fx.push({ mesh: mist, t: 0, life: 0.3, kind: 'smoke', r: head ? 0.9 : 0.55, vy: 0.25 });
+}
+function updateBlood(dt) {
+  for (let i = drops.length - 1; i >= 0; i--) {
+    const d = drops[i]; d.life -= dt; d.vy -= 9.5 * dt; d.m.position.x += d.vx * dt; d.m.position.y += d.vy * dt; d.m.position.z += d.vz * dt;
+    const f = floorAt(match.map, d.m.position.x * PX_PER_M, d.m.position.z * PX_PER_M);
+    if (d.m.position.y <= f + 0.02 || d.life <= 0) { if (d.m.position.y <= f + 0.05 && Math.random() < 0.45) stain(d.m.position.x, d.m.position.z, 0.14 + Math.random() * 0.22, 16 + Math.random() * 8, (Math.random() * 3) | 0); scene.remove(d.m); drops.splice(i, 1); }
+  }
+  for (let i = stains.length - 1; i >= 0; i--) {
+    const s = stains[i]; s.t += dt; const k = Math.min(1, s.t / 0.5);
+    s.mesh.scale.setScalar(s.size * (0.4 + 0.6 * (1 - (1 - k) ** 2)));
+    const left = s.life - s.t; s.mesh.material.opacity = 0.9 * Math.max(0, Math.min(1, left / 5));
+    if (left <= 0) { scene.remove(s.mesh); stains.splice(i, 1); }
+  }
+}
+function clearBlood() { for (const d of drops) scene.remove(d.m); drops.length = 0; for (const s of stains) scene.remove(s.mesh); stains.length = 0; }
 const bitGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
 function burst(x, y, z, color, n, speed = 3) {
   for (let i = 0; i < n; i++) {
@@ -541,7 +598,7 @@ function draw() {
 }
 let acc = 0, last = performance.now(), fov = FOV;
 const NO_RC = { p: 0, y: 0, bloom: 0 };
-window.__arena = { get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
+window.__arena = { bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
@@ -625,6 +682,7 @@ function frame(now) {
     if (f.kind === 'fire') { f.mesh.scale.setScalar(0.4 + f.r * Math.sqrt(k)); f.mesh.material.opacity = 1 - k * k; }
     else { f.mesh.scale.setScalar(f.r * (0.7 + k * 1.6)); f.mesh.position.y += f.vy * dt; f.mesh.material.opacity = 0.6 * (1 - k) * Math.min(1, f.t * 5); }
   }
+  updateBlood(dt);
   boomT = Math.max(0, boomT - dt); boomLight.intensity = boomT > 0 ? 90 * (boomT / 0.35) : 0;
 
   updateZone(t);
