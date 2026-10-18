@@ -17,7 +17,15 @@ export const LITE = (() => {
 const S = LITE ? '-m' : '';
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
-const load = (url) => new Promise((res, rej) => loader.load(url, res, undefined, () => rej(new Error('could not load ' + url))));
+/** runs a download again when a phone's connection drops it (mobile data and in-app browsers fail a file now and then); gives up after three tries */
+export async function retrying(fn, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try { return await fn(); } catch (e) { last = e; if (i < tries - 1) await new Promise((r) => setTimeout(r, 700 * (i + 1))); }
+  }
+  throw last;
+}
+const load = (url) => retrying(() => new Promise((res, rej) => loader.load(url, res, undefined, () => rej(new Error('could not load ' + url)))));
 
 function shade(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = 8; } }); }
 function shadeProp(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; for (const m of [].concat(o.material)) if (m.map) m.map.anisotropy = 8; } }); }
@@ -70,13 +78,13 @@ export async function loadMapAssets(A, need, onProgress = () => {}) {
   for (const n of need.tex) {
     if (A.tex[n]) continue;
     A.tex[n] = null;
-    add(Promise.all(['diff', 'nor', 'rough'].map((k) => tl.loadAsync(`${BASE}tex${S}/${n}_${k}.webp`))).then(([d, nr, r]) => {
+    add(Promise.all(['diff', 'nor', 'rough'].map((k) => retrying(() => tl.loadAsync(`${BASE}tex${S}/${n}_${k}.webp`)))).then(([d, nr, r]) => {
       for (const t of [d, nr, r]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
       d.colorSpace = THREE.SRGBColorSpace;
       A.tex[n] = { map: d, normalMap: nr, roughnessMap: r };
     }));
   }
-  if (need.hdr && !A.hdr[need.hdr]) { A.hdr[need.hdr] = null; add(new RGBELoader().loadAsync(`${BASE}hdr${S}/${need.hdr}.hdr`).then((t) => { t.mapping = THREE.EquirectangularReflectionMapping; A.hdr[need.hdr] = t; })); }
+  if (need.hdr && !A.hdr[need.hdr]) { A.hdr[need.hdr] = null; add(retrying(() => new RGBELoader().loadAsync(`${BASE}hdr${S}/${need.hdr}.hdr`)).then((t) => { t.mapping = THREE.EquirectangularReflectionMapping; A.hdr[need.hdr] = t; })); }
   await Promise.all(jobs);
 }
 
