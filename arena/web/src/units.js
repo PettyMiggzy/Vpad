@@ -37,6 +37,42 @@ function teamize(root, team) {
   });
 }
 
+// where each hand holds the weapon, in the weapon's own space: the right hand at (rx, ry) below the model's middle; the left a share lf of the way to the muzzle, ly below the barrel line
+const GUN_HOLD = {
+  pistol: { rx: 0.0, ry: -0.03, lf: 0.2, ly: -0.05 }, revolver: { rx: 0.0, ry: -0.03, lf: 0.2, ly: -0.05 },
+  smg: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.05 }, rifle: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.045 }, burst: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.045 },
+  shotgun: { rx: -0.01, ry: -0.035, lf: 0.6, ly: -0.04 }, autosg: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.05 }, sniper: { rx: -0.01, ry: -0.04, lf: 0.62, ly: -0.05 },
+  lmg: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.07 }, dmr: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.05 },
+};
+if (typeof window !== 'undefined') window.__holdTune = GUN_HOLD;
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
+/** turn a bone so the direction to its child (from -> to) points at 'want'; works in world space and sets the bone's local rotation */
+function aimBone(bone, child, want) {
+  bone.getWorldPosition(_a); child.getWorldPosition(_b); _c.subVectors(_b, _a).normalize(); _d.copy(want).sub(_a).normalize();
+  _qa.setFromUnitVectors(_c, _d); bone.getWorldQuaternion(_qb); _qb.premultiply(_qa);
+  const pq = bone.parent ? bone.parent.getWorldQuaternion(new THREE.Quaternion()) : new THREE.Quaternion();
+  bone.quaternion.copy(pq.invert().multiply(_qb)); bone.updateMatrixWorld(true);
+}
+/** two-bone IK: shoulder-side bone 'up', elbow 'mid', wrist 'end' reach the world point 'target'; the elbow bends towards 'pole' */
+function solveArm(up, mid, end, target, pole, along, mix = 0.7) {
+  let S = up.getWorldPosition(new THREE.Vector3()), E = mid.getWorldPosition(new THREE.Vector3()), W = end.getWorldPosition(new THREE.Vector3());
+  { // a target beyond the arm's reach: lengthen the arm a little (up to a fifth) rather than leave the hand hanging short of the gun
+    const reach = S.distanceTo(E) + E.distanceTo(W), need = S.distanceTo(target);
+    if (need > reach * 0.97) { const s = Math.min(1.22, need / (reach * 0.97)); up.scale.multiplyScalar(s); end.scale.multiplyScalar(1 / s); up.updateMatrixWorld(true); S = up.getWorldPosition(new THREE.Vector3()); E = mid.getWorldPosition(new THREE.Vector3()); W = end.getWorldPosition(new THREE.Vector3()); }
+  }
+  const l1 = S.distanceTo(E), l2 = E.distanceTo(W), to = target.clone().sub(S); let d = to.length(); const dir = to.clone().normalize();
+  d = Math.min(Math.max(d, Math.abs(l1 - l2) + 1e-4), l1 + l2 - 1e-4);
+  const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+  const perp = pole.clone().addScaledVector(dir, -pole.dot(dir)); if (perp.lengthSq() < 1e-6) perp.set(0, -1, 0); perp.normalize();
+  const elbow = S.clone().addScaledVector(dir, a).addScaledVector(perp, h);
+  aimBone(up, mid, elbow);
+  aimBone(mid, end, S.clone().addScaledVector(dir, d));
+  if (along) {   // the hand lies along the weapon: fingers follow the way the gun points
+    const f = end.getWorldPosition(new THREE.Vector3()).sub(mid.getWorldPosition(new THREE.Vector3())).normalize(), want = f.clone().lerp(along, mix).normalize();
+    _qa.setFromUnitVectors(f, want); end.getWorldQuaternion(_qb); _qb.premultiply(_qa);
+    end.quaternion.copy(end.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(_qb)); end.updateMatrixWorld(true);
+  }
+}
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _o = new THREE.Matrix4(), _e = new THREE.Euler();
 
 export class Unit {
@@ -147,5 +183,23 @@ export class Unit {
     this.gun.matrix.copy(_o);
     this.gun.matrixWorldNeedsUpdate = true;
   }
+  /** first person: put both hands on the weapon. The right hand takes the grip, the left the handguard; each arm is solved with two-bone IK so it reaches the gun it holds (the clips only fit the gun roughly). Call after syncGun, with the animation pose freshly applied. */
+  holdGun(left = true) {
+    if (!this.hand || !this.muzzleObj) return;
+    this.root.updateMatrixWorld(true);
+    const grip = GUN_HOLD[this.weapon] ?? GUN_HOLD.rifle;
+    const mz = this.muzzleObj.position.clone().applyMatrix4(this.gunInner.matrix);     // the muzzle in the gun's own space
+    const rt = new THREE.Vector3(grip.rx, grip.ry, 0), lt = mz.clone().multiplyScalar(grip.lf); lt.y = mz.y * grip.lf + grip.ly; lt.z = grip.lz ?? 0;
+    this.gun.localToWorld(rt); this.gun.localToWorld(lt);
+    const B = (n) => this.body.getObjectByName(n);
+    this._saved = ['LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand'].map((n) => [B(n), B(n).quaternion.clone(), B(n).scale.clone()]);
+    const side = new THREE.Vector3().subVectors(B('LeftShoulder').getWorldPosition(_a), B('RightShoulder').getWorldPosition(_b)).normalize().clone();
+    const down = new THREE.Vector3(0, -1, 0), fwd = mz.clone().normalize(); this.gun.localToWorld(fwd).sub(this.gun.getWorldPosition(new THREE.Vector3())).normalize();
+    solveArm(B('RightArm'), B('RightForeArm'), B('RightHand'), rt, down.clone().addScaledVector(side, -0.4));
+    if (left) solveArm(B('LeftArm'), B('LeftForeArm'), B('LeftHand'), lt, down.clone().addScaledVector(side, 0.5), fwd, 0.75);
+    this.root.updateMatrixWorld(true);
+  }
+  /** give the arms back their clip pose (before the next frame's hold, so the weapon is anchored to the clip's hand, not to last frame's solved one) */
+  unholdGun() { if (this._saved) { for (const [b, q, sc] of this._saved) { b.quaternion.copy(q); b.scale.copy(sc); } this._saved = null; } }
   dispose() { this.root.removeFromParent(); this.root.traverse((o) => { if (o.isMesh && o.material.isMeshBasicMaterial) { o.geometry.dispose(); o.material.dispose(); } }); }
 }

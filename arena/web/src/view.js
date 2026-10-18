@@ -18,6 +18,7 @@ export class ViewModel {
     this.recoil = 0; this.flash = 0; this.key = ''; this.unit = null; this.muzzle = null;
     this.tune = { x: -0.04, y: -0.08, z: 0.0, yaw: 0, scale: 0.6, gunK: 1.35 };
     this.ads = 0; this.adsS = 0;                 // how far the sights are up (set from the rules), and the smoothed copy that moves the gun
+    this.holeU = { uAds: { value: 0 }, uHole: { value: new THREE.Vector3(0, 0, 0) }, uAsp: { value: 1 } };   // the window cut through the sight when aimed: where the eye looks through the glass
     this.shells = []; this.shellGeo = new THREE.CylinderGeometry(0.0065, 0.0065, 0.026, 6);
     this.brass = new THREE.MeshStandardMaterial({ color: 0xd4a437, metalness: 0.9, roughness: 0.35 });
     this.red = new THREE.MeshStandardMaterial({ color: 0xb02a20, metalness: 0.2, roughness: 0.6 });
@@ -27,6 +28,7 @@ export class ViewModel {
     if (this.unit) { this.rig.remove(this.unit.root); this.unit.dispose(); }
     this.unit = new Unit(this.A, team, weapon, color, 0, true);
     this.unit.freezeAim();
+    this.windowize(this.unit.gunInner);
     const hd = this.unit.body.getObjectByName('Head'); if (hd) { this.headBone = hd; }
     this.unit.root.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; } });
     this.rig.add(this.unit.root);
@@ -41,6 +43,25 @@ export class ViewModel {
     this.weapon = weapon;
     this.oneHand = weapon === 'pistol' || weapon === 'revolver';
     return true;
+  }
+  /** aimed, the glass of a red-dot or scope is see-through: cut a small round window out of the gun (all of it along the line of sight) so the target shows through the sight */
+  windowize(root) {
+    const U = this.holeU;
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const wrap = (m) => {
+        const prev = m.onBeforeCompile;
+        m.onBeforeCompile = (sh, rr) => {
+          if (prev) prev(sh, rr);
+          sh.uniforms.uAds = U.uAds; sh.uniforms.uHole = U.uHole; sh.uniforms.uAsp = U.uAsp;
+          sh.vertexShader = 'varying vec2 vNdc;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vNdc = gl_Position.xy / gl_Position.w;');
+          sh.fragmentShader = 'varying vec2 vNdc;\nuniform float uAds; uniform vec3 uHole; uniform float uAsp;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n if (uAds > 0.6 && length((vNdc - uHole.xy) * vec2(uAsp, 1.0)) < uHole.z) discard;');
+        };
+        const key = m.customProgramCacheKey; m.customProgramCacheKey = () => (key ? key.call(m) : '') + 'win';
+        return m;
+      };
+      o.material = Array.isArray(o.material) ? o.material.map(wrap) : wrap(o.material);
+    });
   }
   fire() { this.recoil = 1; this.flash = 0.05; this.kick = (Math.random() - 0.5) * 2; if (this.weapon !== 'revolver' && this.weapon !== 'sniper') this.eject = true; }
   startReload(d) { this.rl = { t: 0, d: Math.max(0.6, d) }; }
@@ -57,6 +78,7 @@ export class ViewModel {
     for (let i = this.shells.length - 1; i >= 0; i--) { const sh = this.shells[i]; sh.t += dt; sh.v.y -= 6 * dt; sh.m.position.addScaledVector(sh.v, dt); sh.m.rotation.x += sh.sx * dt; sh.m.rotation.z += sh.sz * dt; if (sh.t > 0.8) { this.scene.remove(sh.m); this.shells.splice(i, 1); } }
     this.equipT = Math.max(0, (this.equipT ?? 0) - dt);
     if (!this.unit) return;
+    this.unit.unholdGun();
     const t = this.tune, r = this.unit.root;
     // the arms: the shooting stance, or the middle of a reload or a throw while one is running
     let acting = null;
@@ -73,6 +95,7 @@ export class ViewModel {
       if (!this.unit.pose(acting[0], acting[1] * len)) acting = null;
     } else acting = null;
     if (!acting && this.unit.cur !== 'Walk_Forward_While_Shooting') this.unit.freezeAim();
+
     // stand the body so its head is at the camera, facing away from it (measured with the viewmodel at rest)
     const rg = this.rig; rg.position.set(0, 0, 0); rg.rotation.set(0, 0, 0); rg.updateMatrixWorld(true);
     r.rotation.set(0, Math.PI + t.yaw, 0); r.position.set(0, 0, 0); r.scale.setScalar(t.scale);
@@ -80,6 +103,7 @@ export class ViewModel {
     const head = this.headBone;
     const la = this.unit.body.getObjectByName('LeftShoulder');
     if (la) la.scale.setScalar((this.oneHand && !acting) || (!acting && (this.adsS ?? 0) > 0.55) ? 0.001 : 1);   // aimed, the support hand would float beside the gun: leave it out of view
+    { const h = SIGHT_WINDOW[this.weapon]; this.holeU.uAds.value = h ? this.adsS : 0; if (h) this.holeU.uHole.value.set(h[0], h[1], h[2]); this.holeU.uAsp.value = aspect; }
     this.adsS += (this.ads - this.adsS) * Math.min(1, dt * 14); const A = this.adsS, ap = ADS_POSE[this.weapon] ?? ADS_POSE.rifle;
     if (head) { head.scale.setScalar(1); r.updateMatrixWorld(true); head.getWorldPosition(_h); r.position.set(-_h.x + t.x + (ap.x - t.x) * A, -_h.y + t.y + (ap.y - t.y) * A, -_h.z + t.z + (ap.z - t.z) * A); head.scale.setScalar(0.001); }
     // the whole viewmodel moves about the eye: walking bob, breathing, turn lag, recoil, drawing the weapon
@@ -95,6 +119,7 @@ export class ViewModel {
     rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
     rg.rotation.set(-tip - spr * 0.45 + kick * (0.05 + (this.weapon === 'sniper' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + spr * 0.35 + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
     rg.updateMatrixWorld(true); this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1), 1 - 0.85 * (this.adsS ?? 0)); rg.updateMatrixWorld(true);
+    if (!acting && !window.__noHold) { this.unit.holdGun(!this.oneHand); rg.updateMatrixWorld(true); }
     if (this.eject) {
       this.eject = false;
       const shotgun = this.weapon === 'shotgun' || this.weapon === 'autosg', m = new THREE.Mesh(this.shellGeo, shotgun ? this.red : this.brass);
@@ -113,6 +138,9 @@ export class ViewModel {
     }
   }
 }
+// the see-through window when aimed, per gun with a glass sight: [centre x, centre y, radius] in screen units (the screen is 2 high), the radius measured in heights
+const SIGHT_WINDOW = { rifle: [0, 0, 0.1], smg: [0, 0, 0.07], burst: [0, 0, 0.08], dmr: [0, 0, 0.1], pistol: [0, 0, 0.06] };
 const _h = new THREE.Vector3();
+if (typeof window !== 'undefined') window.__viewTune = () => ({ ADS_POSE, GUN_K });
 // where the rig sits when the sights are up: placed so the top of each gun's sight (measured in the view's own space) is in the middle of the screen
 const ADS_POSE = { pistol: { x: -0.139, y: -0.035, z: 0.03 }, smg: { x: -0.138, y: -0.041, z: 0.04 }, rifle: { x: -0.132, y: -0.076, z: 0.04 }, shotgun: { x: -0.13, y: -0.014, z: 0.04 }, sniper: { x: -0.133, y: -0.024, z: 0.04 }, revolver: { x: -0.136, y: -0.047, z: 0.03 }, burst: { x: -0.136, y: -0.043, z: 0.04 }, lmg: { x: -0.132, y: -0.05, z: 0.05 }, autosg: { x: -0.129, y: -0.025, z: 0.04 }, dmr: { x: -0.133, y: -0.054, z: 0.04 } };
