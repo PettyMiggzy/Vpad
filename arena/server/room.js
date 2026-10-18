@@ -102,7 +102,7 @@ export function openSeats(match) {
 export function roomSummary(room) {
   const m = room.match;
   const humans = m.humans(0) + m.humans(1);
-  return { id: room.roomId || null, names: m.teams.map((t) => t.name), map: m.map.id, mode: m.mode, seats: openSeats(m), humans, bots: m.players.size - humans, phase: m.phase, round: m.round };
+  return { id: room.roomId || null, names: m.teams.map((t) => t.name), map: m.map.id, mode: m.mode, seats: openSeats(m), humans, bots: m.players.size - humans, phase: m.phase, round: m.round, objective: m.objective, minutes: m.minutes, timer: Math.max(0, Math.ceil(m.timer)), score: m.score.slice() };
 }
 
 export class MatchRoom extends Room {

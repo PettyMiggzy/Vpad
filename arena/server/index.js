@@ -23,7 +23,7 @@ const open = (req) => req.path === '/health' || req.path === '/rooms' || req.pat
 // how late the server's own clock runs: the number that says whether play is suffering (the rules step 30 times a second, so a few ms is fine)
 const loop = monitorEventLoopDelay({ resolution: 10 }); loop.enable();
 let loopSince = 0;
-const ms = (ns) => Math.max(0, Math.round(ns / 1e4) / 100 - 10); // the monitor counts its own 10 ms tick, so that is taken off
+const ms = (ns) => Math.max(0, Math.round((ns / 1e6 - 10) * 100) / 100); // the monitor counts its own 10 ms tick, so that is taken off
 
 // the shop's small web API, plus a health check and the list of open matches
 const api = (app) => {
