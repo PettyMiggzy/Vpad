@@ -16,7 +16,7 @@ const GUN_GRIP = { pistol: 0.26, smg: 0.19, rifle: 0.16, shotgun: 0.3, sniper: 0
 export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
 /** the soldiers and weapons are painted with lime accents: swap those for the team's colour (blue 0.61 or red 0.0 on the hue wheel), leave browns and greys alone */
-const TEAM_HUE = [0.61, 0.005];
+const TEAM_HUE = [0.61, 0.005, 0.25];   // blue, red, and (stickers only) the brand lime
 function teamize(root, team) {
   root.traverse((o) => {
     if (!o.isMesh) return;
@@ -78,7 +78,7 @@ const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _p = new THREE.Vecto
 export class Unit {
   constructor(A, team, weapon, color, seed, full = false) {
     this.team = team; this.weapon = weapon;
-    const names = POOL[team];
+    const names = POOL[team] ?? POOL[0];
     const nm = names[(typeof seed === 'number' ? seed : 0) % names.length], src = full ? A.hero[nm] : A.heroLo[nm];
     this.root = new THREE.Group();
     this.body = SkeletonUtils.clone(src.scene); teamize(this.body, team);
