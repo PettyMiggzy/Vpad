@@ -10,7 +10,7 @@ import { History, rewindMs } from './lag.js';
 import { slimSnap } from './snap.js';
 
 export { MAP_IDS };
-export const MAX_ROOMS = 32;
+export const MAX_ROOMS = Math.max(1, Number(process.env.MAX_ROOMS) || 32);
 export const INPUT_RATE = 60;
 export const SIM_HZ = 30;
 const STEP = 1 / SIM_HZ;
@@ -35,13 +35,14 @@ export function roomOptions(options = {}) {
   let difficulty = Number(options.difficulty);
   if (!Number.isFinite(difficulty)) difficulty = 1;
   else difficulty = clamp(Math.round(difficulty), 0, 2);
-  const objective = options.objective === 'zone' ? 'zone' : 'elim';
+  const objective = options.objective === 'zone' ? 'zone' : options.objective === 'dm' ? 'dm' : 'elim';
+  const minutes = clamp(Math.round(Number(options.minutes)) || 5, 1, 30);
   const colors = Array.isArray(options.colors) ? options.colors : [];
   const teams = [
     { name: names[0] || 'BLUE', color: Number.isInteger(colors[0]) ? cleanColor(colors[0]) : 0x2f7bff },
     { name: names[1] || 'RED', color: Number.isInteger(colors[1]) ? cleanColor(colors[1]) : 0xff3b30 },
   ];
-  return { teams, map, perSide, mode, difficulty, objective, bots: true };
+  return { teams, map, perSide, mode, difficulty, objective, minutes, bots: true };
 }
 
 function wrapAim(a) {
@@ -100,7 +101,8 @@ export function openSeats(match) {
 
 export function roomSummary(room) {
   const m = room.match;
-  return { id: room.roomId || null, names: m.teams.map((t) => t.name), map: m.map.id, mode: m.mode, seats: openSeats(m) };
+  const humans = m.humans(0) + m.humans(1);
+  return { id: room.roomId || null, names: m.teams.map((t) => t.name), map: m.map.id, mode: m.mode, seats: openSeats(m), humans, bots: m.players.size - humans, phase: m.phase, round: m.round };
 }
 
 export class MatchRoom extends Room {
@@ -131,7 +133,7 @@ export class MatchRoom extends Room {
       try {
         await this.setMetadata({
           a: opt.teams[0].name, b: opt.teams[1].name, map: opt.map, mode: opt.mode,
-          objective: opt.objective, perSide: opt.perSide, difficulty: opt.difficulty,
+          objective: opt.objective, minutes: opt.minutes, perSide: opt.perSide, difficulty: opt.difficulty,
           solo: typeof options.solo === 'string' ? options.solo.slice(0, 64) : undefined,   // a practice room is filtered by its player's id, so only that player is let in
         });
       } catch { /* the listing is filled in by the matchmaker when this room was not opened through it */ }
@@ -229,7 +231,7 @@ export class MatchRoom extends Room {
     this.lag.note(p, this.simTime);
     client.send('hello', {
       id: p.id, team: p.team, teams: this.match.teams, perSide: this.match.perSide, roster: this.match.roster(),
-      map: this.match.map.id, mode: this.match.mode, objective: this.match.objective, difficulty: this.match.difficulty, spd: p.speedMul,
+      map: this.match.map.id, mode: this.match.mode, objective: this.match.objective, minutes: this.match.minutes, difficulty: this.match.difficulty, spd: p.speedMul,
     });
     try { client.send('snap', this.picture()); } catch { /* the socket is not open */ }
     this.broadcast('roster', this.match.roster());

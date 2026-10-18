@@ -7,7 +7,9 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import express from 'express';
 import { CATALOG } from './items.js';
 import { getProfile, view, buy, equip, classOp } from './profiles.js';
-import { MatchRoom, liveRooms, roomSummary } from './room.js';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+import { warmNav } from './game.js';
+import { MatchRoom, liveRooms, roomSummary, MAX_ROOMS } from './room.js';
 
 export { MatchRoom };
 
@@ -16,7 +18,12 @@ const cors = {
   'access-control-allow-headers': 'content-type',
   'access-control-allow-methods': 'GET, POST, OPTIONS',
 };
-const open = (req) => req.path === '/health' || req.path === '/rooms' || req.path.startsWith('/api');
+const open = (req) => req.path === '/health' || req.path === '/rooms' || req.path === '/stats' || req.path.startsWith('/api');
+
+// how late the server's own clock runs: the number that says whether play is suffering (the rules step 30 times a second, so a few ms is fine)
+const loop = monitorEventLoopDelay({ resolution: 10 }); loop.enable();
+let loopSince = 0;
+const ms = (ns) => Math.max(0, Math.round(ns / 1e4) / 100 - 10); // the monitor counts its own 10 ms tick, so that is taken off
 
 // the shop's small web API, plus a health check and the list of open matches
 const api = (app) => {
@@ -26,6 +33,13 @@ const api = (app) => {
     next();
   });
   app.get('/health', (_req, res) => res.json({ ok: true }));
+  // what is running now: the matches (no player ids), the room limit, and the loop delay since the last look
+  app.get('/stats', (_req, res) => {
+    const list = [...liveRooms].map(roomSummary);
+    const out = { rooms: list.length, maxRooms: MAX_ROOMS, players: list.reduce((n, r) => n + r.humans, 0), bots: list.reduce((n, r) => n + r.bots, 0), loopMeanMs: ms(loop.mean), loopP99Ms: ms(loop.percentile(99)), loopMaxMs: ms(loop.max), sinceSeconds: Math.round((Date.now() - (loopSince || Date.now())) / 1000), memoryMB: Math.round(process.memoryUsage().rss / 1048576), matches: list };
+    loop.reset(); loopSince = Date.now();
+    res.json(out);
+  });
   app.get('/rooms', (_req, res) => res.json([...liveRooms].map(roomSummary)));
   app.use('/api', express.json({ limit: '2kb' }));
   const send = (res, r) => res.status(r.error ? 400 : 200).json(r);
@@ -38,9 +52,10 @@ const api = (app) => {
 const transport = new WebSocketTransport({ maxPayload: 4096 });
 const server = new Server({ transport, express: api });
 // a and b are the two team names; clients that send the same fixture share a room, and a different map or mode does not
-server.define('match', MatchRoom).filterBy(['a', 'b', 'map', 'mode', 'objective', 'perSide', 'difficulty', 'solo']);
+server.define('match', MatchRoom).filterBy(['a', 'b', 'map', 'mode', 'objective', 'minutes', 'perSide', 'difficulty', 'solo']);
 
 export function listen(port = Number(process.env.PORT) || 2567, host = process.env.HOST || undefined) {
+  warmNav();
   return server.listen(port, host).then(() => {
     const addr = transport.server?.address?.();
     const got = addr && typeof addr === 'object' ? addr.port : port;

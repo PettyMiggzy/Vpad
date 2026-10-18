@@ -14,7 +14,7 @@ export class NetMatch {
     this.pull = -1e9;
     this.map = MAPS[hello.map] || MAPS.cargo;
     this.mode = hello.mode === 'challenge' ? 'challenge' : 'practice';
-    this.objective = hello.objective === 'zone' ? 'zone' : 'elim';
+    this.objective = hello.objective === 'zone' ? 'zone' : hello.objective === 'dm' ? 'dm' : 'elim'; this.minutes = hello.minutes || 5; this.overtime = false;
     this.perSide = hello.perSide;
     this.players = new Map();
     this.nades = [];
@@ -65,7 +65,7 @@ export class NetMatch {
   /** one snapshot, as net.js places it for this frame */
   apply(s, now = performance.now()) {
     this.mode = s.mode === 'challenge' ? 'challenge' : 'practice';
-    this.objective = s.obj === 'zone' ? 'zone' : 'elim';
+    this.objective = s.obj === 'zone' ? 'zone' : s.obj === 'dm' ? 'dm' : 'elim'; this.overtime = s.ot === 1; if (s.mn) this.minutes = s.mn;
     this.phase = s.ph; this.round = s.r; this.score = s.sc; this.timer = s.tm; this.winner = s.w;
     this.uav = s.uv || [0, 0]; this.alive = s.al || [0, 0];
     const zn = s.zn;

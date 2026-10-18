@@ -73,3 +73,16 @@ test('your own recoil is replayed from your own shots: one pull of a shotgun cou
   me.input.ads = false; for (let i = 0; i < 40; i++) nm.tick(0.05); assert.equal(me.ads, 0);
   for (let i = 0; i < 80; i++) nm.tick(0.05); assert.equal(me.rc.p, 0); assert.equal(me.rc.n, 0);
 });
+
+test('a deathmatch comes through the network match: the type, the time limit, overtime and kills as the score', () => {
+  const m = new Match({ teams, perSide: 2, bots: true, map: 'cargo', mode: 'practice', objective: 'dm', minutes: 7 });
+  m.addPlayer('p1', { name: 'Ana', team: 0, loadout: { weapon: 'rifle' } });
+  m.startRound();
+  for (let i = 0; i < 200; i++) m.step(1 / 30);
+  const nm = new NetMatch({ ...hello(m), minutes: m.minutes }, teams);
+  assert.equal(nm.objective, 'dm'); assert.equal(nm.minutes, 7);
+  const foe = [...m.players.values()].find((p) => p.team === 1); foe.alive = true; m.kill(m.players.get('p1'), foe, {});
+  nm.apply(m.snapshot());
+  assert.deepEqual(nm.score, [1, 0]); assert.equal(nm.objective, 'dm'); assert.equal(nm.overtime, false);
+  m.overtime = true; nm.apply(m.snapshot()); assert.equal(nm.overtime, true);
+});
