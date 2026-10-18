@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>War hub | Vyre Bad Lands</title>
+<meta name="description" content="Link your wallet to your Vyre Bad Lands soldier and see your level, gear and saved classes in one place.">
+<meta name="theme-color" content="#060905"><link rel="icon" href="/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+.hub{display:grid;gap:18px;max-width:760px}
+.hub .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.hub input{background:#0a1008;border:1px solid var(--line);border-radius:10px;color:var(--text);font:600 18px/1 Inter;letter-spacing:.18em;text-transform:uppercase;padding:13px 14px;width:190px}
+.hub .note{color:var(--muted);font-size:13px}
+.hub .err{color:var(--red);font-size:14px}
+.hub .stat{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.hub .stat div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.hub .stat b{display:block;font:700 28px/1 Oswald;color:var(--lime)}
+.hub .stat small{color:var(--muted)}
+.hub .bar{height:8px;background:#0a1008;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.hub .bar i{display:block;height:100%;background:var(--lime)}
+.hub dl{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;margin:0}
+.hub dt{color:var(--muted)}.hub dd{margin:0}
+.hub .cls{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.hub .cls.on{border-color:var(--lime)}
+</style>
+</head>
+<body data-page="hub">
+<div id="site-header"></div>
+<main>
+<section style="padding-top:60px"><div class="wrap">
+  <div class="eyebrow">War hub</div>
+  <h1 style="font-size:clamp(38px,6vw,68px)">Your soldier</h1>
+  <p class="sub" style="margin-top:14px">Link a wallet to the soldier you play and see your level, gear and saved classes here. Linking is a free signature: it proves the wallet is yours and moves nothing. Everything in the game uses play coins for now.</p>
+  <div class="hub" id="app"><div class="empty">Loading…</div></div>
+</div></section>
+</main>
+<div id="site-footer"></div>
+<script type="module">
+import '/site.js';
+import { PLAY } from '/site.js';
+const app = document.getElementById('app');
+const KEY = 'vyre.hub.addr';
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); for (const k of kids) e.append(k); return e; };
+const say = (cls, text) => el('div', { className: cls, textContent: text });
+const ADDR = /^0x[0-9a-fA-F]{40}$/;
+const eth = () => window.ethereum;
+let addr = null;
+try { const s = localStorage.getItem(KEY); if (ADDR.test(s || '')) addr = s; } catch {}
+
+async function api(path, body) {
+  const r = await fetch(PLAY + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  return { status: r.status, body: await r.json().catch(() => ({})) };
+}
+// the exact text the game server checks the signature against
+const message = (a, code) => `Vyre Bad Lands: link this wallet to my player\nWallet: ${a.toLowerCase()}\nCode: ${code}`;
+const hex = (s) => '0x' + [...new TextEncoder().encode(s)].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+function connectView(msg) {
+  app.replaceChildren(
+    el('div', { className: 'card' },
+      el('h3', { textContent: 'Connect your wallet' }),
+      el('p', { textContent: eth() ? 'Your wallet will ask you to share your address. It does not ask for any payment.' : 'No wallet was found in this browser. On a phone, open this page inside your wallet app’s own browser.' }),
+      el('button', { className: 'btn primary', textContent: 'CONNECT WALLET', disabled: !eth(), onclick: connect }),
+      msg ? say('err', msg) : ''));
+}
+async function connect() {
+  try {
+    const [a] = await eth().request({ method: 'eth_requestAccounts' });
+    if (!ADDR.test(a || '')) throw new Error('bad address');
+    addr = a; try { localStorage.setItem(KEY, a); } catch {}
+    load();
+  } catch { connectView('The wallet did not connect.'); }
+}
+function linkView(msg) {
+  const input = el('input', { maxLength: 8, placeholder: 'CODE', autocomplete: 'off', spellcheck: false });
+  const go = el('button', { className: 'btn primary', textContent: 'SIGN AND LINK' });
+  go.onclick = async () => {
+    const code = input.value.trim().toUpperCase();
+    if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) return linkView('A code has 8 letters and numbers.');
+    go.disabled = true;
+    try {
+      const signature = await eth().request({ method: 'personal_sign', params: [hex(message(addr, code)), addr] });
+      const r = await api('/api/link', { code, address: addr, signature });
+      if (r.status !== 200) return linkView(r.body.error || 'That did not work.');
+      load();
+    } catch { linkView('The wallet did not sign.'); }
+  };
+  app.replaceChildren(
+    el('div', { className: 'card' },
+      el('h3', { textContent: 'Link your soldier' }),
+      el('p', { textContent: 'No soldier is linked to ' + addr.slice(0, 6) + '…' + addr.slice(-4) + ' yet. In the game, open the menu and tap “War hub: link a wallet” to get a code that lasts 10 minutes, then enter it here. This works in the browser game only, not in the store apps.' }),
+      el('div', { className: 'row' }, input, go, el('a', { className: 'btn ghost', href: PLAY + '/', textContent: 'OPEN THE GAME' })),
+      msg ? say('err', msg) : ''),
+    el('button', { className: 'btn ghost', textContent: 'USE ANOTHER WALLET', onclick: () => { try { localStorage.removeItem(KEY); } catch {} addr = null; connectView(); } }));
+}
+const SLOTS = [['weapon', 'Gun'], ['mod', 'Mod'], ['armor', 'Armour'], ['helmet', 'Helmet'], ['boots', 'Boots'], ['grenade', 'Grenades'], ['camo', 'Camo']];
+function profileView(p) {
+  const name = (id) => p.catalog[id]?.name || id;
+  const loadout = (l) => { const dl = el('dl'); for (const [s, label] of SLOTS) dl.append(el('dt', { textContent: label }), el('dd', { textContent: name(l[s]) })); return dl; };
+  const kills = Object.entries(p.weaponKills || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, n]) => `${name(id)} ${n}`).join(' · ');
+  app.replaceChildren(
+    el('div', { className: 'stat' },
+      el('div', {}, el('b', { textContent: String(p.level) }), el('small', { textContent: 'Level' })),
+      el('div', {}, el('b', { textContent: String(p.coins) }), el('small', { textContent: 'Play coins' })),
+      el('div', {}, el('b', { textContent: String(p.owned.length) }), el('small', { textContent: 'Items owned' }))),
+    el('div', { className: 'bar' }, el('i', { style: `width:${Math.round((p.levelFrac || 0) * 100)}%` })),
+    el('div', { className: 'card' }, el('h3', { textContent: 'Carrying now' }), loadout(p.loadout), kills ? el('p', { className: 'note', textContent: 'Most kills: ' + kills }) : ''),
+    ...(p.classes || []).map((c, i) => el('div', { className: 'cls' + (i === p.activeClass ? ' on' : '') }, el('b', { textContent: String(c.name || `Class ${i + 1}`).slice(0, 24) }), loadout(c.loadout || {}))),
+    el('div', { className: 'card' },
+      el('h3', { textContent: 'Upgrades' }),
+      el('p', { textContent: 'Upgrades use play coins you earn in matches. Paying with a wallet is not available, and it will not be until a legal review is done.' }),
+      el('a', { className: 'btn primary', href: PLAY + '/', textContent: 'PLAY NOW' })),
+    el('button', { className: 'btn ghost', textContent: 'DISCONNECT', onclick: () => { try { localStorage.removeItem(KEY); } catch {} addr = null; connectView(); } }));
+}
+async function load() {
+  if (!addr) return connectView();
+  app.replaceChildren(el('div', { className: 'empty', textContent: 'Loading your soldier…' }));
+  let r;
+  try { r = await api('/api/hub?address=' + addr); } catch { return app.replaceChildren(say('err', 'The game server did not answer. Try again in a minute.')); }
+  if (r.status === 200) return profileView(r.body);
+  if (r.status === 404) return linkView();
+  app.replaceChildren(say('err', 'Something went wrong. Try again in a minute.'));
+}
+load();
+</script>
+</body>
+</html>

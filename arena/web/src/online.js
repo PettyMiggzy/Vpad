@@ -83,3 +83,8 @@ export async function diagnose(url) {
   out.push(`live link ${ws}`);
   return out.join(', ');
 }
+
+/** a short code that links this player to a wallet on the website's war hub (the page shows it; the website checks the wallet's signature) */
+export async function askLinkCode(url, pid) {
+  try { return await post(url, '/api/link/code', { pid }); } catch { return { error: 'the server did not answer' }; }
+}

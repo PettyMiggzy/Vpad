@@ -7,6 +7,7 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import express from 'express';
 import { CATALOG } from './items.js';
 import { getProfile, view, buy, equip, classOp } from './profiles.js';
+import { askCode, link, pidOf } from './wallet.js';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { warmNav } from './game.js';
 import { MatchRoom, liveRooms, roomSummary, MAX_ROOMS } from './room.js';
@@ -46,6 +47,14 @@ const api = (app) => {
   app.get('/api/profile', (req, res) => { const p = getProfile(String(req.query.pid || '')); if (!p) return res.status(400).json({ error: 'bad id' }); res.json({ ...view(p), catalog: CATALOG }); });
   app.post('/api/buy', (req, res) => send(res, buy(String(req.body?.pid || ''), String(req.body?.item || ''))));
   app.post('/api/class', (req, res) => send(res, classOp(String(req.body?.pid || ''), String(req.body?.op || ''), Number(req.body?.i), req.body?.name)));
+  // the war hub on the website: a code from the game page, a signature from the wallet on the website, then the profile can be read by wallet
+  app.post('/api/link/code', (req, res) => send(res, askCode(String(req.body?.pid || ''))));
+  app.post('/api/link', async (req, res) => send(res, await link(req.body?.code, req.body?.address, req.body?.signature)));
+  app.get('/api/hub', (req, res) => {
+    const pid = pidOf(String(req.query.address || '')), p = pid && getProfile(pid);
+    if (!p) return res.status(404).json({ error: 'no player is linked to that wallet' });
+    res.json({ ...view(p), catalog: CATALOG });
+  });
   app.post('/api/equip', (req, res) => send(res, equip(String(req.body?.pid || ''), String(req.body?.item || ''))));
 };
 

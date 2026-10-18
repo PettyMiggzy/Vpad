@@ -21,7 +21,7 @@ import { Unit, UNIT_H, GUN_OFFSET } from './units.js';
 import { ViewModel } from './view.js';
 import { connect } from './net.js';
 import { NetMatch } from './netmatch.js';
-import { serverUrl, reachable, playerId, pullProfile, mirrorShop, diagnose } from './online.js';
+import { serverUrl, reachable, playerId, pullProfile, mirrorShop, diagnose, askLinkCode } from './online.js';
 
 const qs = new URLSearchParams(location.search);
 const dbg = qs.get('dbg') || '';
@@ -163,6 +163,18 @@ let shopQ = Promise.resolve();
 const onShop = (op, a, b) => { if (srv) shopQ = shopQ.then(() => mirrorShop(srv, pid, profile, op, a, b)).then(() => { save(); if (ui.menuOpen()) ui.renderShop(); }); };
 const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => { paused = false; ui.showPause(false); requestLock(); }, onLeave: () => leave(), challengeLive: !!srv, onShop, leaders: () => lb, onPause: () => { paused = true; ui.showPause(true); }, onScore: () => { showScore = !showScore; } });
 if (pid) ui.setPid(pid);
+// the website's war hub finds this player by a wallet: a short code from here, signed there. Browser only: the store apps carry no wallet link.
+if (pid && !window.Capacitor?.isNativePlatform?.()) {
+  const anchor = document.getElementById('vy-pid');
+  if (anchor) {
+    const hub = document.createElement('div'); hub.className = 'pid'; hub.style.cursor = 'pointer'; hub.textContent = 'War hub: link a wallet (tap for a code)';
+    anchor.after(hub);
+    hub.onclick = async () => {
+      const r = await askLinkCode(srv, pid);
+      hub.textContent = r.code ? `Your code: ${r.code} (10 minutes). Enter it at vyrebadlands.com/hub` : (r.error || 'No code right now');
+    };
+  }
+}
 
 async function start(c) {
   sfx.unlock();

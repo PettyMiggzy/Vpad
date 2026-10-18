@@ -1,7 +1,7 @@
 // Shared bits of the website: the header and footer, the live match numbers from the game server, small helpers.
 const PLAY = 'https://play.vyrebadlands.com', PAD = 'https://pad.vyrebadlands.com', X = 'https://x.com/vyrebadlands';
 const page = document.body.dataset.page || '';
-const links = [['/', 'Home', 'home'], ['/matches/', 'Matches', 'matches'], ['/armory/', 'Armory', 'armory'], [PAD, 'WARHEADZ pad', 'pad']];
+const links = [['/', 'Home', 'home'], ['/matches/', 'Matches', 'matches'], ['/armory/', 'Armory', 'armory'], ['/hub/', 'War hub', 'hub'], [PAD, 'WARHEADZ pad', 'pad']];
 document.querySelector('#site-header').innerHTML = `
 <header class="nav"><div class="wrap">
   <a class="brand" href="/"><img src="/img/logo-badlands.webp" alt="Vyre Bad Lands" width="86" height="40"></a>
@@ -14,11 +14,11 @@ document.querySelector('#site-footer').innerHTML = `
 <footer><div class="wrap">
   <div class="cols">
     <div><img src="/img/logo-badlands.webp" alt="" width="120" height="55" style="margin-bottom:12px"><div style="max-width:300px">A first-person team shooter for token communities. Free to play, play money only for now.</div></div>
-    <div><h4>Play</h4><a href="${PLAY}/">Play in your browser</a><a href="/matches/">Live and upcoming matches</a><a href="/armory/">Armory and loadouts</a></div>
+    <div><h4>Play</h4><a href="${PLAY}/">Play in your browser</a><a href="/matches/">Live and upcoming matches</a><a href="/armory/">Armory and loadouts</a><a href="/hub/">War hub</a></div>
     <div><h4>Ecosystem</h4><a href="${PAD}" rel="noopener">WARHEADZ launchpad (testnet)</a><a href="${X}" rel="noopener">@vyrebadlands on X</a></div>
     <div><h4>Help</h4><a href="/support/">Support and controls</a><a href="/privacy/">Privacy policy</a><a href="/terms/">Terms of play</a></div>
   </div>
-  <div class="legal">Vyre Bad Lands is a prototype. Everything in the game uses play money; nothing on this website or in the game moves real money or touches a wallet. Paying with a wallet may come later and only after a legal review. The WARHEADZ launchpad runs on a test network. This is not financial advice, and no result or reward is promised to anyone.</div>
+  <div class="legal">Vyre Bad Lands is a prototype. Everything in the game uses play money; nothing on this website or in the game moves real money. The war hub asks your wallet for a free signature to link your soldier and never for a payment. Paying with a wallet may come later and only after a legal review. The WARHEADZ launchpad runs on a test network. This is not financial advice, and no result or reward is promised to anyone.</div>
 </div></footer>`;
 document.getElementById('burger').onclick = () => document.getElementById('nav').classList.toggle('open');
 
