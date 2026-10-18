@@ -8,6 +8,7 @@ import { oneAtATime, vyre } from '../lib/chain';
 import { ago, change, price, searchTerm, tokenText, usd, usdOf } from '../lib/format';
 import { listLaunches, marketOf, type Listed } from '../lib/market';
 import { loadHolders, loadStats, MILESTONE_TEXT, type Stats } from '../lib/stats';
+import { CONTENDERS, rankByVolume } from '../lib/king';
 import { href } from '../lib/router';
 import { Loading, TokenPic } from '../components/ui';
 import Spark from '../components/Spark';
@@ -124,9 +125,10 @@ export default function Explore({ q = '' }: { q?: string }) {
   const cap = (l: Listed) => l.market?.marketCap ?? 0;
   const top = useMemo(() => {
     if (!list) return { king: null, contenders: [], byLiquidity: [] };
-    const grads = list.filter((l) => st(l)?.graduated);
-    const king = grads.sort((a, b) => Number((st(b)!.reachedBlock ?? 0n) - (st(a)!.reachedBlock ?? 0n)))[0] ?? null;
-    const contenders = list.filter((l) => st(l) && !st(l)!.graduated).sort((a, b) => st(b)!.progress - st(a)!.progress).slice(0, 4);
+    // the king is the launch with the most USDC traded in the last six hours, and the next few are chasing the crown
+    const ranked = rankByVolume(list, stats);
+    const king = ranked[0] ?? null;
+    const contenders = ranked.slice(1, 1 + CONTENDERS);
     // by the USDC in each pool: a market cap alone is a number its creator picked at launch
     const byLiquidity = list.filter((l) => st(l)).sort((a, b) => st(b)!.raised - st(a)!.raised).slice(0, 4);
     return { king, contenders, byLiquidity };

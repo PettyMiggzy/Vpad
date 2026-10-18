@@ -7,6 +7,7 @@ import { inPieces, LOG_LIST_MAX, pagedLogs } from './pieces';
 import { isQuoteToken0, vyreTokenAbi } from '@vyrechain/sdk';
 import { EXPLORER, vyre } from './chain';
 import { addresses, priceFrom, swapEvent, type Listed } from './market';
+import { KING_WINDOW } from './king';
 
 const DAY = 86_400;
 export const launchCreated = parseAbiItem(
@@ -30,6 +31,8 @@ export interface Stats {
    * The creator's first buy is part of the launch, so it's left out of this and of change24.
    */
   volume24: bigint | null;
+  /** The same for the last six hours (the window the crown is judged over); null if the window can't be dated */
+  volume6h: bigint | null;
   /** Price change over the last 24 hours, in percent (for younger launches, from the price after the launch
    * transaction, its first buy included) */
   change24: number | null;
@@ -79,7 +82,7 @@ export async function loadStats(list: Listed[]): Promise<Map<Address, Stats>> {
   const a = addresses();
   const start = BigInt(a.startBlock ?? 0);
   const now = Math.floor(Date.now() / 1000);
-  const [latest, before] = await Promise.all([vyre.getBlockNumber({ cacheTime: 0 }), blockBefore(now - DAY)]);
+  const [latest, before, before6h] = await Promise.all([vyre.getBlockNumber({ cacheTime: 0 }), blockBefore(now - DAY), blockBefore(now - KING_WINDOW)]);
   const pools = list.map((l) => l.pool);
   const q0 = new Map(list.map((l) => [l.pool.toLowerCase(), l.market?.quoteIsToken0 ?? isQuoteToken0(l.token, a.wusdc)]));
 
@@ -121,6 +124,7 @@ export async function loadStats(list: Listed[]): Promise<Map<Address, Stats>> {
     const p0 = openPrice.get(k) ?? current;
     const created = launchTx.get(k);
     let volume24: bigint | null = before === null ? null : 0n;
+    let volume6h: bigint | null = before6h === null ? null : 0n;
     // where the day's change is counted from: the price going into the day, or for a younger launch the price after
     // its launch transaction (the creator's own first buy is part of the launch, not a trade of the day)
     let startPrice = p0;
@@ -140,12 +144,14 @@ export async function loadStats(list: Listed[]): Promise<Map<Address, Stats>> {
       if (before !== null && g.blockNumber <= before) { if (p > 0) startPrice = p; continue; }
       const q = (quoteIs0 ? g.args.amount0 : g.args.amount1) ?? 0n;
       if (volume24 !== null) volume24 += q < 0n ? -q : q;
+      if (volume6h !== null && g.blockNumber > before6h!) volume6h += q < 0n ? -q : q;
       if (p > 0) recent.push(p);
     }
     const raised = usdcIn(supply, p0, current);
     const graduated = raised >= MILESTONE;
     out.set(l.pool, {
       volume24,
+      volume6h,
       change24: before === null ? null : startPrice > 0 ? (current / startPrice - 1) * 100 : 0,
       // the day's prices; with no trade in the day, a flat line at the price (it didn't move)
       trend: thin(recent.length ? [startPrice, ...recent, current] : [current, current]),

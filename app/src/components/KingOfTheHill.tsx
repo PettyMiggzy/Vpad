@@ -1,10 +1,11 @@
-// The top of the home page: King of the Bad Lands (the launch that most recently reached the milestone) with its price,
-// volume, holders and recent price; the contenders, the four launches closest to it; and the top four by USDC in
+// The top of the home page: King of the Bad Lands (the launch with the most USDC traded in the last six hours) with its price,
+// volume, holders and recent price; the contenders, the next four by the same measure; and the top four by USDC in
 // their pools.
 import { change, iso, price, tokenText, usd, usdOf } from '../lib/format';
 import type { Listed } from '../lib/market';
 import { href } from '../lib/router';
-import { MILESTONE_TEXT, type Stats } from '../lib/stats';
+import { KING_WINDOW_TEXT } from '../lib/king';
+import type { Stats } from '../lib/stats';
 import { TokenPic } from './ui';
 
 const Crown = () => (
@@ -40,7 +41,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
     <section className="koth" aria-labelledby="koth-title">
       <div className="koth-head">
         <h2 id="koth-title" className="koth-title"><Crown />King of the Bad Lands</h2>
-        <span className="muted small">Most recent to {MILESTONE_TEXT}</span>
+        <span className="muted small">Most volume, last {KING_WINDOW_TEXT}</span>
       </div>
       {king ? (
         <a className="koth-king" href={href({ page: 'token', token: king.token })}>
@@ -56,6 +57,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
           {ks && <RecentChart points={ks.trend} label={`${iso(king.symbol)}'s recent price, from ${price(ks.trend[0])} to ${price(ks.trend[ks.trend.length - 1])}`} />}
           <dl className="koth-stats">
             <div><dt>Price</dt><dd>{king.market ? price(king.market.price) : '—'}</dd></div>
+            <div><dt>6h volume</dt><dd>{ks?.volume6h != null ? usdOf(ks.volume6h) : '—'}</dd></div>
             <div><dt>24h volume</dt><dd>{ks?.volume24 != null ? usdOf(ks.volume24) : '—'}</dd></div>
             <div><dt>Holders</dt><dd>{h == null ? '—' : h.toLocaleString('en-US')}</dd></div>
           </dl>
@@ -63,7 +65,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
       ) : status !== 'ok' ? (
         <p className="koth-empty">{pending(status)}</p>
       ) : (
-        <p className="koth-empty">No king right now. The next token to reach {MILESTONE_TEXT} of USDC bought in takes the crown.</p>
+        <p className="koth-empty">No king right now. The token with the most USDC traded in the next {KING_WINDOW_TEXT} takes the crown.</p>
       )}
     </section>
   );
@@ -74,7 +76,7 @@ export function Contenders({ rows, stats, status }: { rows: Listed[]; stats: Map
     <section className="contenders-box" aria-labelledby="contenders-title">
       <div className="koth-head">
         <h2 id="contenders-title" className="h3">Contenders</h2>
-        <span className="muted small">Closest to {MILESTONE_TEXT}</span>
+        <span className="muted small">Chasing the crown</span>
       </div>
       {rows.length === 0 && <p className="muted small contenders-none">{status === 'ok' ? 'None yet.' : pending(status)}</p>}
       <ol className="contenders">
@@ -88,7 +90,7 @@ export function Contenders({ rows, stats, status }: { rows: Listed[]; stats: Map
                 <TokenPic uri={c.metadataURI} symbol={c.symbol} token={c.token} size={46} />
                 <span className="grow sym"><bdi>{tokenText(c.symbol)}</bdi></span>
                 <span className="right">
-                  <span className="block">{c.market ? usd(c.market.marketCap) : '—'} <span className="muted small">mcap</span></span>
+                  <span className="block">{s?.volume6h != null ? usdOf(s.volume6h) : '—'} <span className="muted small">6h vol</span></span>
                   {ch && <span className="block"><span className={ch.cls}>{ch.text}</span> <span className="muted small">24h</span></span>}
                 </span>
                 <span className="muted go" aria-hidden="true">↗</span>
