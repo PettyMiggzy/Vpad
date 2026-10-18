@@ -14,7 +14,7 @@ export const THEMES = {
     hdr: 'industrial_sunset_puresky', ground: 'asphalt_02', gtile: 7, wall: 'concrete_wall_008', metal: 'corrugated_iron', deck: 'metal_plate', roof: 'concrete_floor_worn_001',
     sun: 3.8, sunColor: 0xffb070, env: 0.55, exposure: 0.9, fogNear: 150, fogFar: 520, hazeLum: 0.22, night: false,
     grade: { sat: 1.1, contrast: 1.1, vig: 0.34, grain: 0.022, shadow: [0.93, 0.99, 1.07], high: [1.07, 1.0, 0.9] },
-    props: ['container_blue', 'container_grey', 'container_orange', 'container_red', 'crate_wood', 'crate_steel', 'barrel_blue', 'barrel_red', 'barrier_concrete', 'sandbags', 'pallet_boxes', 'lamp_flood', 'water_tower', 'truck_cargo', 'forklift', 'pickup_truck', 'fence_chainlink', 'pipe_rack', 'watchtower', 'tires'],
+    props: ['container_blue', 'container_grey', 'container_orange', 'container_red', 'container_blue_far', 'container_grey_far', 'container_orange_far', 'container_red_far', 'crate_wood', 'crate_steel', 'barrel_blue', 'barrel_red', 'barrier_concrete', 'sandbags', 'pallet_boxes', 'lamp_flood', 'water_tower', 'truck_cargo', 'forklift', 'pickup_truck', 'fence_chainlink', 'pipe_rack', 'watchtower', 'tires'],
   },
   dust: {
     hdr: 'qwantani_noon_puresky', ground: 'sand_01', gtile: 8, wall: 'large_sandstone_blocks', metal: 'rusty_metal_02', deck: 'concrete_floor_worn_001', roof: 'concrete_floor_worn_001',
@@ -174,7 +174,16 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
   // ---- props ----
   const prop = (name, w, h, d, cx, y, cz, uniform = false) => {
     const g = A.props[name]; if (!g) return null;
-    const o = fitModel(g, w, h, d, uniform); o.position.set(cx, y, cz); group.add(o); return o;
+    let o = fitModel(g, w, h, d, uniform);
+    // a stripped-down copy (same pictures, a tenth of the triangles) takes over past a distance: most of a big map is far away
+    const far = A.props[name + '_far'];
+    if (far) {
+      const lo = fitModel(far, w, h, d, uniform);
+      let mat = null; g.scene.traverse((x) => { if (x.isMesh && !mat) mat = x.material; });
+      lo.traverse((x) => { if (x.isMesh) { x.material = mat; x.castShadow = x.receiveShadow = true; } });
+      const lod = new THREE.LOD(); lod.addLevel(o, 0); lod.addLevel(lo, quality === 'low' ? 55 : 85); o = lod;
+    }
+    o.position.set(cx, y, cz); group.add(o); return o;
   };
   const tall = (name, hgt, x, z, rot = 0) => { const g = A.props[name]; if (!g) return null; const o = propHeight(g, hgt); o.position.set(x, 0, z); o.rotation.y = rot; group.add(o); return o; };
   const NOM = { crate: 1.3, barrel: 1.1, barrier: 1.1, sandbag: 1.1, rail: 1.15 };
