@@ -63,7 +63,9 @@ export class Unit {
     const long = Math.max(gs.x, gs.y, gs.z);
     teamize(g, team);
     g.position.sub(gc); g.position.x -= (GUN_GRIP[weapon] ?? 0.18) * (GUN_LEN[weapon] ?? 0.8); g.scale.setScalar((GUN_LEN[weapon] ?? 0.8) / long);
-    this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gunInner.rotation.y = GUN_TURN[weapon] ?? TURN; this.gun.add(this.gunInner);
+    // the muzzle: the -x end of the model, about two thirds of the way up its height (where a barrel sits); flashes and tracers start here
+    { const s = (GUN_LEN[weapon] ?? 0.8) / long; this.muzzleObj = new THREE.Object3D(); this.muzzleObj.position.set(g.position.x + s * gb.min.x, g.position.y + s * (gb.min.y + 0.62 * gs.y), g.position.z + s * gc.z); }
+    this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gunInner.add(this.muzzleObj); this.gunInner.rotation.y = GUN_TURN[weapon] ?? TURN; this.gun.add(this.gunInner);
     this.gun.matrixAutoUpdate = false; this.root.add(this.gun);
     this.hand = this.body.getObjectByName('RightHand');
     // team marks

@@ -86,6 +86,14 @@ main() {
   chmod -R a+rX "$SRC" "$WEB" 2>/dev/null || true
   if ! runuser -u arena -- test -r "$SRC/arena/server/node_modules/colyseus/package.json"; then echo "The service user still cannot read the match server's files."; return 1; fi
 
+  # an installed web server config from an older build lacks routes added since (certbot has edited that file, so it is never rewritten whole): add them in place
+  local NGX=/etc/nginx/sites-available/arena
+  if [ -f "$NGX" ] && ! grep -q 'location = /stats' "$NGX"; then
+    cp "$NGX" "$NGX.bak"
+    sed -i '/location = \/rooms/a\    location = /stats  { proxy_pass http://127.0.0.1:2567; }' "$NGX"
+    if nginx -t >/dev/null 2>&1; then systemctl reload nginx || true; echo "Web server: added the /stats route."; else cp "$NGX.bak" "$NGX"; echo "Web server: the /stats route did not fit this config; left as it was."; fi
+  fi
+
   if [ "$UPDATE" = 1 ]; then
     # a page-only change must not end the matches being played: restart the match server only when its own files changed
     if [ -z "$OLD" ] || ! git -C "$SRC" diff --quiet "$OLD" "$NEW" -- arena/server; then systemctl restart arena; echo "Updated to $NEW (match server restarted)."

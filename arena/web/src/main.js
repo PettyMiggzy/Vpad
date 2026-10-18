@@ -615,10 +615,12 @@ function draw() {
 }
 let acc = 0, last = performance.now(), fov = FOV;
 const NO_RC = { p: 0, y: 0, bloom: 0 };
-window.__arena = { bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
+window.__arena = { advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
-function frame(now) {
-  requestAnimationFrame(frame);
+let manualClock = false;   // set by the film tools: frames are then only drawn when asked for, with a fixed step
+function frame(now, manual) {
+  if (!manual) requestAnimationFrame(frame);
+  if (manualClock && !manual) return;
   const raw = (now - last) / 1000; last = now;
   const dt = Math.min(raw, 0.1), t = now / 1000;
   const sniping = me && me.alive && me.weapon === 'sniper';

@@ -55,8 +55,7 @@ let voices = 0;
 interface Opt { vol?: number; rate?: number; x?: number; z?: number; own?: boolean; maxDur?: number; delayCap?: number }
 /** plays a named sound; with x and z it is placed in the world, else it is heard in the head */
 export function play(name: string, o: Opt = {}): void {
-  if (!ac || !master) return;
-  const buf = bufs.get(name); if (!buf || voices > 28) return;
+  // the sound's loudness, pan, delay and muffling from where it happened relative to the listener
   let vol = (GAIN[name] ?? 0.5) * (o.vol ?? 1), pan = 0, delay = 0, cut = 20000;
   if (o.x !== undefined && o.z !== undefined && !o.own) {
     const dx = o.x - L.x, dz = o.z - L.z, d = Math.hypot(dx, dz);
@@ -66,6 +65,11 @@ export function play(name: string, o: Opt = {}): void {
     cut = Math.max(1400, 20000 / (1 + d / 18));
     if (vol < 0.01) return;
   }
+  // the film tools collect every sound with its frame, so the sound track of a recorded clip can be mixed from the same files
+  const rec = (globalThis as { __sfxlog?: unknown[][] }).__sfxlog;
+  if (rec) rec.push([(globalThis as { __frame?: number }).__frame ?? 0, name, +vol.toFixed(3), +pan.toFixed(2), +delay.toFixed(3), o.rate ?? 1, o.maxDur ?? 0, cut]);
+  if (!ac || !master) return;
+  const buf = bufs.get(name); if (!buf || voices > 28) return;
   const t = ac.currentTime + delay;
   const src = ac.createBufferSource(); src.buffer = buf; src.playbackRate.value = (o.rate ?? 1) * (0.96 + Math.random() * 0.08);
   const g = ac.createGain(); g.gain.value = vol;

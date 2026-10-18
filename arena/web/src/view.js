@@ -30,7 +30,13 @@ export class ViewModel {
     const hd = this.unit.body.getObjectByName('Head'); if (hd) { this.headBone = hd; }
     this.unit.root.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; } });
     this.rig.add(this.unit.root);
-    this.muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd870).multiplyScalar(2.4), toneMapped: false, transparent: true, opacity: 0.95 }));
+    // a flash that looks like one: a hot white core with four spikes, added to the picture (not a solid ball), drawn once into a small texture
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128; const cx = cv.getContext('2d');
+    const gr = cx.createRadialGradient(64, 64, 2, 64, 64, 62); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.18, 'rgba(255,236,170,0.95)'); gr.addColorStop(0.5, 'rgba(255,150,40,0.35)'); gr.addColorStop(1, 'rgba(255,100,0,0)');
+    cx.fillStyle = gr; cx.fillRect(0, 0, 128, 128);
+    cx.globalCompositeOperation = 'lighter'; cx.fillStyle = 'rgba(255,225,150,0.9)';
+    for (let i = 0; i < 4; i++) { cx.save(); cx.translate(64, 64); cx.rotate(i * Math.PI / 4 + 0.2); cx.beginPath(); cx.moveTo(-62, 0); cx.lineTo(0, -3.2); cx.lineTo(62, 0); cx.lineTo(0, 3.2); cx.closePath(); cx.fill(); cx.restore(); }
+    this.muzzle = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, color: new THREE.Color(1.6, 1.4, 1.1) }));
     this.muzzle.visible = false; this.scene.add(this.muzzle);
     this.weapon = weapon;
     this.oneHand = weapon === 'pistol' || weapon === 'revolver';
@@ -93,14 +99,16 @@ export class ViewModel {
       this.eject = false;
       const shotgun = this.weapon === 'shotgun' || this.weapon === 'autosg', m = new THREE.Mesh(this.shellGeo, shotgun ? this.red : this.brass);
       if (shotgun) m.scale.set(1.6, 1.8, 1.6);
-      m.position.set(0.05 + (this.adsS * -0.02), -0.06, -0.32); this.scene.add(m);
+      // out of the ejection port: a little way along the gun from the grip, on top and to the right
+      const gp = new THREE.Vector3(), mp = new THREE.Vector3(); this.unit.gun.getWorldPosition(gp); (this.unit.muzzleObj ?? this.unit.gun).getWorldPosition(mp);
+      m.position.copy(gp).lerp(mp, 0.22); m.position.x += 0.02; m.position.y += 0.035; this.scene.add(m);
       this.shells.push({ m, t: 0, v: new THREE.Vector3(0.9 + Math.random() * 0.8, 0.9 + Math.random() * 0.7, 0.25 + Math.random() * 0.4), sx: 12 + Math.random() * 16, sz: 9 + Math.random() * 12 });
       if (this.shells.length > 24) { this.scene.remove(this.shells.shift().m); }
     }
     if (this.muzzle) {
       this.muzzle.visible = this.flash > 0 && !hidden;
-      this.unit.gun.getWorldPosition(this.muzzle.position);
-      this.muzzle.scale.setScalar(0.8 + Math.random() * 0.7);
+      (this.unit.muzzleObj ?? this.unit.gun).getWorldPosition(this.muzzle.position);
+      this.muzzle.scale.setScalar((this.weapon === 'sniper' ? 0.2 : 0.14) * (0.8 + Math.random() * 0.6));
       this.flashLight.intensity = this.flash > 0 ? 3 : 0; this.flashLight.position.copy(this.muzzle.position);
     }
   }

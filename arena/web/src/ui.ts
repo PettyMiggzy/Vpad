@@ -281,8 +281,23 @@ export class Ui {
     const main = root.querySelector('.main') as HTMLElement;
     for (const ev of ['click', 'input', 'change']) main.addEventListener(ev, () => this.updatePick());
     this.el['vy-go2'].addEventListener('click', () => (this.el['vy-go'] as HTMLButtonElement).click());
+    this.applyUrl(root);
     this.updatePick(); this.installHint();
     if (this.touch) this.wireTouch();
+  }
+
+  /** a link from the website can preset the menu (?mode=challenge&type=dm&min=10&map=dust&a=BLUE&b=RED) so a scheduled match opens ready to play and everyone lands in the same lobby */
+  private applyUrl(root: HTMLElement): void {
+    const q = new URLSearchParams(location.search);
+    const name = (v: string | null) => (v ?? '').replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12);
+    const map = q.get('map'); if (map) (root.querySelector(`.map[data-map="${map.replace(/[^a-z_]/g, '')}"]`) as HTMLElement | null)?.click();
+    const type = q.get('type'); if (type === 'elim' || type === 'zone' || type === 'dm') (this.el['vy-obj'] as HTMLSelectElement).value = type;
+    const min = Number(q.get('min')); if (min > 0) { const sel = this.el['vy-min'] as HTMLSelectElement; const have = [...sel.options].map((o) => Number(o.value)); sel.value = String(have.reduce((b, v) => (Math.abs(v - min) < Math.abs(b - min) ? v : b), have[0])); }
+    const a = name(q.get('a')), b = name(q.get('b'));
+    if (a) (this.el['vy-ta'] as HTMLInputElement).value = a; if (b) (this.el['vy-tb'] as HTMLInputElement).value = b;
+    if (a || b) this.setTeams(this.names(), true);
+    if (q.get('mode') === 'challenge') (root.querySelector('.mode[data-mode="challenge"]') as HTMLElement | null)?.click();
+    this.objective();
   }
 
   /** the game type chosen in the menu; the time limit only shows for deathmatch */
