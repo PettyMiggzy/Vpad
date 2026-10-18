@@ -5,6 +5,7 @@ import { Client } from '@colyseus/sdk';
 import { tryMove, floorAt, MAPS, R } from '../../server/game.js';
 import { WEAPONS } from '../../server/items.js';
 import { feelOf } from '../../server/gunfeel.js';
+import { mergeSnap } from '../../server/snap.js';
 
 export const INTERP_MS = 100;
 export const SNAP_POS = 80;
@@ -213,13 +214,14 @@ export async function connect(url, opts = {}) {
     if (m.roster && rosterCb) rosterCb(m.roster);
   });
   room.onMessage('roster', (list) => { if (rosterCb) rosterCb(list); });
+  room.onMessage('probe', (n) => { if (typeof n === 'number') room.send('probe', n); });
   room.onMessage('snap', (s) => {
     const at = performance.now();
-    latest = s;
-    const map = MAPS[s.map] || MAPS.cargo;
-    for (const row of s.p) remember(row, at);
     for (const e of s.ev || []) if (eventCb) eventCb(e);
-    const me = s.p.find((row) => row[0] === myId);
+    latest = mergeSnap(latest, s);
+    const map = MAPS[latest.map] || MAPS.cargo;
+    for (const row of latest.p) remember(row, at);
+    const me = latest.p.find((row) => row[0] === myId);
     if (!me) return;
     const oneWay = Math.min(200, rtt / 2);
     const base = fromRow(me, map);

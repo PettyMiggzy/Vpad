@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Client } from '@colyseus/sdk';
 import { MAP, WALLS, R, pushOut } from '../../server/game.js';
+import { mergeSnap } from '../../server/snap.js';
 import { CATALOG, SLOTS } from '../../server/items.js';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -83,7 +84,14 @@ function startGame(room) {
   window.__arena = st;
   room.onMessage('hello', (m) => { st.me = m.id; st.teams = m.teams; for (const r of m.roster) st.roster.set(r.id, r); hud(); });
   room.onMessage('roster', (list) => { st.roster.clear(); for (const r of list) st.roster.set(r.id, r); });
-  room.onMessage('snap', (s) => { s.at = performance.now(); st.snaps.push(s); if (st.snaps.length > 8) st.snaps.shift(); onSnap(s); });
+  room.onMessage('probe', (n) => { if (typeof n === 'number') room.send('probe', n); });
+  room.onMessage('snap', (s) => {
+    const merged = mergeSnap(st.snaps[st.snaps.length - 1], s);
+    merged.at = performance.now();
+    st.snaps.push(merged);
+    if (st.snaps.length > 8) st.snaps.shift();
+    onSnap(merged);
+  });
   room.onLeave(() => { banner('Disconnected', 'reload to rejoin', true); });
 
   const nm = (id) => st.roster.get(id)?.name || 'Bot';
