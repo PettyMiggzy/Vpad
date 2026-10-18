@@ -42,6 +42,13 @@ const CSS = `
 #vy-hud .pips { display: flex; gap: 4px; margin-top: 3px; } #vy-hud .pips i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid currentColor; } #vy-hud .pips i.on { background: currentColor; }
 #vy-banner { position: absolute; left: 0; right: 0; top: 24%; text-align: center; font-size: clamp(28px, 7vw, 60px); font-weight: 900; letter-spacing: .05em; text-shadow: 0 4px 18px #000; opacity: 0; transition: opacity .25s; }
 #vy-banner.on { opacity: 1; } #vy-banner small { display: block; font-size: .32em; letter-spacing: .12em; color: var(--muted); margin-top: 6px; font-weight: 700; }
+#vy-scopeov { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 2; background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0, rgba(0,0,0,0) 35vmin, rgba(0,0,0,.55) 35.4vmin, #000 36.2vmin, #000 100%); }
+#vy-scopeov::before, #vy-scopeov::after { content: ''; position: absolute; background: rgba(0,0,0,.82); }
+#vy-scopeov::before { left: calc(50% - 35.4vmin); width: 70.8vmin; top: calc(50% - .5px); height: 1px; -webkit-mask: linear-gradient(90deg, #000 0 calc(50% - 14px), transparent calc(50% - 14px) calc(50% + 14px), #000 calc(50% + 14px)); mask: linear-gradient(90deg, #000 0 calc(50% - 14px), transparent calc(50% - 14px) calc(50% + 14px), #000 calc(50% + 14px)); }
+#vy-scopeov::after { top: calc(50% - 35.4vmin); height: 70.8vmin; left: calc(50% - .5px); width: 1px; -webkit-mask: linear-gradient(#000 0 calc(50% - 14px), transparent calc(50% - 14px) calc(50% + 14px), #000 calc(50% + 14px)); mask: linear-gradient(#000 0 calc(50% - 14px), transparent calc(50% - 14px) calc(50% + 14px), #000 calc(50% + 14px)); }
+#vy-scopeov i { position: absolute; left: 50%; top: calc(50% + 35.4vmin + 8px); transform: translateX(-50%); width: min(220px, 40vw); height: 5px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; }
+#vy-scopeov i b { display: block; height: 100%; width: 100%; background: #d8f0ff; transform-origin: left; }
+#vy-scopeov i.out b { background: #ff8a70; }
 #vy-cross { position: absolute; left: 50%; top: 50%; width: var(--cs, 26px); height: var(--cs, 26px); transform: translate(-50%, -50%); --g: 5px; }
 #vy-cross::before, #vy-cross::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
 #vy-cross::before { left: calc(50% - 1px); top: 0; width: 2px; height: 100%; -webkit-mask: linear-gradient(#000 0 calc(50% - var(--g)), transparent calc(50% - var(--g)) calc(50% + var(--g)), #000 calc(50% + var(--g))); mask: linear-gradient(#000 0 calc(50% - var(--g)), transparent calc(50% - var(--g)) calc(50% + var(--g)), #000 calc(50% + var(--g))); }
@@ -185,7 +192,7 @@ export class Ui {
   <div id="vy-hurt"></div>
   <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span data-tn="0">${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span data-tn="1">${b}</span><div class="pips" data-pips="1"></div></div></div>
   <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
-  <div id="vy-cross"></div><div id="vy-hitm"></div>
+  <div id="vy-scopeov"><i><b></b></i></div><div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><b data-ammo style="font-size:26px"></b><br><span data-gun></span><small data-nades></small><small data-coins></small></div>
   <div id="vy-tags"></div>
@@ -242,7 +249,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -345,10 +352,16 @@ export class Ui {
     l.style.width = `${p0 * 50}%`; l.style.background = colors[0]; r.style.width = `${p1 * 50}%`; r.style.background = colors[1];
     tx.textContent = in0 && in1 ? 'ZONE CONTESTED' : in0 || in1 ? 'ZONE BEING HELD' : 'HOLD THE ZONE';
   }
+  /** the sniper scope: the round view with a fine reticle, and the breath bar under it (left = share of breath that is left) */
+  scope(on: boolean, breath = 1, out = false): void {
+    const s = this.el['vy-scopeov']; s.style.display = on ? 'block' : 'none';
+    if (!on) return;
+    const bar = s.querySelector('i') as HTMLElement; bar.classList.toggle('out', out); (bar.firstElementChild as HTMLElement).style.transform = `scaleX(${Math.max(0, Math.min(1, breath))})`;
+  }
   /** the crosshair gap, in pixels from the centre: wider as the shot spread grows; faint when aiming down the sights */
   cross(gap: number, ads: number): void {
     const c = this.el['vy-cross'], g = Math.max(3, Math.min(90, gap));
-    c.style.setProperty('--g', `${g.toFixed(1)}px`); c.style.setProperty('--cs', `${(g * 2 + 20).toFixed(0)}px`); c.style.opacity = String(1 - 0.55 * ads);
+    c.style.setProperty('--g', `${g.toFixed(1)}px`); c.style.setProperty('--cs', `${(g * 2 + 20).toFixed(0)}px`); c.style.opacity = String(Math.max(0, 1 - 0.55 * ads - (this.el['vy-scopeov'].style.display === 'block' ? 1 : 0)));
   }
   /** the line at the bottom while spectating, null hides it */
   spec(text: string | null, sub = ''): void { const e = this.el['vy-spec']; e.classList.toggle('on', !!text); if (text) e.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`; }

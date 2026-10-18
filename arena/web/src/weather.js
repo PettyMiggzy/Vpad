@@ -36,10 +36,10 @@ export function weather(mat, opts = {}) {
         float wSt = smoothstep(0.58, 0.92, wNoise(vec2((vWPos.x + vWPos.z) * 2.6, vWPos.y * 0.16))) * wSide * wStreaks * smoothstep(0.0, 1.2, vWPos.y);
         diffuseColor.rgb *= 1.0 - 0.28 * wSt;
         float wPud = 0.0;
-        if (wPuddles > 0.0) { wPud = smoothstep(0.56, 0.7, wFbm(vWPos.xz * 0.16 + 7.0)) * smoothstep(0.85, 0.97, wUp) * wPuddles; diffuseColor.rgb *= 1.0 - 0.45 * wPud; }`)
+        if (wPuddles > 0.0) { wPud = smoothstep(0.62, 0.74, wFbm(vWPos.xz * 0.16 + 7.0)) * smoothstep(0.85, 0.97, wUp) * wPuddles; diffuseColor.rgb *= 1.0 - 0.6 * wPud; }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + wGr * 0.3, 0.0, 1.0);
-        roughnessFactor = mix(roughnessFactor, 0.06, wPud);`);
+        roughnessFactor = mix(roughnessFactor, 0.12, wPud);`);
   };
   mat.customProgramCacheKey = () => 'weather' + key;
   mat.needsUpdate = true;

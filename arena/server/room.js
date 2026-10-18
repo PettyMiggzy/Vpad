@@ -2,11 +2,12 @@
 // result of those rules is sent out. A client never supplies a loadout, a position, or another player's id.
 import { Room } from 'colyseus';
 import { Match, cleanName, cleanColor } from './game.js';
+import { MAP_IDS } from './maps.js';
 import { REWARD } from './items.js';
 import { loadoutFor, award, grantXp, validPid } from './profiles.js';
 import { XP } from './progress.js';
 
-export const MAP_IDS = ['cargo', 'dust', 'refinery'];
+export { MAP_IDS };
 export const MAX_ROOMS = 32;
 export const INPUT_RATE = 60;
 export const SIM_HZ = 30;

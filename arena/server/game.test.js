@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, R, MAPS, floorAt, pushOut, tryMove, raySolids, rayCircle, clearLine, navPath, statsOf } from './game.js';
-import { STEP } from './maps.js';
+import { STEP, LEGACY } from './maps.js';
 import { GRENADE, WEAPONS } from './items.js';
 
 const T = [{ name: 'A' }, { name: 'B' }];
 const run = (m, seconds) => { for (let i = 0; i < seconds * 60; i++) m.step(1 / 60); };
-const empty = (id = 'cargo', per = 3) => new Match({ teams: T, perSide: per, bots: false, map: id });
+const empty = (id = LEGACY.cargo, per = 3) => new Match({ teams: T, perSide: per, bots: false, map: id });
 /** a quiet live round with the named players placed where the test wants them */
 function setup(id, spots) {
   const m = empty(id, 4); const out = {};
@@ -72,7 +72,7 @@ test('a human takes a bot seat, teams stay within the seats, a full side refuses
 });
 
 test('walking up a ramp takes you onto the deck; the side of the deck stops you; you cannot step off a high edge', () => {
-  const mp = MAPS.cargo, r = mp.ramps[0];
+  const mp = LEGACY.cargo, r = mp.ramps[0];
   let [x, y, z] = [r.x + 5, r.y + r.h / 2, 0];
   for (let i = 0; i < 400; i++) [x, y, z] = tryMove(mp, x, y, z, x + 3, y);        // walk east along the ramp
   assert.ok(z > 4.2, `ended on the deck at ${z}`);
@@ -88,7 +88,7 @@ test('walking up a ramp takes you onto the deck; the side of the deck stops you;
 });
 
 test('a shot lands at once: it stops at a wall, passes team-mates, headshots hit twice as hard, shotguns spread six rays', () => {
-  const [m, p] = setup('cargo', [['a', 0, 200, 150], ['c', 0, 300, 150], ['b', 1, 500, 150]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['c', 0, 300, 150], ['b', 1, 500, 150]]);
   p.a.weapon = 'sniper'; p.a.ads = 1; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true, ads: true };   // scoped: an unscoped sniper rifle is wild
   m.step(1 / 60);
   assert.equal(p.c.hp, p.c.hpMax, 'team-mate untouched');
@@ -101,14 +101,14 @@ test('a shot lands at once: it stops at a wall, passes team-mates, headshots hit
   assert.ok(p.b.hpMax - p.b.hp >= 120 || !p.b.alive, 'a head shot is double');
   assert.ok(m.events.some((e) => (e.type === 'kill' || e.type === 'hit') && e.head === 1), 'and is marked as a head shot');
   // a shotgun fires six rays
-  const [s, q] = setup('cargo', [['g', 0, 200, 150], ['h', 1, 1500, 900]]);
+  const [s, q] = setup(LEGACY.cargo, [['g', 0, 200, 150], ['h', 1, 1500, 900]]);
   q.g.weapon = 'shotgun'; q.g.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true };
   s.step(1 / 60);
   assert.equal(s.events.filter((e) => e.type === 'shot').length, 6);
 });
 
 test('walls stop shots; you can shoot over low cover but not over a container; height is respected', () => {
-  const mp = MAPS.cargo;
+  const mp = LEGACY.cargo;
   const cont = mp.solids.find((s) => s.kind === 'container' && s.top === 2.7), low = mp.solids.find((s) => s.kind === 'sandbag');
   // flat ray across a container is blocked, a ray from a high point descending past its top is not
   const cy = cont.y + cont.h / 2, x0 = cont.x - 100;
@@ -124,7 +124,7 @@ test('walls stop shots; you can shoot over low cover but not over a container; h
 });
 
 test('kills are counted once and a dead player is not hit again', () => {
-  const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 400, 150]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 400, 150]]);
   p.b.hp = 10; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true };
   m.step(1 / 60);
   assert.equal(p.b.alive, false); assert.equal(p.a.kills, 1);
@@ -132,7 +132,7 @@ test('kills are counted once and a dead player is not hit again', () => {
 });
 
 test('grenades: they fly, bounce, burst after the fuse, hurt enemies in range with a clear line, spare team-mates and those behind a wall', () => {
-  const [m, p] = setup('cargo', [['a', 0, 300, 150], ['mate', 0, 520, 150], ['near', 1, 640, 150], ['far', 1, 1500, 150]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 300, 150], ['mate', 0, 520, 150], ['near', 1, 640, 150], ['far', 1, 1500, 150]]);
   const ev = [];
   p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: true };
   m.step(1 / 60); ev.push(...m.events);
@@ -145,8 +145,8 @@ test('grenades: they fly, bounce, burst after the fuse, hurt enemies in range wi
   assert.equal(p.mate.hp, p.mate.hpMax, 'a team-mate is spared');
   assert.equal(p.far.hp, p.far.hpMax, 'out of range is untouched');
   // a wall between the burst and a player blocks it
-  const mp = MAPS.cargo, c = mp.solids.find((s) => s.kind === 'container' && s.top === 2.7);
-  const [m2, q] = setup('cargo', [['a', 0, 200, 150], ['v', 1, c.x + c.w / 2, c.y + c.h + 30]]);
+  const mp = LEGACY.cargo, c = mp.solids.find((s) => s.kind === 'container' && s.top === 2.7);
+  const [m2, q] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['v', 1, c.x + c.w / 2, c.y + c.h + 30]]);
   m2.nades.push({ x: c.x + c.w / 2, y: c.y - 30, z: 0.2, vx: 0, vy: 0, vz: 0, fuse: 0.01, owner: 'a', team: 0, id: 99, radius: GRENADE.radius, dmg: GRENADE.dmg });
   m2.step(1 / 60);
   assert.equal(q.v.hp, q.v.hpMax, 'behind a container the blast does nothing');
@@ -155,7 +155,7 @@ test('grenades: they fly, bounce, burst after the fuse, hurt enemies in range wi
 });
 
 test('magazines: a weapon empties, reloads for its time, and cannot fire meanwhile; a full one does not reload', () => {
-  const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 2600, 1800]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 2600, 1800]]);
   const a = p.a; a.weapon = 'pistol'; a.ammo = 2; a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true };
   let shots = 0; const ev = [];
   for (let i = 0; i < 30; i++) { m.step(1 / 60); ev.push(...m.events); }
@@ -171,7 +171,7 @@ test('magazines: a weapon empties, reloads for its time, and cannot fire meanwhi
   assert.ok(a.ammo >= 0 && a.rl === 0, 'the reload finished');
   assert.ok(ev.some((e) => e.type === 'shot' && e.by === 'a') && ev.filter((e) => e.type === 'shot').length > 2, 'firing resumes with a full magazine');
   // a full magazine ignores a reload request
-  const [m2, q] = setup('cargo', [['c', 0, 200, 150]]);
+  const [m2, q] = setup(LEGACY.cargo, [['c', 0, 200, 150]]);
   q.c.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, reload: true };
   m2.step(1 / 60);
   assert.equal(q.c.rl, 0);
@@ -187,7 +187,7 @@ test('shop gear changes the fight: a helmet cuts head-shot damage, mods change t
   assert.equal(bad.mod, 'nomod'); assert.equal(bad.headMul, 2); assert.equal(bad.nadeCount, GRENADE.count);
   // the same sniper head shot: a bare head takes double, a heavy helmet far less
   const hs = (helmet) => {
-    const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 500, 150]]);
+    const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 500, 150]]);
     Object.assign(p.a, statsOf({ weapon: 'sniper' }), { weapon: 'sniper', ads: 1 }); Object.assign(p.b, statsOf({ weapon: 'pistol', helmet }), { hp: 1000 });
     p.a.ammo = 5; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50), fire: true, ads: true };
     m.step(1 / 60); return 1000 - p.b.hp;
@@ -195,7 +195,7 @@ test('shop gear changes the fight: a helmet cuts head-shot damage, mods change t
   assert.equal(hs('nohelm'), 120); assert.ok(hs('helmet2') < 80);
   // a heavy grenade reaches further than a plain one
   const reach = (kit) => {
-    const [m, p] = setup('cargo', [['a', 0, 200, 150], ['v', 1, 1000, 1000]]);
+    const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['v', 1, 1000, 1000]]);
     Object.assign(p.a, statsOf({ grenade: kit }));
     p.v.hp = 1000; p.a.x = 1000 - 345; p.a.y = 1000;
     m.nades.push({ x: p.a.x + 0, y: 1000, z: 0.2, vx: 0, vy: 0, vz: 0, fuse: 0.01, owner: 'a', team: 0, id: 7, radius: GRENADE.radius * p.a.nadeRadius, dmg: GRENADE.dmg * p.a.nadeDmg });
@@ -223,7 +223,7 @@ test('practice starts by itself against bots and never counts; a challenge waits
 });
 
 test('deaths are counted for the one who died, by shot or by grenade', () => {
-  const [m, p] = setup('cargo', [['a', 0, 200, 150], ['b', 1, 400, 150]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 400, 150]]);
   p.b.hp = 5; p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true };
   m.step(1 / 60);
   assert.equal(p.b.deaths, 1); assert.equal(p.a.deaths, 0);
@@ -231,10 +231,10 @@ test('deaths are counted for the one who died, by shot or by grenade', () => {
 });
 
 test('sprinting is faster, and you cannot fire or throw while you sprint; bot difficulty is clamped', () => {
-  const run1 = (sprint) => { const [m, p] = setup('cargo', [['a', 0, 400, 1000]]); p.a.input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: false, sprint }; const x0 = p.a.x; for (let i = 0; i < 60; i++) m.step(1 / 60); return p.a.x - x0; };
+  const run1 = (sprint) => { const [m, p] = setup(LEGACY.cargo, [['a', 0, 400, 1000]]); p.a.input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: false, sprint }; const x0 = p.a.x; for (let i = 0; i < 60; i++) m.step(1 / 60); return p.a.x - x0; };
   const walk = run1(false), fast = run1(true);
   assert.ok(fast > walk * 1.25 && fast < walk * 1.4, `sprint ${fast} vs walk ${walk}`);
-  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['b', 1, 900, 1000]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 400, 1000], ['b', 1, 900, 1000]]);
   p.a.input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: true, nade: true, sprint: true };
   m.step(1 / 60);
   assert.ok(!m.events.some((e) => e.type === 'shot' || e.type === 'nade'), 'no shot and no throw while sprinting');
@@ -248,41 +248,41 @@ const input = (o = {}) => ({ dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: 
 const stepN = (m, n) => { const ev = []; for (let i = 0; i < n; i++) { m.step(1 / 60); ev.push(...m.events); } return ev; };
 
 test('a jump clears low cover that blocks a walker, lands again, and cannot carry you off a deck', () => {
-  const mp = MAPS.cargo, sb = mp.solids.find((s) => s.kind === 'sandbag');          // 3.5 m long, 0.9 m thick, 1.1 m high
+  const mp = LEGACY.cargo, sb = mp.solids.find((s) => s.kind === 'sandbag');          // 3.5 m long, 0.9 m thick, 1.1 m high
   const cross = (jump) => {
-    const [m, p] = setup('cargo', [['a', 0, sb.x + sb.w / 2, sb.y - 20], ['z', 1, 3100, 1900]]);
+    const [m, p] = setup(LEGACY.cargo, [['a', 0, sb.x + sb.w / 2, sb.y - 20], ['z', 1, 3100, 1900]]);
     p.a.aim = Math.PI / 2; p.a.input = input({ dx: 0, dy: 1, aim: Math.PI / 2, jump });
     stepN(m, 70); return p.a;
   };
   const walker = cross(false), jumper = cross(true);
   assert.ok(walker.y < sb.y, 'a walker is stopped by the sandbags');
   assert.ok(jumper.y > sb.y + sb.h, `a jumper is over them (y ${jumper.y}, wall ends ${sb.y + sb.h})`);
-  const [m2, q] = setup('cargo', [['b', 0, 600, 1000], ['z', 1, 3100, 1900]]);
+  const [m2, q] = setup(LEGACY.cargo, [['b', 0, 600, 1000], ['z', 1, 3100, 1900]]);
   q.b.input = input({ jump: true }); const ev = stepN(m2, 3);
   assert.ok(ev.some((e) => e.type === 'jump') && q.b.air, 'it leaves the ground');
   q.b.input = input(); const ev2 = stepN(m2, 60);
   assert.ok(ev2.some((e) => e.type === 'land') && q.b.z === 0 && !q.b.air, 'and comes down');
   // on a high deck, jumping off the open edge is still refused (a drop over the limit)
   const deck = mp.solids.find((s) => s.walk && s.top > 4);
-  const [m3, r] = setup('cargo', [['c', 0, deck.x + deck.w - 40, deck.y + deck.h / 2, deck.top], ['z', 1, 3100, 1900]]);
+  const [m3, r] = setup(LEGACY.cargo, [['c', 0, deck.x + deck.w - 40, deck.y + deck.h / 2, deck.top], ['z', 1, 3100, 1900]]);
   r.c.input = input({ dx: 1, jump: true }); stepN(m3, 60);
   assert.ok(r.c.z > 4, `still up on the deck (z ${r.c.z})`);
 });
 
 test('health regenerates after five calm seconds, not before', () => {
-  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
   p.a.hp = 50; p.a.hurtT = 0; p.a.input = input();
   stepN(m, 60 * 4); assert.equal(p.a.hp, 50, 'nothing in the first four seconds');
   stepN(m, 60 * 4); assert.ok(p.a.hp > 50 + 14 * 2.5, `regenerating (${p.a.hp})`);
   stepN(m, 60 * 10); assert.equal(p.a.hp, p.a.hpMax, 'and stops at full');
   // a hit starts the wait again
-  const [m2, q] = setup('cargo', [['x', 0, 400, 1000], ['y', 1, 700, 1000]]);
+  const [m2, q] = setup(LEGACY.cargo, [['x', 0, 400, 1000], ['y', 1, 700, 1000]]);
   q.x.hp = 60; q.x.hurtT = 6; q.y.input = input({ aim: Math.PI, fire: true }); q.y.weapon = 'pistol'; q.y.ammo = 12;
   m2.step(1 / 60); assert.equal(q.x.hurtT, 0, 'being shot resets the clock');
 });
 
 test('the sidearm: swap keeps each magazine, takes a moment, and does nothing when the primary is the pistol', () => {
-  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
   Object.assign(p.a, statsOf({ weapon: 'rifle' }), { primary: 'rifle', weapon: 'rifle', slot: 0, ammo: 10, stash: 12 });
   p.a.input = input({ swap: true }); const ev = stepN(m, 1);
   assert.ok(ev.some((e) => e.type === 'swap' && e.weapon === 'pistol'));
@@ -291,12 +291,12 @@ test('the sidearm: swap keeps each magazine, takes a moment, and does nothing wh
   assert.equal(ev2.filter((e) => e.type === 'shot').length, 0, 'no shot while the swap is running');
   p.a.input = input({ swap: true }); p.a.swapT = 0; stepN(m, 1);
   assert.equal(p.a.weapon, 'rifle'); assert.equal(p.a.ammo, 10, 'the rifle magazine was kept');
-  const [m2, q] = setup('cargo', [['b', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  const [m2, q] = setup(LEGACY.cargo, [['b', 0, 400, 1000], ['z', 1, 3100, 1900]]);
   q.b.input = input({ swap: true }); stepN(m2, 3); assert.equal(q.b.weapon, 'pistol'); assert.equal(q.b.slot, 0, 'a pistol primary has nothing to swap to');
 });
 
 test('the knife: reach and arc, 55 from the front, a kill from behind, nothing behind a wall', () => {
-  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['f', 1, 470, 1000], ['far', 1, 900, 1000]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 400, 1000], ['f', 1, 470, 1000], ['far', 1, 900, 1000]]);
   p.f.aim = Math.PI;                                   // faces us
   p.a.input = input({ melee: true }); const ev = stepN(m, 1);
   assert.ok(ev.some((e) => e.type === 'melee' && e.hit === 'f'));
@@ -306,13 +306,13 @@ test('the knife: reach and arc, 55 from the front, a kill from behind, nothing b
   p.a.input = input({ melee: true }); const ev2 = stepN(m, 1);
   assert.ok(ev2.some((e) => e.type === 'kill' && e.melee === 1 && e.back === 1), 'a stab in the back kills');
   p.a.input = input(); stepN(m, 60);
-  const [m2, q] = setup('cargo', [['c', 0, 400, 1000], ['d', 1, 470, 1000]]);
+  const [m2, q] = setup(LEGACY.cargo, [['c', 0, 400, 1000], ['d', 1, 470, 1000]]);
   q.d.aim = Math.PI; q.c.aim = Math.PI;                // c looks away from d
   q.c.input = input({ melee: true, aim: Math.PI }); stepN(m2, 1); assert.equal(q.d.hp, q.d.hpMax, 'outside the arc, no hit');
 });
 
 test('a burst weapon fires its rounds per pull; an automatic fires on every gap', () => {
-  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 400, 1000], ['z', 1, 3100, 1900]]);
   Object.assign(p.a, statsOf({ weapon: 'burst' }), { primary: 'burst', weapon: 'burst', ammo: 30 });
   p.a.input = input({ fire: true }); const ev = stepN(m, 20);       // a third of a second: one burst is done, the next waits
   assert.equal(ev.filter((e) => e.type === 'shot').length, 3, 'three rounds in the first burst');
@@ -321,7 +321,7 @@ test('a burst weapon fires its rounds per pull; an automatic fires on every gap'
 });
 
 test('streaks: three kills give the team a drone for twelve seconds, five give the shooter a boost, dying clears the streak', () => {
-  const [m, p] = setup('cargo', [['a', 0, 400, 1000], ['e1', 1, 2000, 200], ['e2', 1, 2000, 300], ['e3', 1, 2000, 400], ['e4', 1, 2000, 500], ['e5', 1, 2000, 600]]);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 400, 1000], ['e1', 1, 2000, 200], ['e2', 1, 2000, 300], ['e3', 1, 2000, 400], ['e4', 1, 2000, 500], ['e5', 1, 2000, 600]]);
   const ev = [];
   for (const k of ['e1', 'e2', 'e3', 'e4', 'e5']) { p[k].hp = 0; m.kill(p.a, p[k]); ev.push(...m.events); m.events = []; }
   assert.ok(ev.some((e) => e.type === 'streak' && e.kind === 'uav')); assert.equal(m.uav[0], R.UAV_SECONDS); assert.equal(m.uav[1], 0);
@@ -332,8 +332,8 @@ test('streaks: three kills give the team a drone for twelve seconds, five give t
 });
 
 test('hold the zone: alone in it you fill your bar, contested nobody does, a full bar wins the round', () => {
-  const z = MAPS.cargo.zone;
-  const m = new Match({ teams: T, perSide: 2, bots: false, map: 'cargo', objective: 'zone' });
+  const z = LEGACY.cargo.zone;
+  const m = new Match({ teams: T, perSide: 2, bots: false, map: LEGACY.cargo, objective: 'zone' });
   const a = m.addPlayer('a', { name: 'a', team: 0 }), b = m.addPlayer('b', { name: 'b', team: 1 });
   m.phase = 'live'; m.timer = 200;
   Object.assign(a, { x: z.x, y: z.y }); Object.assign(b, { x: 200, y: 200 }); a.input = input(); b.input = input();

@@ -7,5 +7,5 @@ export const LOOK_TOUCH = 1.5;
 export const TEAM_COLORS = ['#2f7bff', '#ff3b30'];
 export const DEFAULT_TEAM_NAMES = ['BLUE', 'RED'];
 export const SEATS = [4, 8, 12, 16, 20, 32];
-export const DEFAULT_SEATS = 8;
+export const DEFAULT_SEATS = 12;
 export const STORE_KEY = 'vyre.arena.web.v1';

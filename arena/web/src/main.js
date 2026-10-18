@@ -132,6 +132,8 @@ const units = new Map();
 const tracers = [], bits = [];
 let walkPhase = 0, hudT = 0, spectate = null, nadeQueued = false, meleeQueued = false, swapQueued = false, hintsOn = false, zoneFx = null, zoom = false, eyeY = 1.6, shake = 0, boomT = 0;
 const nadeMeshes = new Map(), fx = [];
+const sway = { y: 0, p: 0 };                 // the scope's wobble (radians): part of where the shot goes, so the player has to follow it
+let breath = 1, winded = false;                // the share of held breath left, and whether it ran out
 let deathCam = null, showScore = false, specYaw = 0, specPitch = 0, scoreT = 0;
 let autoFire = false;
 let streak = 0, multi = { n: 0, t: 0 }, beatT = 0, lastShot = new Map(), mapBg = null, mapBgId = '';
@@ -256,7 +258,7 @@ function readInput() {
   let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - ui.move.y;
   let str = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + ui.move.x;
   const len = Math.hypot(fwd, str); if (len > 1) { fwd /= len; str /= len; }
-  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw, pitch: -look.pitch, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch, ads: zoom || ui.zoomTouch };
+  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw + sway.y, pitch: -look.pitch + sway.p, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch, ads: zoom || ui.zoomTouch };
   ui.nadeTouch = false;
 }
 
@@ -591,6 +593,16 @@ async function syncProfile() {
   if (ui.menuOpen()) ui.renderShop();
 }
 setInterval(() => { if (srv && playing && netH) void syncProfile(); }, 6000);
+// ---- scoped breathing: through a sniper scope the view wobbles; Shift holds your breath for a few seconds to steady it, then you are winded and must wait ----
+function updateSway(dt, t, scoped) {
+  if (!scoped) { sway.y = sway.p = 0; breath = Math.min(1, breath + dt * 0.4); if (breath >= 1) winded = false; return; }
+  const moving = Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1;
+  const holding = (keys.has('ShiftLeft') || keys.has('ShiftRight')) && !winded && breath > 0 && !ui.touch;
+  if (holding) { breath = Math.max(0, breath - dt / 3.2); if (breath <= 0) winded = true; } else { breath = Math.min(1, breath + dt * (winded ? 0.28 : 0.45)); if (winded && breath >= 0.6) winded = false; }
+  const A = 0.0042 * (ui.touch ? 0.55 : 1) * (moving ? 3 : 1) * (holding ? 0.08 : winded ? 1.6 : 1);
+  sway.y = (Math.sin(t * 1.7) * 0.6 + Math.sin(t * 0.63 + 1) * 0.4) * A;
+  sway.p = (Math.sin(t * 1.3 + 2) * 0.5 + Math.sin(t * 0.5) * 0.3 + Math.sin(t * 1.1) * 0.3) * A;
+}
 // ---- the frame ----
 function draw() {
   if (composer) composer.render(); else renderer.render(scene, camera);
@@ -605,6 +617,8 @@ function frame(now) {
   const raw = (now - last) / 1000; last = now;
   const dt = Math.min(raw, 0.1), t = now / 1000;
   const sniping = me && me.alive && me.weapon === 'sniper';
+  const scoped = !!sniping && (me.ads ?? 0) > 0.85;
+  updateSway(dt, now / 1000, scoped);
   const zoomNow = zoom || ui.zoomTouch;
   const wantFov = zoomNow && playing && me ? feelOf(me.weapon).ads.zoom : FOV + (me && me.alive && me.sprinting ? 7 : 0);
   fov += (wantFov - fov) * Math.min(1, dt * 14);
@@ -634,7 +648,7 @@ function frame(now) {
     walkPhase += moving ? dt * (me.sprinting ? 13 : 9) : 0;
     eyeY += (me.z + R.EYE - eyeY) * Math.min(1, dt * 22);
     const rc = me.rc || NO_RC;
-    place(me.x / PX_PER_M, eyeY + (moving ? Math.sin(walkPhase) * 0.03 * (1 - 0.7 * (me.ads ?? 0)) : 0), me.y / PX_PER_M, look.yaw + rc.y, look.pitch - rc.p);
+    place(me.x / PX_PER_M, eyeY + (moving ? Math.sin(walkPhase) * 0.03 * (1 - 0.7 * (me.ads ?? 0)) : 0), me.y / PX_PER_M, look.yaw + rc.y + sway.y, look.pitch - rc.p - sway.p);
     vm.ads = me.ads ?? 0;
     if (vm.set(me.weapon, me.team, TEAM_COLORS[me.team])) sfx.equip();
     vm.reloading = me.rl > 0 ? 1 - me.rl / me.reloadTime : -1; vm.sprinting = !!me.sprinting;
@@ -667,7 +681,8 @@ function frame(now) {
     camera.lookAt(cx, 2, cz);
   }
   if (shake > 0.002) { camera.rotation.x += (Math.random() - 0.5) * 0.05 * shake; camera.rotation.z += (Math.random() - 0.5) * 0.05 * shake; shake *= Math.pow(0.002, dt); }
-  vm.update(dt, alive && Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1, walkPhase, camera.aspect, !(playing && alive) || (zoomNow && sniping));
+  vm.update(dt, alive && Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1, walkPhase, camera.aspect, !(playing && alive) || scoped);
+  ui.scope(playing && alive && scoped, breath, winded);
   for (const u of units.values()) u.mark.lookAt(camera.position);
 
   for (let i = tracers.length - 1; i >= 0; i--) { tracers[i].life -= dt; if (tracers[i].life <= 0) { scene.remove(tracers[i].mesh); tracers.splice(i, 1); } }
@@ -687,7 +702,7 @@ function frame(now) {
 
   updateZone(t);
   if (gradePass) gradePass.uniforms.time.value = t;
-  worldH?.tick?.(t);
+  worldH?.follow?.(t, camera.position);
   draw();
 
   hudT -= dt;

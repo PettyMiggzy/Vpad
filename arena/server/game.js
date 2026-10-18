@@ -265,7 +265,7 @@ export class Match {
       this.fillBots();
       return;
     }
-    if (this.phase === 'countdown') { this.timer -= dt; if (this.timer <= 0) { this.phase = 'live'; this.timer = R.ROUND_SECONDS; } this.think(dt, false); return; }
+    if (this.phase === 'countdown') { this.timer -= dt; if (this.timer <= 0) { this.phase = 'live'; this.timer = this.map.roundSeconds || R.ROUND_SECONDS; } this.think(dt, false); return; }
     if (this.phase === 'roundover') { this.timer -= dt; this.moveNades(dt); if (this.timer <= 0) this.startRound(); return; }
     if (this.phase === 'matchover') { this.timer -= dt; this.moveNades(dt); if (this.timer <= 0) { if (this.mode === 'challenge') this.phase = 'finished'; else this.restartMatch(); } return; }
     if (this.phase === 'finished') return;
