@@ -1,2 +1,4 @@
 node_modules
 dist
+# sticker source models (large, made by the sticker tool)
+public/_stickersrc/

@@ -5,6 +5,8 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export const UNIT_H = 1.85;
 const POOL = [['frog'], ['bulldog']];
+/** the characters everyone else is drawn as: both teams use all of them (the team colour on the armour and the ring under the feet say whose side each one is) */
+const CROWD = ['frog', 'bulldog', 'ape'];
 const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25, revolver: 0.42, burst: 0.72, lmg: 1.15, autosg: 0.95, dmr: 1.1 };
 // where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
 // the pistol model is drawn pointing the other way from the rest: turn it half a circle so every weapon's muzzle leads
@@ -79,7 +81,9 @@ export class Unit {
   constructor(A, team, weapon, color, seed, full = false) {
     this.team = team; this.weapon = weapon;
     const names = POOL[team] ?? POOL[0];
-    const nm = names[(typeof seed === 'number' ? seed : 0) % names.length], src = full ? A.hero[nm] : A.heroLo[nm];
+    const crowd = CROWD.filter((n) => A.heroLo[n]);
+    const nm = !full && typeof seed === 'number' && crowd.length ? crowd[Math.abs(seed) % crowd.length] : names[0], src = full ? A.hero[nm] : A.heroLo[nm];
+    this.hero = nm;
     this.root = new THREE.Group();
     this.body = SkeletonUtils.clone(src.scene); teamize(this.body, team);
     this.root.add(this.body);

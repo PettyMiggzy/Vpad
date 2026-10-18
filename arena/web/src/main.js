@@ -130,6 +130,8 @@ const keys = new Set();
 const look = { yaw: 0, pitch: 0 };       // yaw is the rules engine's own aim angle: it turns right as it grows
 const units = new Map();
 const tracers = [], bits = [];
+/** a number from a player's id, so the same player is always drawn as the same character */
+const idSeed = (id) => { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) | 0; return Math.abs(h); };
 let walkPhase = 0, hudT = 0, spectate = null, nadeQueued = false, meleeQueued = false, swapQueued = false, hintsOn = false, zoneFx = null, zoom = false, eyeY = 1.6, shake = 0, boomT = 0;
 const nadeMeshes = new Map(), fx = [];
 const sway = { y: 0, p: 0 };                 // the scope's wobble (radians): part of where the shot goes, so the player has to follow it
@@ -480,7 +482,7 @@ function syncUnits(dt, t) {
     const key = `${p.team}|${p.weapon}`;
     let u = units.get(p.id);
     if (u && u.key !== key) { u.dispose(); units.delete(p.id); u = undefined; }
-    if (!u) { u = new Unit(A, p.team, p.weapon, TEAM_COLORS[p.team]); u.key = key; u.lx = p.x / PX_PER_M; u.lz = p.y / PX_PER_M; u.px = u.lx; u.pz = u.lz; scene.add(u.root); units.set(p.id, u); }
+    if (!u) { u = new Unit(A, p.team, p.weapon, TEAM_COLORS[p.team], idSeed(p.id)); u.key = key; u.lx = p.x / PX_PER_M; u.lz = p.y / PX_PER_M; u.px = u.lx; u.pz = u.lz; scene.add(u.root); units.set(p.id, u); }
     const gx = p.x / PX_PER_M, gz = p.y / PX_PER_M;
     const speed = Math.hypot(gx - u.lx, gz - u.lz) / Math.max(dt, 1e-3);
     u.lx = gx; u.lz = gz;
