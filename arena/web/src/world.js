@@ -277,9 +277,12 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
   // ---- lamps: flood lamps at each team's end that really light the ground ----
   const lampH = 4.6, lights = [];
   const nPoint = quality === 'low' ? 0 : th.night ? (quality === 'mid' ? 6 : 10) : map.theme === 'cargo' ? 4 : 0;
-  const lampSpots = [[2.2, 6], [2.2, H - 6], [W - 2.2, 6], [W - 2.2, H - 6], [W / 2, 3], [W / 2, H - 3], [W * 0.3, H / 2], [W * 0.7, H / 2], [W / 2, H / 2 - 7], [W / 2, H / 2 + 7]];
+  const lampSpots = [[2.2, 6], [2.2, H - 6], [W - 2.2, 6], [W - 2.2, H - 6], [W / 2, 3], [W / 2, H - 3]];
+  // and a row down each long side, so a 200 m map is not dark in the middle; any spot that lands inside a building or platform is left out
+  for (let k = 1; k <= 5; k++) for (const f of [0.25, 0.75]) lampSpots.push([W * k / 6, H * f]);
+  const blocked = (x, z) => map.solids.some((s) => x >= m(s.x) - 0.5 && x <= m(s.x + s.w) + 0.5 && z >= m(s.y) - 0.5 && z <= m(s.y + s.h) + 0.5);
   lampSpots.forEach(([x, z], i) => {
-    if (map.theme === 'dust') return;
+    if (map.theme === 'dust' || blocked(x, z)) return;
     const o = A.props.lamp_flood ? tall('lamp_flood', lampH, x, z, x < W / 2 ? Math.PI / 2 : -Math.PI / 2) : null;
     if (i < nPoint) {
       const l = new THREE.PointLight(th.night ? 0xffe0b0 : 0xffd8a0, th.night ? 30 : 7, 22, 1.6);
