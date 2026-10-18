@@ -8,7 +8,11 @@ const POOL = [['frog'], ['bulldog']];
 const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25, revolver: 0.42, burst: 0.72, lmg: 1.15, autosg: 0.95, dmr: 1.1 };
 // where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
 // the pistol model is drawn pointing the other way from the rest: turn it half a circle so every weapon's muzzle leads
+// the generated models have the muzzle at the model's -x end and the stock at +x, so every one is turned half a way round to point down the sights
 const GUN_TURN = {};
+const TURN = Math.PI;
+// where each grip sits along the model, as a share of its length from the middle towards the stock: the hand holds the grip, not the middle
+const GUN_GRIP = { pistol: 0.26, smg: 0.19, rifle: 0.16, shotgun: 0.3, sniper: 0.19, revolver: 0.18, burst: 0.21, lmg: 0.17, autosg: 0.24, dmr: 0.16 };
 export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
 /** the soldiers and weapons are painted with lime accents: swap those for the team's colour (blue 0.61 or red 0.0 on the hue wheel), leave browns and greys alone */
@@ -58,8 +62,8 @@ export class Unit {
     const gb = new THREE.Box3().setFromObject(g), gs = gb.getSize(new THREE.Vector3()), gc = gb.getCenter(new THREE.Vector3());
     const long = Math.max(gs.x, gs.y, gs.z);
     teamize(g, team);
-    g.position.sub(gc); g.scale.setScalar((GUN_LEN[weapon] ?? 0.8) / long);
-    this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gunInner.rotation.y = GUN_TURN[weapon] ?? 0; this.gun.add(this.gunInner);
+    g.position.sub(gc); g.position.x -= (GUN_GRIP[weapon] ?? 0.18) * (GUN_LEN[weapon] ?? 0.8); g.scale.setScalar((GUN_LEN[weapon] ?? 0.8) / long);
+    this.gunInner = new THREE.Group(); this.gunInner.add(g); this.gunInner.rotation.y = GUN_TURN[weapon] ?? TURN; this.gun.add(this.gunInner);
     this.gun.matrixAutoUpdate = false; this.root.add(this.gun);
     this.hand = this.body.getObjectByName('RightHand');
     // team marks
@@ -128,14 +132,14 @@ export class Unit {
     return true;
   }
   /** the weapon sits at the right hand and always points the way the soldier faces (independent of how the bone is turned) */
-  syncGun(kMul = 1) {
+  syncGun(kMul = 1, yawMul = 1) {
     if (!this.hand) return;
     this.root.updateMatrixWorld(true);
     _inv.copy(this.root.matrixWorld).invert();
     _m.copy(this.hand.matrixWorld).premultiply(_inv);
     _p.setFromMatrixPosition(_m);
     const gp = GUN_OFFSET.pos, k = GUN_OFFSET.k * kMul;
-    _e.set(GUN_OFFSET.rot[0], GUN_OFFSET.rot[1] - Math.PI / 2, GUN_OFFSET.rot[2]);
+    _e.set(GUN_OFFSET.rot[0], GUN_OFFSET.rot[1] * yawMul - Math.PI / 2, GUN_OFFSET.rot[2]);
     _q.setFromEuler(_e);
     _o.compose(new THREE.Vector3(_p.x + gp[0], _p.y + gp[1], _p.z + gp[2]), _q, new THREE.Vector3(k, k, k));
     this.gun.matrix.copy(_o);

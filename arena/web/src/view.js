@@ -70,10 +70,10 @@ export class ViewModel {
     // stand the body so its head is at the camera, facing away from it (measured with the viewmodel at rest)
     const rg = this.rig; rg.position.set(0, 0, 0); rg.rotation.set(0, 0, 0); rg.updateMatrixWorld(true);
     r.rotation.set(0, Math.PI + t.yaw, 0); r.position.set(0, 0, 0); r.scale.setScalar(t.scale);
-    this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1)); r.updateMatrixWorld(true);
+    this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1), 1 - 0.85 * (this.adsS ?? 0)); r.updateMatrixWorld(true);
     const head = this.headBone;
     const la = this.unit.body.getObjectByName('LeftShoulder');
-    if (la) la.scale.setScalar(this.oneHand && !acting ? 0.001 : 1);
+    if (la) la.scale.setScalar((this.oneHand && !acting) || (!acting && (this.adsS ?? 0) > 0.55) ? 0.001 : 1);   // aimed, the support hand would float beside the gun: leave it out of view
     this.adsS += (this.ads - this.adsS) * Math.min(1, dt * 14); const A = this.adsS, ap = ADS_POSE[this.weapon] ?? ADS_POSE.rifle;
     if (head) { head.scale.setScalar(1); r.updateMatrixWorld(true); head.getWorldPosition(_h); r.position.set(-_h.x + t.x + (ap.x - t.x) * A, -_h.y + t.y + (ap.y - t.y) * A, -_h.z + t.z + (ap.z - t.z) * A); head.scale.setScalar(0.001); }
     // the whole viewmodel moves about the eye: walking bob, breathing, turn lag, recoil, drawing the weapon
@@ -88,7 +88,7 @@ export class ViewModel {
     const kick = this.recoil * this.recoil;
     rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
     rg.rotation.set(-tip - spr * 0.45 + kick * (0.05 + (this.weapon === 'sniper' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + spr * 0.35 + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
-    rg.updateMatrixWorld(true); this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1)); rg.updateMatrixWorld(true);
+    rg.updateMatrixWorld(true); this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1), 1 - 0.85 * (this.adsS ?? 0)); rg.updateMatrixWorld(true);
     if (this.eject) {
       this.eject = false;
       const shotgun = this.weapon === 'shotgun' || this.weapon === 'autosg', m = new THREE.Mesh(this.shellGeo, shotgun ? this.red : this.brass);
@@ -106,5 +106,5 @@ export class ViewModel {
   }
 }
 const _h = new THREE.Vector3();
-// where the rig sits when the sights are up (the gun brought to the middle of the view); tuned by eye
-const ADS_POSE = { rifle: { x: -0.2, y: -0.035, z: 0.04 }, pistol: { x: -0.17, y: -0.03, z: 0.03 }, smg: { x: -0.19, y: -0.04, z: 0.04 }, shotgun: { x: -0.2, y: -0.04, z: 0.04 }, sniper: { x: -0.2, y: -0.04, z: 0.04 }, revolver: { x: -0.17, y: -0.03, z: 0.03 }, burst: { x: -0.2, y: -0.035, z: 0.04 }, lmg: { x: -0.2, y: -0.045, z: 0.05 }, autosg: { x: -0.2, y: -0.04, z: 0.04 }, dmr: { x: -0.2, y: -0.04, z: 0.04 } };
+// where the rig sits when the sights are up: placed so the top of each gun's sight (measured in the view's own space) is in the middle of the screen
+const ADS_POSE = { pistol: { x: -0.139, y: -0.035, z: 0.03 }, smg: { x: -0.138, y: -0.041, z: 0.04 }, rifle: { x: -0.132, y: -0.076, z: 0.04 }, shotgun: { x: -0.13, y: -0.014, z: 0.04 }, sniper: { x: -0.133, y: -0.024, z: 0.04 }, revolver: { x: -0.136, y: -0.047, z: 0.03 }, burst: { x: -0.136, y: -0.043, z: 0.04 }, lmg: { x: -0.132, y: -0.05, z: 0.05 }, autosg: { x: -0.129, y: -0.025, z: 0.04 }, dmr: { x: -0.133, y: -0.054, z: 0.04 } };
