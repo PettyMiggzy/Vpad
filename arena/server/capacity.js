@@ -1,4 +1,4 @@
-// How many matches one match server can run before play suffers.
+// How many matches one match server can run before play suffers. (Needs the client library, which the server install leaves out: `umask 022; npm install --no-save @colyseus/sdk` once.)
 //   node capacity.js                      tries 4, 8, 16, 24, 32, 48 matches (CAP_ROOMS=a,b,c to choose)
 // Each match is a practice game of PER_SIDE a side (default 6: one human and computer players for the rest) on the three big maps in turn,
 // and every human runs and fires. The players run in separate processes so the test itself is not the slow part. Per count it prints the
@@ -16,15 +16,17 @@ const SECONDS = 8;
 const PER_WORKER = 6;
 
 if (process.argv[2] === '--worker') {
-  const { Client } = await import('@colyseus/sdk');
+  const { Client } = await import('@colyseus/sdk').catch(() => { process.send({ error: 'the players need the client library, which a server install leaves out. Run once:  umask 022; npm install --no-save @colyseus/sdk   (in this folder) and then this test again.' }); process.exit(1); });
   const [port, first, n] = process.argv.slice(3).map(Number);
   const rooms = [];
+  try {
   for (let k = 0; k < n; k++) {
     const i = first + k;
     const room = await new Client(`ws://127.0.0.1:${port}`).joinOrCreate('match', { names: ['BLUE', 'RED'], map: maps[i % 3], perSide: PER_SIDE, mode: 'practice', difficulty: 1, objective: i % 2 ? 'zone' : 'elim', name: `P${i}`, team: 0, pid: `c${i.toString(16).padStart(31, '0')}`, solo: `s${i}` });
     room.onMessage('hello', () => {}); room.onMessage('roster', () => {}); room.onMessage('probe', (m) => room.send('probe', m));
     rooms.push(room);
   }
+  } catch (e) { process.send({ error: String(e?.stack || e?.message || e) }); process.exit(1); }
   const counts = new Array(n).fill(0);
   rooms.forEach((room, k) => room.onMessage('snap', () => { counts[k]++; }));
   const input = setInterval(() => rooms.forEach((room, k) => room.send('input', { dx: 1, dy: (first + k) % 2 ? 1 : -1, aim: (Date.now() / 700 + k) % 6.28, pitch: 0, fire: true, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false })), 50);
@@ -46,10 +48,11 @@ if (process.argv[2] === '--worker') {
     let log = ''; child.stdout.on('data', (b) => { log += b; }); child.stderr.on('data', (b) => { log += b; });
     const workers = [];
     try {
-      for (let t = 0; t < 150 && !log.includes('arena server on'); t++) await wait(100);
+      for (let t = 0; t < 300 && !log.includes('arena server on'); t++) await wait(100);
+      if (!log.includes('arena server on')) throw new Error('the test server did not start. Its output:\n' + log.slice(-1500));
       for (let first = 0; first < R; first += PER_WORKER) {
-        const w = fork(import.meta.filename, ['--worker', port, first, Math.min(PER_WORKER, R - first)], { silent: true });
-        await new Promise((res, rej) => { w.once('message', res); w.once('exit', () => rej(new Error('worker died'))); });
+        const w = fork(import.meta.filename, ['--worker', port, first, Math.min(PER_WORKER, R - first)], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+        await new Promise((res, rej) => { w.once('message', (m) => (m.error ? rej(new Error('a player process failed: ' + m.error + '\nserver output:\n' + log.slice(-1500))) : res(m))); w.once('exit', (code) => rej(new Error(`a player process stopped (exit ${code}) before it was ready.\nserver output:\n${log.slice(-1500)}`))); });
         workers.push(w);
       }
       await wait(2500);
