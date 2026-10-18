@@ -1,16 +1,16 @@
 // The loadout catalogue, shared by the match server (which applies the stats and checks ownership) and the page (which shows the shop).
 // Prices are in play coins. Nothing here touches a wallet. A real-money version would be a separate, lawyer-reviewed decision.
 export const WEAPONS = {
-  pistol:  { slot: 'weapon', name: 'Pistol',          cost: 0,   dmg: 18, gap: 0.38, speed: 620,  life: 0.7,  range: 1500, spread: 0.03, pellets: 1, mag: 12, reload: 1.4, blurb: 'Reliable and free' },
-  smg:     { slot: 'weapon', name: 'SMG',             cost: 300, dmg: 8,  gap: 0.09, speed: 620,  life: 0.55, range: 1300, spread: 0.07, pellets: 1, mag: 30, reload: 1.9, blurb: 'Fast fire, close range' },
-  rifle:   { slot: 'weapon', name: 'Assault rifle',   cost: 600, dmg: 13, gap: 0.16, speed: 700,  life: 0.8,  range: 2400, spread: 0.035, pellets: 1, mag: 30, reload: 2.3, blurb: 'Good at every range' },
+  pistol:  { slot: 'weapon', name: 'Pistol',          cost: 0,   dmg: 18, gap: 0.38, speed: 620,  life: 0.7,  range: 2200, spread: 0.03, pellets: 1, mag: 12, reload: 1.4, blurb: 'Reliable and free' },
+  smg:     { slot: 'weapon', name: 'SMG',             cost: 300, dmg: 8,  gap: 0.09, speed: 620,  life: 0.55, range: 1900, spread: 0.07, pellets: 1, mag: 30, reload: 1.9, blurb: 'Fast fire, close range' },
+  rifle:   { slot: 'weapon', name: 'Assault rifle',   cost: 600, dmg: 13, gap: 0.16, speed: 700,  life: 0.8,  range: 4500, spread: 0.035, pellets: 1, mag: 30, reload: 2.3, blurb: 'Good at every range' },
   shotgun: { slot: 'weapon', name: 'Shotgun',         cost: 500, dmg: 9,  gap: 0.8,  speed: 600,  life: 0.32, range: 800, spread: 0.12, pellets: 6, mag: 6, reload: 2.4, blurb: 'Deadly up close' },
-  sniper:  { slot: 'weapon', name: 'Sniper rifle',    cost: 900, dmg: 60, gap: 1.15, speed: 1100, life: 1.1,  range: 3400, spread: 0.002, pellets: 1, mag: 5, reload: 2.7, blurb: 'One or two shots, slow' },
-  revolver:{ slot: 'weapon', name: 'Magnum revolver', cost: 350, dmg: 42, gap: 0.65, speed: 900, life: 0.9, range: 1800, spread: 0.008, pellets: 1, mag: 6, reload: 2.3, blurb: 'Three body shots, two to the head' },
-  burst:   { slot: 'weapon', name: 'Burst carbine',  cost: 700, dmg: 15, gap: 0.065, burst: 3, burstGap: 0.4, speed: 800, life: 0.8, range: 2200, spread: 0.018, pellets: 1, mag: 30, reload: 2.0, blurb: 'Three-round bursts, accurate' },
-  lmg:     { slot: 'weapon', name: 'Light machine gun', cost: 1000, dmg: 12, gap: 0.1, speed: 700, life: 0.8, range: 2300, spread: 0.06, pellets: 1, mag: 75, reload: 4.2, move: 0.92, blurb: 'A huge magazine, heavy to carry' },
+  sniper:  { slot: 'weapon', name: 'Sniper rifle',    cost: 900, dmg: 60, gap: 1.15, speed: 1100, life: 1.1,  range: 12000, spread: 0.002, pellets: 1, mag: 5, reload: 2.7, blurb: 'One or two shots, slow' },
+  revolver:{ slot: 'weapon', name: 'Magnum revolver', cost: 350, dmg: 42, gap: 0.65, speed: 900, life: 0.9, range: 3000, spread: 0.008, pellets: 1, mag: 6, reload: 2.3, blurb: 'Three body shots, two to the head' },
+  burst:   { slot: 'weapon', name: 'Burst carbine',  cost: 700, dmg: 15, gap: 0.065, burst: 3, burstGap: 0.4, speed: 800, life: 0.8, range: 4200, spread: 0.018, pellets: 1, mag: 30, reload: 2.0, blurb: 'Three-round bursts, accurate' },
+  lmg:     { slot: 'weapon', name: 'Light machine gun', cost: 1000, dmg: 12, gap: 0.1, speed: 700, life: 0.8, range: 4500, spread: 0.06, pellets: 1, mag: 75, reload: 4.2, move: 0.92, blurb: 'A huge magazine, heavy to carry' },
   autosg:  { slot: 'weapon', name: 'Auto shotgun',   cost: 1100, dmg: 7, gap: 0.28, speed: 600, life: 0.32, range: 700, spread: 0.13, pellets: 6, mag: 8, reload: 3.0, blurb: 'A shotgun that keeps firing' },
-  dmr:     { slot: 'weapon', name: 'Marksman rifle', cost: 1300, dmg: 34, gap: 0.38, speed: 1000, life: 1.0, range: 3000, spread: 0.004, pellets: 1, mag: 10, reload: 2.6, blurb: 'Fast, hard-hitting, long range' },
+  dmr:     { slot: 'weapon', name: 'Marksman rifle', cost: 1300, dmg: 34, gap: 0.38, speed: 1000, life: 1.0, range: 7500, spread: 0.004, pellets: 1, mag: 10, reload: 2.6, blurb: 'Fast, hard-hitting, long range' },
 };
 // close range: the knife (key F). From behind it kills outright.
 export const MELEE = { name: 'Combat knife', range: 100, arc: 0.45, dmg: 55, back: 140, gap: 0.8 };
@@ -34,6 +34,9 @@ export const MODS = {
   quickmag: { slot: 'mod', name: 'Quick-draw mag',  cost: 250, reload: 0.65, blurb: 'Reload 35% faster' },
   grip:     { slot: 'mod', name: 'Steady grip',     cost: 300, spread: 0.6,  blurb: '40% tighter spread' },
   barrel:   { slot: 'mod', name: 'Long barrel',     cost: 300, range: 1.25,  blurb: '+25% range' },
+  bolt:     { slot: 'mod', name: 'Fast action',     cost: 450, gap: 0.8,    blurb: '20% less time between shots' },
+  scope:    { slot: 'mod', name: 'Long scope',      cost: 350, zoom: 0.65,  blurb: 'Zoom in half as far again when aiming' },
+  steady:   { slot: 'mod', name: 'Steady scope',    cost: 350, steady: 1,   blurb: 'Less wobble, and you hold your breath longer' },
   hollow:   { slot: 'mod', name: 'Hollow points',   cost: 400, dmg: 1.12, mag: 0.8, blurb: '+12% damage, 20% smaller magazine' },
 };
 // grenade kits: how many you carry, and how hard they hit

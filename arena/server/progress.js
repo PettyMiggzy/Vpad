@@ -13,7 +13,7 @@ export function levelFrac(xp) { const L = levelOf(xp); if (L >= MAX_LEVEL) retur
 /** the level at which each thing can be bought (anything not listed is open from level 1) */
 export const UNLOCK = {
   smg: 2, shotgun: 4, revolver: 4, rifle: 3, burst: 6, sniper: 7, lmg: 8, autosg: 10, dmr: 12,
-  extmag: 2, quickmag: 3, grip: 4, barrel: 5, hollow: 8,
+  extmag: 2, quickmag: 3, grip: 4, barrel: 5, scope: 6, steady: 7, hollow: 8, bolt: 9,
   light: 2, heavy: 5, elite: 9, helmet1: 3, helmet2: 6, swift: 2, runner: 4,
   frag3: 2, frag4: 5, heavy3: 8,
 };

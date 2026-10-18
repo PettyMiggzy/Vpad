@@ -232,6 +232,7 @@ export class Ui {
     <label>Loadout shop <span id="vy-coins" style="float:right;color:var(--lime);letter-spacing:0;font-size:14px;font-weight:800"></span></label>
     <div class="tabs" id="vy-tabs"></div>
     <div class="items" id="vy-items"></div>
+    <div style="color:var(--muted);font-size:11px;margin-top:6px">Upgrades cost play coins you earn in matches. Paying with a wallet comes later, after a legal review: nothing here touches a wallet.</div>
     <label>Map</label>
     <div class="maps" id="vy-maps">${MAP_LIST.map(([id, name, blurb], i) => `<div class="map${i === 0 ? ' on' : ''}" data-map="${id}"><b>${name}</b><small>${blurb}</small></div>`).join('')}</div>
     <label class="easyrow" id="vy-easyrow" style="display:none;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input id="vy-easy" type="checkbox" checked style="width:auto;margin-right:8px" />Easy aim (phones): helps line up shots and fires when you are on target</label>

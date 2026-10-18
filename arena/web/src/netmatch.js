@@ -37,7 +37,7 @@ export class NetMatch {
   dress(p, r) {
     if (!r) return;
     p.name = r.name; p.bot = !!r.bot; p.team = r.team; p.hpMax = r.hpMax || 100; p.primary = r.primary; p.camo = r.camo; p.armor = r.armor;
-    p.magMul = r.magMul || 1; p.reloadMul = r.reloadMul || 1;
+    p.magMul = r.magMul || 1; p.reloadMul = r.reloadMul || 1; p.zoomMul = r.zoomMul || 1; p.steady = r.steady || 0;
   }
 
   aliveCount(t) { return this.alive[t] ?? 0; }

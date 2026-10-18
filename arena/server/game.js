@@ -168,7 +168,7 @@ export function statsOf(l = {}) {
     weapon, armor, boots, mod, helmet, kit, camo: typeof l.camo === 'string' ? l.camo : FREE.camo,
     hpMax: ARMOR[armor].hp, speedMul: ARMOR[armor].speed * BOOTS[boots].speed * HELMETS[helmet].speed,
     headMul: HELMETS[helmet].head, dmgMul: md.dmg ?? 1, spreadMul: md.spread ?? 1, rangeMul: md.range ?? 1,
-    magMul: md.mag ?? 1, reloadMul: md.reload ?? 1, magSize: Math.max(1, Math.round(w.mag * (md.mag ?? 1))), reloadTime: w.reload * (md.reload ?? 1),
+    magMul: md.mag ?? 1, reloadMul: md.reload ?? 1, gapMul: md.gap ?? 1, zoomMul: md.zoom ?? 1, steady: md.steady ? 1 : 0, magSize: Math.max(1, Math.round(w.mag * (md.mag ?? 1))), reloadTime: w.reload * (md.reload ?? 1),
     nadeCount: KITS[kit].count, nadeRadius: KITS[kit].radius, nadeDmg: KITS[kit].dmg,
   };
 }
@@ -383,11 +383,11 @@ export class Match {
       // firing: a burst weapon queues its rounds, the rest fire one round a trigger pull
       const canFire = live && p.rl === 0 && p.swapT === 0 && !p.sprinting && p.meleeCd < MELEE.gap - 0.3;
       if (canFire && p.burstLeft > 0 && p.cd === 0) {
-        if (p.ammo > 0) { p.ammo -= 1; p.burstLeft -= 1; p.cd = p.burstLeft > 0 ? w.gap : w.burstGap; this.shoot(p, w); } else p.burstLeft = 0;
+        if (p.ammo > 0) { p.ammo -= 1; p.burstLeft -= 1; p.cd = (p.burstLeft > 0 ? w.gap : w.burstGap) * p.gapMul; this.shoot(p, w); } else p.burstLeft = 0;
       } else if (canFire && inp.fire && p.cd === 0) {
         if (p.ammo > 0) {
-          if (w.burst) { p.burstLeft = Math.min(w.burst, p.ammo); p.ammo -= 1; p.burstLeft -= 1; p.cd = w.gap; this.shoot(p, w); }
-          else { p.ammo -= 1; p.cd = w.gap; this.shoot(p, w); }
+          if (w.burst) { p.burstLeft = Math.min(w.burst, p.ammo); p.ammo -= 1; p.burstLeft -= 1; p.cd = w.gap * p.gapMul; this.shoot(p, w); }
+          else { p.ammo -= 1; p.cd = w.gap * p.gapMul; this.shoot(p, w); }
         } else { p.cd = 0.3; this.events.push({ type: 'dry', by: p.id }); }
       }
       if (live && inp.nade && p.nadeCd === 0 && p.grenades > 0 && !p.sprinting) { p.grenades -= 1; p.nadeCd = 1.0; this.throwNade(p); inp.nade = false; }
@@ -587,5 +587,5 @@ export class Match {
     };
   }
 
-  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, weapon: p.weapon, primary: p.primary, armor: p.armor, camo: p.camo, hpMax: p.hpMax, magMul: p.magMul, reloadMul: p.reloadMul, team: p.team, bot: p.bot })); }
+  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, weapon: p.weapon, primary: p.primary, armor: p.armor, camo: p.camo, hpMax: p.hpMax, magMul: p.magMul, reloadMul: p.reloadMul, zoomMul: p.zoomMul, steady: p.steady, team: p.team, bot: p.bot })); }
 }

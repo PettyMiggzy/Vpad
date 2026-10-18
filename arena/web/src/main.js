@@ -598,8 +598,8 @@ function updateSway(dt, t, scoped) {
   if (!scoped) { sway.y = sway.p = 0; breath = Math.min(1, breath + dt * 0.4); if (breath >= 1) winded = false; return; }
   const moving = Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1;
   const holding = (keys.has('ShiftLeft') || keys.has('ShiftRight')) && !winded && breath > 0 && !ui.touch;
-  if (holding) { breath = Math.max(0, breath - dt / 3.2); if (breath <= 0) winded = true; } else { breath = Math.min(1, breath + dt * (winded ? 0.28 : 0.45)); if (winded && breath >= 0.6) winded = false; }
-  const A = 0.0042 * (ui.touch ? 0.55 : 1) * (moving ? 3 : 1) * (holding ? 0.08 : winded ? 1.6 : 1);
+  if (holding) { breath = Math.max(0, breath - dt / (me?.steady ? 5.2 : 3.2)); if (breath <= 0) winded = true; } else { breath = Math.min(1, breath + dt * (winded ? 0.28 : 0.45)); if (winded && breath >= 0.6) winded = false; }
+  const A = 0.0042 * (me?.steady ? 0.6 : 1) * (ui.touch ? 0.55 : 1) * (moving ? 3 : 1) * (holding ? 0.08 : winded ? 1.6 : 1);
   sway.y = (Math.sin(t * 1.7) * 0.6 + Math.sin(t * 0.63 + 1) * 0.4) * A;
   sway.p = (Math.sin(t * 1.3 + 2) * 0.5 + Math.sin(t * 0.5) * 0.3 + Math.sin(t * 1.1) * 0.3) * A;
 }
@@ -620,7 +620,7 @@ function frame(now) {
   const scoped = !!sniping && (me.ads ?? 0) > 0.85;
   updateSway(dt, now / 1000, scoped);
   const zoomNow = zoom || ui.zoomTouch;
-  const wantFov = zoomNow && playing && me ? feelOf(me.weapon).ads.zoom : FOV + (me && me.alive && me.sprinting ? 7 : 0);
+  const wantFov = zoomNow && playing && me ? feelOf(me.weapon).ads.zoom * (me.zoomMul ?? 1) : FOV + (me && me.alive && me.sprinting ? 7 : 0);
   fov += (wantFov - fov) * Math.min(1, dt * 14);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   const sens = fov / FOV;
