@@ -36,3 +36,9 @@ Environment variables for the install command: `BRANCH` (default `main`), `REPO`
 ## What this does not do
 
 It does not protect against a lot of traffic beyond nginx's own limits (20 requests a second per visitor for the match and shop calls, 40 open connections each), and play coins are the only thing on it: nothing here touches a wallet.
+
+## How many matches one server can run
+
+Open `/sessions.html` on the game's address to see what is running now (matches, people, the server's clock delay). The server refuses new matches past `MAX_ROOMS` (32 unless the service sets the `MAX_ROOMS` environment variable).
+
+To measure a server (do this on the droplet itself, with nobody playing): `cd /opt/arena/repo/arena/server && node capacity.js`. It starts matches of one person and eleven computer players, 4 up to 48 at a time, and prints for each count the slowest player's snapshot rate (20 is perfect), the server's CPU as a share of one core, and the clock delay (`loopP99Ms`). A count is fine while `ok` is true; set `MAX_ROOMS` a few below the last count that was fine. One match server uses one core, so a bigger droplet needs a second server process before it helps.
