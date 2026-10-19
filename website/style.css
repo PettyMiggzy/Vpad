@@ -96,3 +96,10 @@ select,input[type=text]{width:100%;background:#0a1008;color:var(--text);border:1
 @media(max-width:720px){.nav nav{display:none;position:absolute;top:64px;left:0;right:0;background:#070b06;flex-direction:column;padding:12px 20px;border-bottom:1px solid var(--line)}.nav nav.open{display:flex}.burger{display:block}.nav .livepill{display:none}
  .g3,.g4,.g2,.road{grid-template-columns:1fr}section{padding:60px 0}.hero{min-height:auto}.hero .wrap{padding-top:90px}.unit img{height:170px}.t .hide-s{display:none}.bar{grid-template-columns:96px 1fr 54px}}
 @media(prefers-reduced-motion:reduce){.hero::before{animation:none}html{scroll-behavior:auto}.livepill i{animation:none}}
+
+.stores{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+.storebadge{display:inline-flex;align-items:center;gap:12px;padding:10px 18px 10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);opacity:.92}
+.storebadge svg{width:26px;height:26px;fill:none;stroke:var(--lime);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.storebadge b{display:block;font:700 16px/1.1 Inter}
+.storebadge small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.soon{display:block;color:var(--muted);font-size:13px;margin-top:6px}
