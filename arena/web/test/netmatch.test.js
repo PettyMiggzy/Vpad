@@ -106,3 +106,12 @@ test('what lies on the floor comes with a full snapshot, then changes arrive as 
   nm.push({ type: 'pickup', by: 'p1', kind: 'med', x: 1, y: 2 });
   assert.equal(nm.takeEvents().length, 1, 'the pickup itself (the sound and the feed line) is passed on');
 });
+
+test('bottomless ammunition travels with the snapshot', () => {
+  const m = setup(), nm = new NetMatch(hello(m), teams);
+  m.players.get('p1').endless = true;
+  nm.apply(m.snapshot());
+  assert.equal(nm.players.get('p1').endless, true);
+  m.players.get('p1').endless = false; nm.apply(m.snapshot());
+  assert.equal(nm.players.get('p1').endless, false);
+});

@@ -86,6 +86,8 @@ const CSS = `
 #vy-knife { right: calc(126px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); }
 #vy-swap { right: calc(210px + env(safe-area-inset-right)); bottom: calc(112px + env(safe-area-inset-bottom)); width: 54px; height: 54px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); }
 #vy-use { right: calc(150px + env(safe-area-inset-right)); bottom: calc(190px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 11px; background: rgba(184,255,60,.28); border: 3px solid #b8ff3c; color: #fff; }
+#vy-streak { position: absolute; left: calc(16px + env(safe-area-inset-left)); bottom: calc(96px + env(safe-area-inset-bottom)); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-shadow: 0 2px 6px #000; opacity: 0; transition: opacity .25s; pointer-events: none; }
+#vy-streak.on { opacity: 1; } #vy-streak b { color: #b8ff3c; font-size: 16px; } #vy-streak small { display: block; font-weight: 600; opacity: .8; }
 #vy-prompt { position: absolute; left: 0; right: 0; bottom: 24%; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: .04em; text-shadow: 0 2px 8px #000; pointer-events: none; display: none; }
 #vy-prompt kbd { background: #b8ff3c; color: #000; border-radius: 4px; padding: 1px 7px; margin-right: 6px; font-weight: 900; }
 #vy-prompt small { display: block; font-size: 12px; opacity: .8; font-weight: 600; }
@@ -197,7 +199,7 @@ export class Ui {
 <div id="vy-hud" hidden>
   <div id="vy-hurt"></div>
   <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span data-tn="0">${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span data-tn="1">${b}</span><div class="pips" data-pips="1"></div></div></div>
-  <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun &nbsp;<kbd>E</kbd>pick up a gun<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-prompt"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
+  <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun &nbsp;<kbd>E</kbd>pick up a gun<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-streak"></div><div id="vy-prompt"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
   <div id="vy-scopeov"><i><b></b></i></div><div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><b data-ammo style="font-size:26px"></b><br><span data-gun></span><small data-nades></small><small data-coins></small></div>
@@ -258,7 +260,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -442,7 +444,7 @@ export class Ui {
       let seen = false; try { seen = localStorage.getItem('vyre.arena.tips.desk') === '1'; } catch { /* ignore */ }
       if (seen) return false;
       this.el['vy-tips'].querySelector('h2')!.textContent = 'HOW TO PLAY';
-      this.el['vy-tips'].querySelector('ul')!.innerHTML = '<li><b>WASD</b> move, <b>mouse</b> aim, <b>click</b> fire, <b>right click</b> zoom in.</li><li><b>G</b> throws a grenade, <b>F</b> is the knife for close range (from behind it kills), <b>R</b> reloads, <b>Q</b> swaps to your pistol and back, <b>E</b> picks up a gun from the floor (it swaps with yours).</li><li>Walk over an <b>ammo box</b> or a <b>med kit</b> to take it. Guns have spare rounds now, so watch the number on the right.</li><li><b>Space</b> jumps (you can hop over low cover), <b>Shift</b> sprints (you cannot shoot while sprinting).</li><li><b>Tab</b> shows the scoreboard, <b>Esc</b> pauses, <b>H</b> hides the key list.</li><li>In <b>Hold the Zone</b>, stand in the glowing circle with no enemy in it to fill your bar.</li>';
+      this.el['vy-tips'].querySelector('ul')!.innerHTML = '<li><b>WASD</b> move, <b>mouse</b> aim, <b>click</b> fire, <b>right click</b> zoom in.</li><li><b>G</b> throws a grenade, <b>F</b> is the knife for close range (from behind it kills), <b>R</b> reloads, <b>Q</b> swaps to your pistol and back, <b>E</b> picks up a gun from the floor (it swaps with yours).</li><li>Kill streaks pay out: <b>3</b> drone, <b>4</b> bottomless ammo until you go down, <b>5</b> adrenaline, <b>6</b> full health and grenades, <b>8</b> mortar shells on the nearest enemies.</li><li>Walk over an <b>ammo box</b> or a <b>med kit</b> to take it. Guns have spare rounds now, so watch the number on the right.</li><li><b>Space</b> jumps (you can hop over low cover), <b>Shift</b> sprints (you cannot shoot while sprinting).</li><li><b>Tab</b> shows the scoreboard, <b>Esc</b> pauses, <b>H</b> hides the key list.</li><li>In <b>Hold the Zone</b>, stand in the glowing circle with no enemy in it to fill your bar.</li>';
       try { localStorage.setItem('vyre.arena.tips.desk', '1'); } catch { /* ignore */ }
       this.el['vy-tips'].hidden = false; return true;
     }
@@ -463,10 +465,16 @@ export class Ui {
     this.q('[data-time]').textContent = overtime ? 'OVERTIME' : phase === 'live' || phase === 'countdown' ? clock : '-';
     this.q('[data-alive]').textContent = dm ? (overtime ? 'next kill wins' : 'most kills wins') : `${alive[0]} vs ${alive[1]} alive`;
   }
-  setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0, ammo = 0, mag = 0, reloading = false, reserve = -1): void {
+  setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0, ammo = 0, mag = 0, reloading = false, reserve = -1, endless = false): void {
     this.q('[data-hp]').textContent = String(Math.max(0, Math.ceil(hp)));
     (this.q('#vy-me .hp i')).style.width = `${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%`;
-    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = (items[gun]?.name ?? gun); this.el['vy-scope'].style.display = this.touch ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : (reserve >= 0 ? `${ammo} / ${reserve}` : `${ammo} / ${mag}`); this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
+    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = (items[gun]?.name ?? gun); this.el['vy-scope'].style.display = this.touch ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : (endless ? `${ammo} / \u221e` : reserve >= 0 ? `${ammo} / ${reserve}` : `${ammo} / ${mag}`); this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
+  }
+  /** your kill streak and what the next step brings (hidden at zero) */
+  streak(n: number, next: string, at: number): void {
+    const el = this.el['vy-streak']; if (!el) return;
+    if (n <= 0) { el.classList.remove('on'); return; }
+    el.innerHTML = `<b>${n}</b> KILL STREAK${next ? `<small>${next} at ${at}</small>` : ''}`; el.classList.add('on');
   }
   /** what lies at your feet and can be taken with the use key (null hides it); on a phone the TAKE button shows instead of the key */
   prompt(text: string | null, sub = ''): void {

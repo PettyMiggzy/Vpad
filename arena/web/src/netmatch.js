@@ -85,7 +85,7 @@ export class NetMatch {
       if (!p) { p = { id: row[0], name: 'Player', input: blank(), rlSince: 0, hpMax: 100, rl: 0, reloadTime: 1.5, magSize: 12, sprinting: false, slot: 0, speedMul: 1, rc: new Recoil(), ads: 0 }; this.players.set(row[0], p); this.dress(p, this.roster.get(row[0])); }
       const wasAlive = p.alive;
       p.team = row[1]; p.x = row[2]; p.y = row[3]; p.aim = row[4]; p.hp = row[5]; p.alive = row[6] === 1; if (p.alive && wasAlive === false) { p.rc = new Recoil(); p.ads = 0; } p.kills = row[7]; p.bot = row[8] === 1;
-      p.z = row[9]; p.pitch = row[10]; p.grenades = row[11]; p.ammo = row[12]; p.deaths = row[14]; p.boost = row[16] === 1; p.reserve = row[17] ?? 0;
+      p.z = row[9]; p.pitch = row[10]; p.grenades = row[11]; p.ammo = row[12]; p.deaths = row[14]; p.boost = row[16] === 1; p.reserve = row[17] ?? 0; p.endless = row[18] === 1;
       if (row[15] !== p.weapon) {
         p.weapon = row[15] || 'pistol';
         const w = WEAPONS[p.weapon] || WEAPONS.pistol;

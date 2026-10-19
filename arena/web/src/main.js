@@ -350,9 +350,13 @@ function onEvents(evs) {
     } else if (e.type === 'land') {
       const p = match.players.get(e.by); if (p) sfx.play('jump_land', { x: p.x / PX_PER_M, z: p.y / PX_PER_M, own: !!(me && e.by === me.id), vol: 0.7 });
     } else if (e.type === 'streak') {
-      if (me && e.by === me.id) { ui.medal(e.kind === 'uav' ? 'DRONE ONLINE: ENEMIES ON THE MAP' : 'ADRENALINE: FASTER, QUICK RELOAD', '#7fe8ff'); sfx.play('streak', { own: true, vol: 0.7 }); }
-      else if (e.kind === 'uav' && me && match.players.get(e.by)?.team === me.team) { sfx.play('uav_ping', { own: true, vol: 0.6 }); ui.banner('YOUR TEAM HAS A DRONE', 'enemies show on the map', 1800); }
+      const mine = !!(me && e.by === me.id), mate = !!(me && match.players.get(e.by)?.team === me.team);
+      const TEXT = { uav: 'DRONE ONLINE: ENEMIES ON THE MAP', endless: 'BOTTOMLESS AMMO: UNTIL YOU GO DOWN', boost: 'ADRENALINE: FASTER, QUICK RELOAD', resupply: 'RESUPPLY: FULL HEALTH AND GRENADES', mortar: 'MORTAR STRIKE ON THE NEAREST ENEMIES' };
+      if (mine) { ui.medal(TEXT[e.kind] || '', e.kind === 'endless' ? '#b8ff3c' : e.kind === 'mortar' ? '#ff9a3c' : '#7fe8ff'); sfx.play('streak', { own: true, vol: 0.7 }); }
+      else if (e.kind === 'uav' && mate) { sfx.play('uav_ping', { own: true, vol: 0.6 }); ui.banner('YOUR TEAM HAS A DRONE', 'enemies show on the map', 1800); }
       else if (e.kind === 'uav') { ui.banner('ENEMY DRONE OVERHEAD', 'they can see you on the map', 1800); }
+      else if (e.kind === 'mortar' && !mate && me && me.alive) { sfx.play('uav_ping', { own: true, vol: 0.8 }); ui.banner('MORTAR INCOMING', 'get out of the open', 2200); }
+      else if (e.kind === 'endless' || e.kind === 'resupply') { const who = match.players.get(e.by); if (who && !mate) ui.feed(`<span style="color:${TEAM_COLORS[who.team]}">${who.name}</span> ${e.kind === 'endless' ? 'has bottomless ammo' : 'resupplied'}`); }
     } else if (e.type === 'nade') {
       const th = match.players.get(e.by);
       sfx.throwNade(e.x / PX_PER_M, e.y / PX_PER_M, !!(me && e.by === me.id)); if (me && e.by === me.id) vm.throwNade();
@@ -802,7 +806,8 @@ function frame(now, manual) {
       if (me && me.alive) { const w = WEAPONS[me.weapon] || WEAPONS.pistol, mv = Math.min(1, Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) * (me.sprinting ? 1.32 : 1)); const sp = spreadFor(me.weapon, w.spread, { ads: me.ads ?? 0, move: mv, air: !!me.air, bloom: me.rc?.bloom ?? 0 }) * (w.pellets > 1 ? 1 : 1); ui.cross(Math.tan(sp) * (host.clientHeight / 2) / Math.tan(camera.fov * Math.PI / 360), me.ads ?? 0); }
       ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       ui.setZone(match.objective === 'zone' && !!match.map.zone, match.zoneP[0], match.zoneP[1], match.zoneIn[0], match.zoneIn[1], TEAM_COLORS);
-      if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0, me.reserve ?? 0);
+      if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0, me.reserve ?? 0, !!me.endless);
+      { const st = [[3, 'DRONE'], [4, 'BOTTOMLESS AMMO'], [5, 'ADRENALINE'], [6, 'RESUPPLY'], [8, 'MORTAR STRIKE']].find(([k]) => k > streak); ui.streak(me.alive ? streak : 0, st ? st[1] : '', st ? st[0] : 0); }
       showPrompt();
     }
     const w = host.clientWidth, h = host.clientHeight;

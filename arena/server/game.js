@@ -10,6 +10,7 @@ export { MAPS };
 export const MAP = { w: MAPS.cargo.w, h: MAPS.cargo.h };
 export const WALLS = MAPS.cargo.solids.map((s) => [s.x, s.y, s.w, s.h]);
 const M = 50;
+const MORTAR = { fuse: 2.6 };
 export const R = { RADIUS: 15, SPEED: 200, HP: 100, ROUND_SECONDS: 120, WIN_ROUNDS: 2, EYE: 1.6, BODY: 1.85, HEAD: 1.68, LEGS: 0.8, DROP: 1.3, FALL: 12, GRAV: 15, JUMP: 5.48, REGEN_AFTER: 5, REGEN_RATE: 14, ZONE_SECONDS: 25, UAV_SECONDS: 12, BOOST_SECONDS: 8, RESPAWN: 4, PROTECT: 2.5 };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -245,7 +246,7 @@ export class Match {
   makePlayer(id, team, name, loadout, bot) {
     const st = statsOf(loadout);
     const p = { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, alive: false, kills: 0, deaths: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
-      primary: st.weapon, slot: 0, stash: 0, swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, moveMul: st.speedMul, rc: new Recoil(), ads: 0, moveFrac: 0, prot: 0, respawn: 0,
+      primary: st.weapon, slot: 0, stash: 0, swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, endless: false, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, moveMul: st.speedMul, rc: new Recoil(), ads: 0, moveFrac: 0, prot: 0, respawn: 0,
       input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
     p.stash = magFor(p, 'pistol');
     p.reserve = startReserve(magFor(p, p.primary), false); p.stashRes = startReserve(magFor(p, 'pistol'), true);
@@ -263,7 +264,7 @@ export class Match {
     let x = sp[0] + rnd(-12, 12), y = sp[1] + rnd(-12, 12);
     [x, y] = pushOut(this.map, x, y, 0);
     Object.assign(p, { x, y, z: floorAt(this.map, x, y), hp: p.hpMax, alive: true, cd: 0, nadeCd: 0, grenades: p.nadeCount, rl: 0, aim: p.team === 0 ? 0 : Math.PI, pitch: 0,
-      weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, rc: new Recoil(), ads: 0, moveFrac: 0 });
+      weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, endless: false, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, rc: new Recoil(), ads: 0, moveFrac: 0 });
     p.ammo = p.magSize; p.stash = magFor(p, 'pistol'); p.reserve = startReserve(p.magSize, false); p.stashRes = startReserve(magFor(p, 'pistol'), true);
     p.respawn = 0; p.prot = this.objective === 'dm' && this.phase === 'live' ? R.PROTECT : 0;
   }
@@ -399,8 +400,8 @@ export class Match {
       if (live && inp.swap && p.swapT === 0 && p.primary !== 'pistol') w = WEAPONS[this.swapSlot(p)];
       // the use key: take the dropped gun at your feet
       if (live && inp.use) { inp.use = false; if (p.alive && this.pickups.use(p)) w = WEAPONS[p.weapon]; }
-      if (p.rl > 0) { p.rl = Math.max(0, p.rl - dt); if (p.rl === 0) { const take = Math.min(p.magSize - p.ammo, p.reserve); p.ammo += take; p.reserve -= take; } }
-      else if (live && p.swapT === 0 && (inp.reload || (inp.fire && p.ammo <= 0)) && p.ammo < p.magSize && p.reserve > 0) { p.rl = p.reloadTime * (p.boostT > 0 ? 0.5 : 1); this.events.push({ type: 'reload', by: p.id }); }
+      if (p.rl > 0) { p.rl = Math.max(0, p.rl - dt); if (p.rl === 0) { const take = p.endless ? p.magSize - p.ammo : Math.min(p.magSize - p.ammo, p.reserve); p.ammo += take; if (!p.endless) p.reserve -= take; } }
+      else if (live && p.swapT === 0 && (inp.reload || (inp.fire && p.ammo <= 0)) && p.ammo < p.magSize && (p.reserve > 0 || p.endless)) { p.rl = p.reloadTime * (p.boostT > 0 ? 0.5 : 1); this.events.push({ type: 'reload', by: p.id }); }
       // the knife
       if (live && inp.melee && p.meleeCd === 0 && p.swapT === 0) { p.meleeCd = MELEE.gap; p.cd = Math.max(p.cd, 0.35); p.rl = 0; p.burstLeft = 0; this.melee(p); }
       // firing: a burst weapon queues its rounds, the rest fire one round a trigger pull
@@ -420,12 +421,15 @@ export class Match {
   /** a kill, from a shot, a blast or the knife: counts it, runs the streak rewards, tells everyone */
   kill(by, victim, extra = {}) {
     this.pickups.dropGun(victim);
-    victim.alive = false; victim.deaths += 1; victim.streak = 0; victim.boostT = 0; victim.burstLeft = 0; victim.respawn = R.RESPAWN;
+    victim.alive = false; victim.deaths += 1; victim.streak = 0; victim.endless = false; victim.boostT = 0; victim.burstLeft = 0; victim.respawn = R.RESPAWN;
     if (this.objective === 'dm' && this.phase === 'live' && by && by.team !== victim.team) { this.score[by.team] += 1; if (this.overtime) this.endDm(by.team); }
     if (by && by.id !== victim.id) {
       by.kills += 1; by.streak += 1;
       if (by.streak === 3) { this.uav[by.team] = R.UAV_SECONDS; this.events.push({ type: 'streak', by: by.id, kind: 'uav' }); }
+      if (by.streak === 4) { by.endless = true; this.events.push({ type: 'streak', by: by.id, kind: 'endless' }); }     // bottomless spare ammunition until they go down
       if (by.streak === 5) { by.boostT = R.BOOST_SECONDS; this.events.push({ type: 'streak', by: by.id, kind: 'boost' }); }
+      if (by.streak === 6) { by.hp = by.hpMax; by.grenades = Math.min(by.nadeCount + 2, by.grenades + 2); this.events.push({ type: 'streak', by: by.id, kind: 'resupply' }); }
+      if (by.streak === 8) this.mortar(by);
     }
     this.events.push({ type: 'kill', by: by ? by.id : null, victim: victim.id, x: victim.x, y: victim.y, ...extra });
   }
@@ -514,6 +518,15 @@ export class Match {
       if (n.fuse <= 0) this.explode(n); else keep.push(n);
     }
     this.nades = keep;
+  }
+
+  /** the eight-kill reward: three shells drop on the three enemies nearest the shooter, a couple of seconds after the warning, so they can run */
+  mortar(by) {
+    const foes = [...this.players.values()].filter((q) => q.alive && q.team !== by.team).sort((a, b) => Math.hypot(a.x - by.x, a.y - by.y) - Math.hypot(b.x - by.x, b.y - by.y)).slice(0, 3);
+    for (const q of foes) {
+      this.nades.push({ x: q.x, y: q.y, z: floorAt(this.map, q.x, q.y) + 14, vx: 0, vy: 0, vz: -6, fuse: MORTAR.fuse, owner: by.id, team: by.team, id: this.nextId++, radius: GRENADE.radius * 0.9, dmg: GRENADE.dmg * 0.9 });
+    }
+    this.events.push({ type: 'streak', by: by.id, kind: 'mortar', n: foes.length });
   }
 
   explode(n) {
@@ -622,7 +635,7 @@ export class Match {
     return {
       mode: this.mode, obj: this.objective, uv: this.uav.map((t) => Math.ceil(t)), zn: this.objective === 'zone' && this.map.zone ? [this.map.zone.x, this.map.zone.y, this.map.zone.r, this.map.zone.z ?? 0, +this.zoneP[0].toFixed(3), +this.zoneP[1].toFixed(3), this.zoneIn[0], this.zoneIn[1]] : null, ph: this.phase, ot: this.overtime ? 1 : 0, mn: this.minutes, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
       al: [this.aliveCount(0), this.aliveCount(1)], n: [this.count(0), this.count(1)],
-      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0, p.reserve]),
+      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0, p.reserve, p.endless ? 1 : 0]),
       g: this.nades.map((n) => [n.id, Math.round(n.x), Math.round(n.y), +n.z.toFixed(2)]),
       pk: this.pickups.list.map((q) => this.pickups.wire(q)),
       ev: this.events,
