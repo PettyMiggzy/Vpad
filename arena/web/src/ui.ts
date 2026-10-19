@@ -11,7 +11,7 @@ type Item = { slot: string; name: string; cost: number; blurb: string };
 const items = CATALOG as unknown as Record<string, Item>;
 const TAB_NAMES: Record<string, string> = { weapon: 'Weapon', optic: 'Optics', muzzle: 'Muzzles', grip: 'Grips', ammo: 'Ammo', armor: 'Armour', helmet: 'Helmet', boots: 'Boots', grenade: 'Grenades', camo: 'Camo' };
 
-export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string; gfx: string; names: [string, string]; mode: 'practice' | 'challenge'; difficulty: number; objective: 'elim' | 'zone' | 'dm'; minutes: number; blood: boolean }
+export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string; gfx: string; names: [string, string]; mode: 'practice' | 'challenge'; difficulty: number; objective: 'elim' | 'zone' | 'dm' | 'train'; minutes: number; blood: boolean; spar?: boolean }
 export interface BoardRow { name: string; team: number; kills: number; deaths: number; bot: boolean; me: boolean; alive: boolean }
 export interface LeaderData { teams: Record<string, { w: number; l: number }>; players: Record<string, { kills: number; deaths: number; matches: number; wins: number }> }
 export interface UiOptions {
@@ -224,7 +224,8 @@ export class Ui {
     <label>Match type</label>
     <div class="modes"><div class="mode on" data-mode="practice">Practice<small>Against bots, any time. Does not count on the ranked board.</small></div><div class="mode ${o.challengeLive ? '' : 'off'}" data-mode="challenge">Challenge a team<small>${o.challengeLive ? 'Waits for a player on each side. Counts.' : 'Needs the match server, which this page cannot reach.'}</small></div></div>
     <label>Game type</label>
-    <select id="vy-obj"><option value="elim">Elimination: knock out the other team</option><option value="zone">Hold the Zone: own the middle, or knock them out</option><option value="dm">Deathmatch: respawn, most kills when time ends wins</option></select>
+    <select id="vy-obj"><option value="elim">Elimination: knock out the other team</option><option value="zone">Hold the Zone: own the middle, or knock them out</option><option value="dm">Deathmatch: respawn, most kills when time ends wins</option><option value="train">Training yard: practise with your squad on targets, nothing is scored</option></select>
+    <div id="vy-sparrow" hidden><label>Targets in the training yard</label><select id="vy-spar"><option value="0">Stand still</option><option value="1">Fight back (easy bots)</option></select></div>
     <div id="vy-minrow" hidden><label>Time limit</label><select id="vy-min"><option value="3">3 minutes</option><option value="5" selected>5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></div>
     <label>Team names (a token each)</label>
     <div class="two"><input id="vy-ta" type="text" maxlength="12" value="${a}" autocomplete="off" /><input id="vy-tb" type="text" maxlength="12" value="${b}" autocomplete="off" /></div>
@@ -257,7 +258,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-sparrow', 'vy-spar', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -266,12 +267,14 @@ export class Ui {
     root.querySelectorAll<HTMLElement>('.map').forEach((t) => t.addEventListener('click', () => {
       this.mapId = t.dataset.map || 'cargo';
       root.querySelectorAll('.map').forEach((x) => x.classList.toggle('on', x === t));
+      const obj = this.el['vy-obj'] as HTMLSelectElement;
+      if (this.mapId === 'training') obj.value = 'train'; else if (obj.value === 'train') obj.value = 'elim';       // the training yard and its game type go together
     }));
     try { (this.el['vy-name'] as HTMLInputElement).value = localStorage.getItem('vyre.arena.name') || ''; (this.el['vy-gfx'] as HTMLSelectElement).value = localStorage.getItem('vyre.arena.gfx') || 'auto'; (this.el['vy-blood'] as HTMLSelectElement).value = localStorage.getItem('vyre.arena.blood') === '0' ? '0' : '1'; } catch { /* storage may be blocked */ }
     this.el['vy-go'].addEventListener('click', () => {
       const name = (this.el['vy-name'] as HTMLInputElement).value.replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12) || 'Player';
       try { localStorage.setItem('vyre.arena.name', name); } catch { /* ignore */ }
-      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS, map: this.mapId, names: this.names(), mode: this.mode, difficulty: Number((this.el['vy-diff'] as HTMLSelectElement).value) || 0, objective: this.objective(), minutes: Number((this.el['vy-min'] as HTMLSelectElement).value) || 5, gfx: (this.el['vy-gfx'] as HTMLSelectElement).value, blood: (this.el['vy-blood'] as HTMLSelectElement).value === '1' });
+      this.o.onPlay({ name, team: this.team, seats: Number((this.el['vy-seats'] as HTMLSelectElement).value) || DEFAULT_SEATS, map: this.mapId, names: this.names(), mode: this.mode, difficulty: Number((this.el['vy-diff'] as HTMLSelectElement).value) || 0, objective: this.objective(), minutes: Number((this.el['vy-min'] as HTMLSelectElement).value) || 5, gfx: (this.el['vy-gfx'] as HTMLSelectElement).value, blood: (this.el['vy-blood'] as HTMLSelectElement).value === '1', spar: (this.el['vy-spar'] as HTMLSelectElement).value === '1' });
     });
     this.el['vy-pause'].addEventListener('click', (e) => { if ((e.target as HTMLElement).id !== 'vy-leave') this.o.onResume(); });
     this.el['vy-leave'].addEventListener('click', (e) => { e.stopPropagation(); this.o.onLeave(); });
@@ -280,6 +283,11 @@ export class Ui {
       this.mode = t.dataset.mode === 'challenge' ? 'challenge' : 'practice';
       root.querySelectorAll('.mode').forEach((x) => x.classList.toggle('on', x === t));
     }));
+    this.el['vy-obj'].addEventListener('change', () => {
+      const v = (this.el['vy-obj'] as HTMLSelectElement).value;
+      if (v === 'train') (root.querySelector('.map[data-map="training"]') as HTMLElement | null)?.click();
+      else if (this.mapId === 'training') (root.querySelector('.map') as HTMLElement | null)?.click();
+    });
     for (const k of ['vy-ta', 'vy-tb']) this.el[k].addEventListener('input', () => { const n = this.names(); this.setTeams(n, true); });
     this.el['vy-lb'].addEventListener('toggle', () => this.renderBoard());
     this.el['vy-tipsok'].addEventListener('click', () => { this.el['vy-tips'].hidden = true; try { if (this.touch) localStorage.setItem('vyre.arena.tips', '1'); } catch { /* ignore */ } this.o.onResume(); });
@@ -297,7 +305,7 @@ export class Ui {
     const q = new URLSearchParams(location.search);
     const name = (v: string | null) => (v ?? '').replace(/[^A-Za-z0-9 ]/g, '').trim().slice(0, 12);
     const map = q.get('map'); if (map) (root.querySelector(`.map[data-map="${map.replace(/[^a-z_]/g, '')}"]`) as HTMLElement | null)?.click();
-    const type = q.get('type'); if (type === 'elim' || type === 'zone' || type === 'dm') (this.el['vy-obj'] as HTMLSelectElement).value = type;
+    const type = q.get('type'); if (type === 'elim' || type === 'zone' || type === 'dm' || type === 'train') { (this.el['vy-obj'] as HTMLSelectElement).value = type; (this.el['vy-obj'] as HTMLSelectElement).dispatchEvent(new Event('change')); }
     const min = Number(q.get('min')); if (min > 0) { const sel = this.el['vy-min'] as HTMLSelectElement; const have = [...sel.options].map((o) => Number(o.value)); sel.value = String(have.reduce((b, v) => (Math.abs(v - min) < Math.abs(b - min) ? v : b), have[0])); }
     const a = name(q.get('a')), b = name(q.get('b'));
     if (a) (this.el['vy-ta'] as HTMLInputElement).value = a; if (b) (this.el['vy-tb'] as HTMLInputElement).value = b;
@@ -312,14 +320,15 @@ export class Ui {
     e.onclick = () => { try { void navigator.clipboard.writeText(id); e.textContent = 'Player id copied'; } catch { /* clipboard may be blocked */ } };
   }
   /** the game type chosen in the menu; the time limit only shows for deathmatch */
-  private objective(): 'elim' | 'zone' | 'dm' {
+  private objective(): 'elim' | 'zone' | 'dm' | 'train' {
     const v = (this.el['vy-obj'] as HTMLSelectElement).value;
     this.el['vy-minrow'].hidden = v !== 'dm';
-    return v === 'zone' ? 'zone' : v === 'dm' ? 'dm' : 'elim';
+    this.el['vy-sparrow'].hidden = v !== 'train';
+    return v === 'zone' ? 'zone' : v === 'dm' ? 'dm' : v === 'train' ? 'train' : 'elim';
   }
   /** the one line under the name: what PLAY will start */
   updatePick(): void {
-    const n = this.names(), o = this.objective(), obj = o === 'zone' ? 'Hold the Zone' : o === 'dm' ? `Deathmatch ${(this.el['vy-min'] as HTMLSelectElement).value} min` : 'Elimination';
+    const n = this.names(), o = this.objective(), obj = o === 'zone' ? 'Hold the Zone' : o === 'train' ? 'Training yard' : o === 'dm' ? `Deathmatch ${(this.el['vy-min'] as HTMLSelectElement).value} min` : 'Elimination';
     const m = MAP_LIST.find(([id]) => id === this.mapId)?.[1] ?? '';
     this.el['vy-pick'].innerHTML = `<b>${this.mode === 'challenge' ? 'Challenge' : 'Practice'}</b> &middot; ${obj} &middot; ${m}<br>you join <b style="color:${this.o.teamColors[this.team]}">${n[this.team]}</b>`;
   }
@@ -454,13 +463,13 @@ export class Ui {
 
   // ---- in-match readouts ----
   private q<T extends HTMLElement = HTMLElement>(s: string): T { return this.el.hud.querySelector(s) as T; }
-  setScore(score: number[], round: number, time: number, alive: number[], phase: string, dm = false, overtime = false): void {
+  setScore(score: number[], round: number, time: number, alive: number[], phase: string, dm = false, overtime = false, train = false): void {
     this.q('[data-n="0"]').textContent = String(score[0]); this.q('[data-n="1"]').textContent = String(score[1]);
-    for (const t of [0, 1]) this.q(`[data-pips="${t}"]`).innerHTML = dm ? '' : [0, 1].map((i) => `<i class="${score[t] > i ? 'on' : ''}"></i>`).join('');
-    this.q('[data-round]').textContent = dm ? 'DEATHMATCH' : `ROUND ${Math.max(1, round)}`;
+    for (const t of [0, 1]) this.q(`[data-pips="${t}"]`).innerHTML = dm || train ? '' : [0, 1].map((i) => `<i class="${score[t] > i ? 'on' : ''}"></i>`).join('');
+    this.q('[data-round]').textContent = train ? 'TRAINING YARD' : dm ? 'DEATHMATCH' : `ROUND ${Math.max(1, round)}`;
     const clock = dm ? `${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}` : String(time);
-    this.q('[data-time]').textContent = overtime ? 'OVERTIME' : phase === 'live' || phase === 'countdown' ? clock : '-';
-    this.q('[data-alive]').textContent = dm ? (overtime ? 'next kill wins' : 'most kills wins') : `${alive[0]} vs ${alive[1]} alive`;
+    this.q('[data-time]').textContent = train ? '' : overtime ? 'OVERTIME' : phase === 'live' || phase === 'countdown' ? clock : '-';
+    this.q('[data-alive]').textContent = train ? `${alive[0]} training, ${alive[1]} targets up` : dm ? (overtime ? 'next kill wins' : 'most kills wins') : `${alive[0]} vs ${alive[1]} alive`;
   }
   setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0, ammo = 0, mag = 0, reloading = false, reserve = -1, endless = false): void {
     this.q('[data-hp]').textContent = String(Math.max(0, Math.ceil(hp)));

@@ -25,7 +25,7 @@ test('every map has spots on open ground, away from the spawns, the same for bot
     const spots = pickupSpots(mp);
     assert.ok(spots.length >= 6, `${id} has ${spots.length} spots`);
     assert.deepEqual(pickupSpots(mp), spots);
-    const half = spots.length / 2;
+    const half = mp.train ? 0 : spots.length / 2;       // the training yard is one-sided: its spots are not twinned
     for (let i = 0; i < half; i++) {
       const a = spots[i], b = spots[i + half];
       assert.equal(b.x, Math.round(mp.w - a.x), `${id}: twin x`);
@@ -37,6 +37,7 @@ test('every map has spots on open ground, away from the spawns, the same for bot
       for (const t of [0, 1]) for (const [sx, sy] of mp.spawns[t]) assert.ok(Math.hypot(sx - s.x, sy - s.y) >= (s.z ? 0 : 480), `${id}: spot ${s.x},${s.y} is away from the spawns`);
     }
     const top = Math.max(0, ...mp.solids.filter((q) => q.walk && q.top >= 4).map((q) => q.top));
+    if (mp.train) for (const t of [0, 1]) for (const [sx, sy] of mp.spawns[t]) assert.ok(spots.every((q) => q.z || Math.hypot(sx - q.x, sy - q.y) >= 480), `${id}: no spot near a spawn or a target`);
     if (top) assert.ok(spots.some((s) => s.z === top), `${id}: a spot on the highest deck`);
   }
 });
@@ -199,7 +200,7 @@ test('a bot with both guns nearly empty and no enemy in sight heads for an ammun
 
 test('whole matches of bots on every map: boxes, kits and dropped guns come and go, nothing breaks and nobody ends up with a negative or runaway count', () => {
   let total = 0;
-  for (const id of Object.keys(MAPS)) {
+  for (const id of Object.keys(MAPS).filter((k) => !MAPS[k].train)) {
     const m = new Match({ teams: T, perSide: 8, bots: true, map: id });
     m.startRound(); let taken = 0, drops = 0, bad = false;
     for (let i = 0; i < 60 * 240; i++) {

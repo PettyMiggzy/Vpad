@@ -27,22 +27,23 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 /** turn whatever the client asked for into the only options a match will accept */
 export function roomOptions(options = {}) {
   const names = Array.isArray(options.names) ? options.names.slice(0, 2).map(cleanName) : [];
-  const map = MAP_IDS.includes(options.map) ? options.map : 'cargo';
   let perSide = Number(options.perSide);
   if (!Number.isFinite(perSide)) perSide = 8;
   perSide = clamp(Math.round(perSide), 1, 32);
-  const mode = options.mode === 'challenge' ? 'challenge' : 'practice';
   let difficulty = Number(options.difficulty);
   if (!Number.isFinite(difficulty)) difficulty = 1;
   else difficulty = clamp(Math.round(difficulty), 0, 2);
-  const objective = options.objective === 'zone' ? 'zone' : options.objective === 'dm' ? 'dm' : 'elim';
+  let objective = options.objective === 'zone' ? 'zone' : options.objective === 'dm' ? 'dm' : options.objective === 'train' ? 'train' : 'elim';
+  let map = MAP_IDS.includes(options.map) ? options.map : 'cargo';
+  if (map === 'training' || objective === 'train') { map = 'training'; objective = 'train'; }      // the training yard and its objective come together
+  const mode = objective === 'train' ? 'train' : options.mode === 'challenge' ? 'challenge' : 'practice';
   const minutes = clamp(Math.round(Number(options.minutes)) || 5, 1, 30);
   const colors = Array.isArray(options.colors) ? options.colors : [];
   const teams = [
     { name: names[0] || 'BLUE', color: Number.isInteger(colors[0]) ? cleanColor(colors[0]) : 0x2f7bff },
     { name: names[1] || 'RED', color: Number.isInteger(colors[1]) ? cleanColor(colors[1]) : 0xff3b30 },
   ];
-  return { teams, map, perSide, mode, difficulty, objective, minutes, bots: true };
+  return { teams, map, perSide, mode, difficulty, objective, minutes, bots: true, spar: objective === 'train' && options.spar === true };
 }
 
 function wrapAim(a) {
@@ -133,7 +134,7 @@ export class MatchRoom extends Room {
       try {
         await this.setMetadata({
           a: opt.teams[0].name, b: opt.teams[1].name, map: opt.map, mode: opt.mode,
-          objective: opt.objective, minutes: opt.minutes, perSide: opt.perSide, difficulty: opt.difficulty,
+          objective: opt.objective, minutes: opt.minutes, perSide: opt.perSide, difficulty: opt.difficulty, spar: opt.spar,
           solo: typeof options.solo === 'string' ? options.solo.slice(0, 64) : undefined,   // a practice room is filtered by its player's id, so only that player is let in
         });
       } catch { /* the listing is filled in by the matchmaker when this room was not opened through it */ }
@@ -258,6 +259,7 @@ export class MatchRoom extends Room {
   /** coins and experience for the humans who earned them; a bot never has a profile */
   reward(e) {
     const m = this.match;
+    if (m.train) return;           // training pays nothing: targets that stand still are not a way to farm coins or experience
     if (e.type === 'kill') {
       const pid = this.pids.get(e.by);
       if (pid && e.by !== e.victim) {

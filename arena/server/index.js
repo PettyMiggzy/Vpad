@@ -61,7 +61,7 @@ const api = (app) => {
 const transport = new WebSocketTransport({ maxPayload: 4096 });
 const server = new Server({ transport, express: api });
 // a and b are the two team names; clients that send the same fixture share a room, and a different map or mode does not
-server.define('match', MatchRoom).filterBy(['a', 'b', 'map', 'mode', 'objective', 'minutes', 'perSide', 'difficulty', 'solo']);
+server.define('match', MatchRoom).filterBy(['a', 'b', 'map', 'mode', 'objective', 'minutes', 'perSide', 'difficulty', 'solo', 'spar']);
 
 export function listen(port = Number(process.env.PORT) || 2567, host = process.env.HOST || undefined) {
   warmNav();

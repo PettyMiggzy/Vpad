@@ -234,7 +234,48 @@ function testsiteBig() {
   return b.done();
 }
 
-export const MAPS = { cargo: cargoBig(), dust: dustBig(), refinery: refineryBig(), testsite: testsiteBig() };
+// ---------------------------------------------------------------------------------------------- TRAINING YARD (daylight, a range for the squad)
+// One-sided on purpose: the team spawns in the west yard, and the red team is a row of target dummies (their "spawns" are the places they stand).
+// Four shooting lanes with dummies from 24 to 90 metres, an obstacle course with a raised walkway, a sniper tower over the whole range,
+// and a house of small rooms with dummies inside for close-quarters work.
+function trainingYard() {
+  const W = 124, H = 72, b = builder('training', 'Training Yard', W, H, 'none', 'training', 0);
+  const one = (kind, x, z, w, d, top, o = {}) => b.one(kind, x, z, w, d, top, o);
+  // the briefing yard where the team spawns: crates and barrels to practise taking cover, supplies on the table
+  one('crate', 13, 22, 1.6, 1.6, 1.3, { v: 0 }); one('crate', 13, 48.4, 1.6, 1.6, 1.3, { v: 1 }); one('barrel', 11.4, 22.4, 0.9, 0.9, 1.1); one('barrel', 11.4, 48.8, 0.9, 0.9, 1.1);
+  // the firing line: a sandbag booth in front of each lane
+  for (const z of [32, 42, 52, 62]) one('sandbag', 28, z, 3.5, 0.9, 1.1);
+  // near lane cover and the dummies' own cover: a crate to peek round, a container row to move along, barriers to lean on
+  one('crate', 55, 62, 2, 2, 1.6, { v: 2 }); one('barrier', 80, 31, 3, 0.7, 1.1); one('container', 62, 47.4, 12, 2.4, 2.7, { v: 1 });
+  one('barrel', 40, 38, 0.9, 0.9, 1.1); one('barrel', 40, 48, 0.9, 0.9, 1.1); one('barrel', 90, 38, 0.9, 0.9, 1.1); one('barrel', 90, 58, 0.9, 0.9, 1.1);
+  one('crate', 74, 40, 2, 2, 1.6, { v: 0 }); one('crate', 100, 50, 2, 2, 1.6, { v: 1 }); one('sandbag', 104, 36, 3.5, 0.9, 1.1);
+  // the sniper tower over the range: a long ramp up from the west, open on the west side, a good view down every lane
+  b.deck('tower', 22, 4, 6, 6, 8.4, ['w'], { both: false, v: 0 }); b.ramp(4, 5.4, 18, 2.6, 'x+', 0, 8.4, false);
+  // the obstacle course: a hop line of low crates, a chicane of barriers, and a walkway you climb onto and drop off
+  for (const z of [7, 12.5, 18]) one('crate', 33, z, 1.6, 1.6, 1.3, { v: Math.round(z) % 2 });
+  one('barrier', 38, 8, 3, 0.7, 1.1); one('barrier', 41.5, 13, 3, 0.7, 1.1); one('barrier', 38, 18, 3, 0.7, 1.1); one('barrier', 41.5, 22.5, 3, 0.7, 1.1);
+  b.deck('catwalk', 48, 6, 10, 6, 2.4, ['w', 'e'], { both: false }); b.ramp(48, 12.3, 10, 2.4, 'x+', 0, 2.3, false);
+  one('crate', 60, 7, 1.6, 1.6, 1.3, { v: 1 }); one('crate', 60, 14, 1.6, 1.6, 1.3, { v: 2 }); one('crate', 60, 21, 1.6, 1.6, 1.3, { v: 0 });
+  // the house: four rooms with doorways, no roof, walls of three metres; dummies stand in the rooms
+  const wl = (x, z, w, d) => one('wall', x, z, w, d, 3.0);
+  wl(72, 6, 14, 0.5); wl(88, 6, 16, 0.5);                                     // north wall, a door at 86 to 88
+  wl(72, 23.5, 6, 0.5); wl(80, 23.5, 16, 0.5); wl(98, 23.5, 6, 0.5);         // south wall, doors at 78 to 80 and 96 to 98
+  wl(72, 6.5, 0.5, 7.5); wl(72, 16, 0.5, 7.5);                               // west wall, a door at 14 to 16
+  wl(103.5, 6.5, 0.5, 7.5); wl(103.5, 16, 0.5, 7.5);                         // east wall, a door at 14 to 16
+  wl(88, 6.5, 0.5, 3.5); wl(88, 12, 0.5, 5); wl(88, 19, 0.5, 4.5);           // the partition, doors at 10 to 12 and 17 to 19
+  wl(88.5, 15, 5.5, 0.5); wl(96, 15, 7.5, 0.5);                              // the east rooms' divider, a door at 94 to 96
+  one('crate', 74, 8, 1.6, 1.6, 1.3, { v: 0 }); one('crate', 82, 19.4, 1.6, 1.6, 1.3, { v: 1 }); one('barrel', 100, 8, 0.9, 0.9, 1.1); one('barrel', 89.4, 21.2, 0.9, 0.9, 1.1);
+  // where the team comes in, and where the targets stand
+  const spawns = []; for (const x of [4, 6.5, 9]) for (let z = 26; z <= 47; z += 3) spawns.push([x, z]);
+  b.spawns(0, spawns);
+  b.spawns(1, [
+    [44, 34], [44, 54], [70, 44], [70, 64], [96, 34], [96, 54], [114, 44], [114, 64], [59, 63.8], [82, 34],      // the range, 24 to 90 metres out
+    [76, 10], [80, 20], [92, 9], [92, 21], [98, 11], [99, 19], [96, 12.5],                                        // the house
+  ]);
+  const map = b.done(); map.train = true; return map;
+}
+
+export const MAPS = { cargo: cargoBig(), dust: dustBig(), refinery: refineryBig(), testsite: testsiteBig(), training: trainingYard() };
 /** the old 64 by 40 metre layouts: not offered to players, kept because the rules' tests rely on their exact positions */
 export const LEGACY = { cargo: cargoSmall(), dust: dustSmall(), refinery: refinerySmall() };
 export const MAP_IDS = Object.keys(MAPS);

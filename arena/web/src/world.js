@@ -28,6 +28,12 @@ export const THEMES = {
     grade: { sat: 1.05, contrast: 1.14, vig: 0.42, grain: 0.03, shadow: [0.9, 0.98, 1.12], high: [1.1, 1.02, 0.88] },
     props: ['tank_vertical', 'tank_horizontal', 'pipe_rack', 'generator', 'shed_metal', 'crate_steel', 'barrel_red', 'barrel_blue', 'barrier_concrete', 'lamp_flood', 'water_tower', 'watchtower', 'truck_cargo', 'fence_chainlink', 'pallet_boxes'],
   },
+  training: {
+    hdr: 'kloofendal_43d_clear_puresky', ground: 'dirt_floor', gtile: 7, wall: 'concrete_wall_008', metal: 'corrugated_iron', deck: 'concrete_floor_worn_001', roof: 'concrete_floor_worn_001',
+    sun: 3.0, sunColor: 0xfff0d8, env: 1.0, exposure: 0.85, fogNear: 220, fogFar: 640, hazeLum: 0.3, night: false,
+    grade: { sat: 1.1, contrast: 1.07, vig: 0.28, grain: 0.016, shadow: [0.96, 0.99, 1.05], high: [1.05, 1.0, 0.94] },
+    props: ['container_blue', 'container_grey', 'container_orange', 'container_red', 'container_blue_far', 'container_grey_far', 'container_orange_far', 'container_red_far', 'crate_wood', 'crate_steel', 'barrel_red', 'barrel_blue', 'sandbags', 'barrier_concrete', 'fence_chainlink', 'shed_metal', 'watchtower', 'tires'],
+  },
   testsite: {
     hdr: 'kloofendal_43d_clear_puresky', ground: 'dirt_floor', gtile: 7, wall: 'white_stucco', metal: 'corrugated_iron', deck: 'concrete_floor_worn_001', roof: 'concrete_floor_worn_001', road: 'asphalt_02',
     sun: 2.8, sunColor: 0xfff0d8, env: 1.0, exposure: 0.8, fogNear: 200, fogFar: 620, hazeLum: 0.26, night: false,
@@ -35,7 +41,7 @@ export const THEMES = {
     props: ['school_bus', 'sedan_classic', 'mannequins', 'tree_green', 'picket_fence', 'car_wreck', 'shed_metal', 'crate_wood', 'barrel_red', 'barrel_blue', 'sandbags', 'barrier_concrete', 'fence_chainlink', 'water_tower', 'watchtower', 'adobe_house_a', 'adobe_house_b'],
   },
 };
-export const MAP_LIST = [['cargo', 'Cargo Yard', 'dusk, stacked containers, four sniper decks'], ['dust', 'Dust Town', 'noon, rooftops and a tower'], ['refinery', 'Refinery', 'night, tanks and a long catwalk'], ['testsite', 'Test Site', 'daylight, a small suburb, short and fast']];
+export const MAP_LIST = [['cargo', 'Cargo Yard', 'dusk, stacked containers, four sniper decks'], ['dust', 'Dust Town', 'noon, rooftops and a tower'], ['refinery', 'Refinery', 'night, tanks and a long catwalk'], ['testsite', 'Test Site', 'daylight, a small suburb, short and fast'], ['training', 'Training Yard', 'daylight, firing lanes to 90 m, an obstacle course, a house, a sniper tower: train with your squad']];
 
 const glow = (hex, k = 2.2) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), toneMapped: false });
 const rngOf = (seed) => { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };

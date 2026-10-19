@@ -194,14 +194,17 @@ const reloadFor = (p, weapon) => WEAPONS[weapon].reload * p.reloadMul;
 
 export class Match {
   /** teams: two { name, color }; perSide: seats per team (humans and bots together); map: an id or a map */
-  constructor({ teams, perSide = 8, bots = true, map = 'cargo', mode = 'practice', difficulty = 1, objective = 'elim', minutes = 5 }) {
+  constructor({ teams, perSide = 8, bots = true, map = 'cargo', mode = 'practice', difficulty = 1, objective = 'elim', minutes = 5, spar = false }) {
     this.difficulty = [0, 1, 2].includes(difficulty) ? difficulty : 1;   // bots: 0 easy, 1 normal, 2 hard
-    this.mode = mode === 'challenge' ? 'challenge' : 'practice';   // practice starts at once against bots and never counts; a challenge waits for a human on each side, is one match, and counts
+    // a training yard is its own thing: the map is the training map, nothing is scored, and humans are all on the first team against the target dummies
+    if (map === 'training' || objective === 'train') { map = 'training'; objective = 'train'; mode = 'train'; }
+    this.mode = mode === 'challenge' ? 'challenge' : mode === 'train' ? 'train' : 'practice';   // practice starts at once against bots and never counts; a challenge waits for a human on each side, is one match, and counts
     this.map = typeof map === 'string' ? (MAPS[map] || MAPS.cargo) : map;
     this.teams = teams; this.perSide = Math.max(1, Math.min(32, perSide)); this.useBots = bots;
     this.players = new Map(); this.nades = []; this.nextId = 1;
     this.score = [0, 0]; this.round = 0; this.phase = 'lobby'; this.timer = 6; this.winner = null; this.roundWinner = null;
-    this.objective = objective === 'zone' ? 'zone' : objective === 'dm' ? 'dm' : 'elim';
+    this.objective = objective === 'zone' ? 'zone' : objective === 'dm' ? 'dm' : objective === 'train' ? 'train' : 'elim';
+    this.train = this.objective === 'train'; this.spar = !!spar && this.train;     // spar: the dummies fight back (as ordinary bots) instead of standing still
     // deathmatch: one timed match, everyone comes back a few seconds after going down, and the team with more kills when the clock ends wins
     this.minutes = clamp(Math.round(Number(minutes)) || 5, 1, 30); this.overtime = false; this.zoneP = [0, 0]; this.zoneIn = [0, 0]; this.uav = [0, 0];
     this.events = []; this.rv = 0;   // rv counts every change of who is in the match, so the room knows when to send the roster again
@@ -213,6 +216,7 @@ export class Match {
 
   /** the seat for a joining human: the asked team if it has room, else the other, else none */
   chooseTeam(asked) {
+    if (this.train) return this.humans(0) < this.perSide ? 0 : -1;       // everyone who trains is on the first team
     const order = asked === 0 || asked === 1 ? [asked, 1 - asked] : (this.humans(0) <= this.humans(1) ? [0, 1] : [1, 0]);
     for (const t of order) if (this.humans(t) < this.perSide) return t;
     return -1;
@@ -257,28 +261,32 @@ export class Match {
   spawn(p) {
     const list = this.map.spawns[p.team], idx = [...this.players.values()].filter((q) => q.team === p.team && q.id !== p.id && q.alive).length;
     let sp = list[idx % list.length] || [this.map.w / 2, this.map.h / 2];
+    if (p.dummyAt !== undefined) sp = this.map.spawns[1][p.dummyAt] || sp;         // a target always stands on its own stand
     if (this.objective === 'dm' && this.phase === 'live') {
       // coming back in a running deathmatch: the spawn point farthest from every enemy still standing, so nobody is dropped into a fight
       const foes = [...this.players.values()].filter((q) => q.alive && q.team !== p.team);
       if (foes.length) { let best = -1; for (const c of list) { const d = Math.min(...foes.map((q) => (q.x - c[0]) ** 2 + (q.y - c[1]) ** 2)); if (d > best) { best = d; sp = c; } } }
     }
-    let x = sp[0] + rnd(-12, 12), y = sp[1] + rnd(-12, 12);
+    let x = p.dummyAt !== undefined ? sp[0] : sp[0] + rnd(-12, 12), y = p.dummyAt !== undefined ? sp[1] : sp[1] + rnd(-12, 12);
     [x, y] = pushOut(this.map, x, y, 0);
     p.hpMax = p.hpBase ?? p.hpMax;      // a juggernaut's extra armour ends when they go down
     Object.assign(p, { x, y, z: floorAt(this.map, x, y), hp: p.hpMax, alive: true, cd: 0, nadeCd: 0, grenades: p.nadeCount, rl: 0, aim: p.team === 0 ? 0 : Math.PI, pitch: 0,
       weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, endless: false, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, rc: new Recoil(), ads: 0, moveFrac: 0 });
     p.ammo = p.magSize; p.stash = magFor(p, 'pistol'); p.reserve = startReserve(p.magSize, false); p.stashRes = startReserve(magFor(p, 'pistol'), true);
-    p.respawn = 0; p.prot = this.objective === 'dm' && this.phase === 'live' ? R.PROTECT : 0;
+    p.respawn = 0; p.prot = (this.objective === 'dm' || this.train) && this.phase === 'live' ? R.PROTECT : 0;
   }
 
   fillBots() {
     if (!this.useBots) return;
-    for (const t of [0, 1]) {
-      while (this.count(t) < this.perSide) {
+    for (const t of this.train ? [1] : [0, 1]) {
+      const want = this.train ? this.map.spawns[1].length : this.perSide;
+      while (this.count(t) < want) {
         const id = `bot${this.nextId++}`;
         const gear = { weapon: Object.keys(WEAPONS)[(this.nextId * 7) % Object.keys(WEAPONS).length], armor: Object.keys(ARMOR)[this.nextId % 3], boots: Object.keys(BOOTS)[(this.nextId + 1) % 3], camo: ['woodland', 'desert', 'arctic', 'night', 'toxic'][this.nextId % 5],
           optic: Object.keys(OPTICS)[(this.nextId * 3) % 4], muzzle: Object.keys(MUZZLES)[(this.nextId * 5) % 4], grip: Object.keys(GRIPS)[(this.nextId * 7) % 4], ammo: Object.keys(AMMO)[(this.nextId * 11) % 5], helmet: Object.keys(HELMETS)[(this.nextId + 2) % 3], grenade: Object.keys(KITS)[(this.nextId * 5) % 4] };
-        const p = this.makePlayer(id, t, ['Rex', 'Nova', 'Bolt', 'Kilo', 'Zed', 'Echo', 'Ghost', 'Viper', 'Rook', 'Axel', 'Dusk', 'Lynx'][this.nextId % 12], gear, true);
+        const k = this.train ? [...Array(want).keys()].find((i) => ![...this.players.values()].some((q) => q.dummyAt === i)) : undefined;
+        const p = this.makePlayer(id, t, this.train ? `TARGET ${k + 1}` : ['Rex', 'Nova', 'Bolt', 'Kilo', 'Zed', 'Echo', 'Ghost', 'Viper', 'Rook', 'Axel', 'Dusk', 'Lynx'][this.nextId % 12], gear, true);
+        if (this.train) p.dummyAt = k;       // which stand this target belongs on
         this.players.set(id, p); this.rv++;
         if (this.phase === 'live') { p.alive = false; } else this.spawn(p);
       }
@@ -330,6 +338,7 @@ export class Match {
     this.pickups.step(dt);
     this.moveNades(dt);
     this.uav = this.uav.map((t) => Math.max(0, t - dt));
+    if (this.train) { this.timer = 0; this.stepTrain(dt); return; }
     if (this.objective === 'dm') { this.stepDm(dt); return; }
     const a = this.aliveCount(0), b = this.aliveCount(1);
     const zoneWin = this.objective === 'zone' && this.map.zone ? this.updateZone(dt) : null;
@@ -341,6 +350,11 @@ export class Match {
       const hp = (t) => [...this.players.values()].filter((p) => p.team === t && p.alive).reduce((s, p) => s + p.hp, 0);
       this.endRound(a !== b ? (a > b ? 0 : 1) : hp(0) === hp(1) ? -1 : hp(0) > hp(1) ? 0 : 1);
     }
+  }
+
+  /** the training yard never ends: whoever goes down, a soldier or a target, comes back after a moment, and nothing is scored */
+  stepTrain(dt) {
+    for (const p of this.players.values()) if (!p.alive && p.respawn > 0) { p.respawn -= dt; if (p.respawn <= 0) this.spawn(p); }
   }
 
   /** deathmatch: those who went down come back after a few seconds; when the clock runs out the team with more kills wins, and a tie plays on until the next kill */
@@ -423,7 +437,7 @@ export class Match {
   /** a kill, from a shot, a blast or the knife: counts it, runs the streak rewards, tells everyone */
   kill(by, victim, extra = {}) {
     this.pickups.dropGun(victim);
-    victim.alive = false; victim.deaths += 1; victim.streak = 0; victim.endless = false; victim.hpMax = victim.hpBase ?? victim.hpMax; victim.boostT = 0; victim.burstLeft = 0; victim.respawn = R.RESPAWN;
+    victim.alive = false; victim.deaths += 1; victim.streak = 0; victim.endless = false; victim.hpMax = victim.hpBase ?? victim.hpMax; victim.boostT = 0; victim.burstLeft = 0; victim.respawn = this.train ? (victim.dummyAt !== undefined ? 3 : 1.5) : R.RESPAWN;
     if (this.objective === 'dm' && this.phase === 'live' && by && by.team !== victim.team) { this.score[by.team] += 1; if (this.overtime) this.endDm(by.team); }
     if (by && by.id !== victim.id) {
       by.kills += 1; by.streak += 1;
@@ -565,6 +579,7 @@ export class Match {
     }
     target = b.target ? this.players.get(b.target) : null;
     const inp = p.input; inp.fire = false; inp.dx = 0; inp.dy = 0; inp.nade = false; inp.reload = false; inp.melee = false; inp.swap = false; inp.jump = false; inp.sprint = false;
+    if (p.dummyAt !== undefined && !this.spar) return;        // a target in the training yard stands where it is and does nothing
     if (b.goZone === undefined) b.goZone = Math.random() < 0.7;
     if (!target) return;
     const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);

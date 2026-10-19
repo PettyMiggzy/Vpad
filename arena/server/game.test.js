@@ -47,7 +47,7 @@ for (const id of Object.keys(MAPS)) {
       }
     }
   });
-  test(`map ${id}: bots alone play whole matches, fight, and stay on the map`, () => {
+  if (!MAPS[id].train) test(`map ${id}: bots alone play whole matches, fight, and stay on the map`, () => {
     const m = new Match({ teams: T, perSide: 8, bots: true, map: id });
     m.startRound();
     let matches = 0, kills = 0, bad = false;
@@ -347,7 +347,7 @@ test('hold the zone: alone in it you fill your bar, contested nobody does, a ful
 });
 
 for (const id of Object.keys(MAPS)) {
-  test(`map ${id}: bots alone play Hold the Zone: they go to it, fill the bar, rounds end, nothing breaks`, () => {
+  if (!MAPS[id].train) test(`map ${id}: bots alone play Hold the Zone: they go to it, fill the bar, rounds end, nothing breaks`, () => {
     const m = new Match({ teams: T, perSide: 6, bots: true, map: id, objective: 'zone' });
     m.startRound();
     let reasons = 0, ends = 0, peak = 0, bad = false, melee = 0, jumps = 0;

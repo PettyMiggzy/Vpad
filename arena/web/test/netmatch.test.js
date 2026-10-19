@@ -126,3 +126,13 @@ test('a supply crate is told apart from a dropped gun, and its call arrives as a
   nm.push({ type: 'crate', by: 'p1', team: 0, x: 5, y: 6, z: 0, w: 'dmr', in: 3.2 });
   assert.deepEqual(nm.takeEvents().map((e) => e.type), ['crate']);
 });
+
+test('the training yard comes through as its own game type', () => {
+  const m = new Match({ teams, perSide: 4, bots: true, map: 'training', objective: 'train' });
+  m.addPlayer('p1', { name: 'Ana', team: 0, loadout: { weapon: 'rifle' } }); m.startRound();
+  for (let i = 0; i < 300; i++) m.step(1 / 30);
+  const nm = new NetMatch({ id: 'p1', team: 0, teams: m.teams, perSide: m.perSide, roster: m.roster(), map: m.map.id, mode: m.mode, objective: m.objective }, teams);
+  assert.equal(nm.objective, 'train'); assert.equal(nm.map.id, 'training');
+  nm.apply(m.snapshot()); assert.equal(nm.objective, 'train'); assert.equal(nm.mode, 'practice', 'the page only tells challenge from the rest');
+  assert.ok([...nm.players.values()].filter((p) => p.name.startsWith('TARGET')).length >= 15);
+});

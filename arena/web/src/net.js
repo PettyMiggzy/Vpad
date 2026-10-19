@@ -125,7 +125,7 @@ export async function connect(url, opts = {}) {
     pid: opts.pid, name: opts.name, team: opts.team, names, colors: opts.colors,
     a: opts.a ?? names[0], b: opts.b ?? names[1],
     map: opts.map ?? 'cargo', perSide: opts.perSide ?? 8, mode: opts.mode ?? 'practice',
-    difficulty: opts.difficulty ?? 1, objective: opts.objective ?? 'elim', solo: opts.solo,
+    difficulty: opts.difficulty ?? 1, objective: opts.objective ?? 'elim', solo: opts.solo, spar: opts.spar,
   };
   const client = new Client(url);
   const room = opts.roomId ? await client.joinById(opts.roomId, options) : await client.joinOrCreate('match', options);

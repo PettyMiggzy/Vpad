@@ -34,19 +34,19 @@ const hitsRect = (s, x, y, r) => x > s.x - r && x < s.x + s.w + r && y > s.y - r
  */
 export function pickupSpots(map) {
   if (map._pickupSpots) return map._pickupSpots;
-  const half = [];
+  const half = [], wide = map.sym === 'none';            // a one-sided map (the training yard) is not mirrored: its spots cover all of it
   const w = map.w, h = map.h, clear = 1.6 * M;
   const free = (x, y) => !map.solids.some((s) => hitsRect(s, x, y, clear)) && !(map.ramps || []).some((r) => hitsRect(r, x, y, M)) && x > clear && y > clear && x < w - clear && y < h - clear;
   const spawns = [...map.spawns[0], ...map.spawns[1]];
   const cands = [];
-  for (let x = 6 * M; x < w / 2 - 2 * M; x += 3 * M) for (let y = 4 * M; y < h - 4 * M; y += 3 * M) {
+  for (let x = 6 * M; x < (wide ? w - 6 * M : w / 2 - 2 * M); x += 3 * M) for (let y = 4 * M; y < h - 4 * M; y += 3 * M) {
     if (!free(x, y)) continue;
     if (spawns.some(([sx, sy]) => Math.hypot(sx - x, sy - y) < 10 * M)) continue;
     const near = map.solids.some((s) => s.top > 0.6 && hitsRect(s, x, y, 4.5 * M));      // lying beside cover rather than in the open
     cands.push({ x, y, near });
   }
-  const want = Math.max(3, Math.round(((w / M) * (h / M)) / 2 / 1100));
-  const mid = { x: w * 0.28, y: h / 2 };
+  const want = Math.max(3, Math.round(((w / M) * (h / M)) / (wide ? 1 : 2) / 1100));
+  const mid = wide ? { x: w * 0.5, y: h / 2 } : { x: w * 0.28, y: h / 2 };
   const pick = [];
   while (cands.length && pick.length < want) {
     let best = -1, bs = -1;
@@ -60,10 +60,10 @@ export function pickupSpots(map) {
   }
   for (const c of pick) half.push({ x: Math.round(c.x), y: Math.round(c.y), z: 0 });
   // the highest deck on this half: a reason to climb
-  const deck = map.solids.filter((s) => s.walk && s.top >= 4 && s.x + s.w / 2 < w / 2).sort((a, b) => b.top - a.top || a.x - b.x)[0];
+  const deck = map.solids.filter((s) => s.walk && s.top >= 4 && (wide || s.x + s.w / 2 < w / 2)).sort((a, b) => b.top - a.top || a.x - b.x)[0];
   if (deck) half.push({ x: Math.round(deck.x + deck.w / 2), y: Math.round(deck.y + deck.h / 2), z: deck.top });
   const twin = (p) => (map.sym === 'x' ? { x: Math.round(w - p.x), y: p.y, z: p.z } : { x: Math.round(w - p.x), y: Math.round(h - p.y), z: p.z });
-  map._pickupSpots = [...half, ...half.map(twin)].map((p, i) => ({ ...p, spot: i }));
+  map._pickupSpots = (wide ? half : [...half, ...half.map(twin)]).map((p, i) => ({ ...p, spot: i }));
   return map._pickupSpots;
 }
 

@@ -195,7 +195,7 @@ async function start(c) {
   if (srv && got === false) return;
   if (!srv || got === 'full') {
     if (got === 'full') { ui.banner('SERVER BUSY', 'playing this practice match on your own device', 2600); }
-    match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', minutes: c.minutes ?? 5 });
+    match = new Match({ teams, perSide: c.seats, bots: true, map: curMapId, mode: 'practice', difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', minutes: c.minutes ?? 5, spar: !!c.spar });
     me = match.addPlayer('me', { name: c.name, team: c.team, loadout: { ...profile.loadout } });
     match.startRound();
   }
@@ -214,7 +214,9 @@ async function startOnline(c) {
   let h = null, why = '';
   for (let attempt = 0; attempt < 2 && !h; attempt++) {
     try {
-      h = await connect(srv, { pid, name: c.name, team: c.team, names: [...names], map: curMapId, perSide: c.seats, mode: c.mode, difficulty: c.difficulty ?? 1, objective: c.objective ?? 'elim', minutes: c.minutes ?? 5, solo: c.mode === 'practice' ? pid : 'shared' });
+      // the training yard is shared: everyone who asks for it lands in the same room, so its settings are fixed and only the targets' mood can differ
+      const tr = c.objective === 'train';
+      h = await connect(srv, { pid, name: c.name, team: c.team, names: [...names], map: tr ? 'training' : curMapId, perSide: tr ? 16 : c.seats, mode: tr ? 'train' : c.mode, difficulty: tr ? (c.spar ? c.difficulty ?? 0 : 1) : c.difficulty ?? 1, objective: c.objective ?? 'elim', minutes: tr ? 5 : c.minutes ?? 5, solo: tr || c.mode !== 'practice' ? 'shared' : pid, spar: tr ? !!c.spar : undefined });
     } catch (err) { why = String(err?.message || err).slice(0, 90); if (attempt === 0) await new Promise((r) => setTimeout(r, 1500)); }
   }
   // a full server must not shut a practice player out: the same rules run in the page, so the match is played here instead
@@ -301,6 +303,7 @@ const distToSeg = (px, py, pz, ax, ay, az, bx, by, bz) => {
 };
 /** the line under ELIMINATED: who got you, with what, from how far, and how much health they have left */
 function killedBy(e, a) {
+  if (match.objective === 'train') return a && a.id !== me?.id ? `by ${a.name} · back in a moment` : 'back in a moment';
   if (!a || a.id === me?.id) return match.objective === 'dm' ? `back in ${R.RESPAWN} s` : '';
   const how = e.melee ? 'KNIFE' : e.nade ? 'GRENADE' : (WEAPONS[a.weapon]?.name ?? a.weapon ?? '').toUpperCase();
   const m = Math.round(Math.hypot(e.x - a.x, e.y - a.y) / PX_PER_M);
@@ -350,7 +353,7 @@ function onEvents(evs) {
       if (me && e.victim === me.id) { streak = 0; multi = { n: 0, t: 0 }; }
       if (v) sfx.dieAt(v.x / PX_PER_M, v.y / PX_PER_M, !!(me && e.victim === me.id));
       if (v && v !== me && bloodOn) { bloodHit(v.x / PX_PER_M, v.z + 1.2, v.y / PX_PER_M, 0, 0, !!e.head); stain(v.x / PX_PER_M, v.y / PX_PER_M, 0.9 + Math.random() * 0.3, 26, (Math.random() * 3) | 0); }
-      if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; pendingKill = a && a.id !== me.id && !e.nade ? { killer: e.by, at: clockT } : null; ui.banner('ELIMINATED', killedBy(e, a), match.objective === 'dm' ? R.RESPAWN * 1000 - 400 : 3200); }
+      if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; pendingKill = a && a.id !== me.id && !e.nade && match.objective !== 'train' ? { killer: e.by, at: clockT } : null; ui.banner('ELIMINATED', killedBy(e, a), match.objective === 'dm' ? R.RESPAWN * 1000 - 400 : 3200); }
     } else if (e.type === 'melee') {
       const at = match.players.get(e.by), own = !!(me && e.by === me.id);
       sfx.play('knife_swing', { x: e.x / PX_PER_M, z: e.y / PX_PER_M, own, vol: 0.8 });
@@ -382,7 +385,7 @@ function onEvents(evs) {
       const p = match.players.get(e.by); if (p) sfx.dry(p.x / PX_PER_M, p.y / PX_PER_M, !!(me && e.by === me.id));
     } else if (e.type === 'boom') {
       explosion(e.x / PX_PER_M, e.z, e.y / PX_PER_M);
-    } else if (e.type === 'round') { ui.banner(match.objective === 'dm' ? 'DEATHMATCH' : `ROUND ${e.n}`, match.objective === 'dm' ? `${match.minutes} minutes: most kills wins, you come back after every kill` : 'get ready', 2400); sfx.chime(); }
+    } else if (e.type === 'round') { ui.banner(match.objective === 'train' ? 'TRAINING YARD' : match.objective === 'dm' ? 'DEATHMATCH' : `ROUND ${e.n}`, match.objective === 'train' ? 'shoot the targets, run the course, clear the house: nothing is scored' : match.objective === 'dm' ? `${match.minutes} minutes: most kills wins, you come back after every kill` : 'get ready', 2400); sfx.chime(); }
     else if (e.type === 'roundEnd') { const w = e.winner; ui.banner(w === 0 || w === 1 ? `${teamTag(w)} TAKES THE ROUND` : 'DRAW', e.reason === 'zone' ? 'by holding the zone' : '', 3000); if (me && w === me.team && !netH) { award(profile, REWARD.round); gainXp(profile, XP.round); save(); } }
     else if (e.type === 'match') { recordMatch(e.winner); ui.banner(`${teamTag(e.winner)} WINS THE MATCH`, 'new match starting', 6000); if (me && !netH) { gainXp(profile, XP.play + (e.winner === me.team ? XP.match : 0)); if (e.winner === me.team) award(profile, REWARD.match); save(); } }
   }
@@ -719,7 +722,7 @@ function drawMinimap() {
   const now = performance.now();
   if (match.objective === 'zone' && m.zone) { g.strokeStyle = '#' + zoneColor().toString(16).padStart(6, '0'); g.lineWidth = 4; g.beginPath(); g.arc(m.zone.x * sx, m.zone.y * sy, m.zone.r * sx, 0, 7); g.stroke(); }
   for (const q of match.pickups?.list || []) { g.fillStyle = q.crate ? '#ffd24a' : q.kind === 'med' ? '#5cff7a' : q.kind === 'ammo' ? '#ffc23c' : '#ffffff'; const rr = q.crate ? 5 : 3; g.fillRect(q.x * sx - rr, q.y * sy - rr, rr * 2, rr * 2); }
-  const drone = me && match.uav[me.team] > 0;
+  const drone = (me && match.uav[me.team] > 0) || match.objective === 'train';       // in the yard the targets always show
   for (const p of match.players.values()) {
     if (!p.alive || p === me) continue;
     const mine = me && p.team === me.team, shot = now - (lastShot.get(p.id) ?? -1e9) < 1500;
@@ -887,7 +890,7 @@ function frame(now, manual) {
   if (playing) {
     if (hudT <= 0) {
       hudT = 0.1;
-      ui.setScore(match.score, match.round, Math.max(0, Math.ceil(match.timer)), [match.aliveCount(0), match.aliveCount(1)], match.phase, match.objective === 'dm', !!match.overtime);
+      ui.setScore(match.score, match.round, Math.max(0, Math.ceil(match.timer)), [match.aliveCount(0), match.aliveCount(1)], match.phase, match.objective === 'dm', !!match.overtime, match.objective === 'train');
       const ended = match.phase === 'matchover' || match.phase === 'finished';
       ui.scoreboard(showScore || ended, [...match.players.values()].map((p) => ({ name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, bot: p.bot, me: p === me, alive: p.alive })), names, match.score,
         ended && match.winner !== null ? `${names[match.winner]} wins the match${match.mode === 'practice' ? ' &middot; practice, not counted on the ranked board' : ''}` : '');
