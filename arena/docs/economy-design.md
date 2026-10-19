@@ -24,7 +24,7 @@ Only trades in the token's WARHEADZ pad pool produce income for its chest. Trade
 
 ## Why this shape
 
-- No player money feeds a payout: the chest comes from the owner's own pad income, so a player's burn buys gear and nothing else. The owner reports that the lawyer said this is fine because it is the owner's income and not money players put up (reported by the owner, not seen in writing).
+- No player money feeds a payout: the chest comes from the owner's own pad income, so a player's burn buys gear and nothing else.
 - Fewer moving parts: one small new contract (the chest), the fee collector sending each token's share to it, and the burn watcher in the match server. The buyback and the dead-address burn already exist in `engine/contracts/game`.
 - The competition stays: more trading of your team's coin on the pad and more wins mean a bigger chest and a bigger burn of your coin.
 
