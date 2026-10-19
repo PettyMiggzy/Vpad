@@ -188,3 +188,16 @@ test('hype posts use the animated emoji and coloured buttons too', async () => {
   assert.ok(t.calls[1].body.reply_markup.inline_keyboard.flat().some((b) => b.style === 'danger'));
   assert.match(t.calls[2].body.text, /<blockquote>/);
 });
+
+test('every update that sends no welcome says why, so a missing welcome can be explained from the log', async () => {
+  const t = tg();
+  assert.match((await handle(H, join({ old_chat_member: { status: 'member' }, new_chat_member: { status: 'left', user: { id: 7 } } }), ENV, t.fetch)).why, /not a join \(member to left\)/);
+  assert.equal((await handle(H, join(), { ...ENV, WELCOME: 'off' }, t.fetch)).why, 'welcome switched off');
+  assert.equal((await handle(H, join(), ENV, t.fetch)).why, 'welcomed');
+  assert.equal((await handle(H, join(), ENV, t.fetch)).why, 'already answered');
+  _reset();
+  for (let i = 0; i < 6; i++) await handle(H, join({ date: 2000 + i, new_chat_member: { status: 'member', user: { id: 100 + i, first_name: 'X' } } }), ENV, t.fetch);
+  assert.equal((await handle(H, join({ date: 3000, new_chat_member: { status: 'member', user: { id: 200, first_name: 'Y' } } }), ENV, t.fetch)).why, 'too many welcomes in a minute');
+  _reset();
+  assert.equal((await handle(H, join(), ENV, tg(['sendVideo', 'sendMessage']).fetch)).why, 'telegram refused the welcome');
+});

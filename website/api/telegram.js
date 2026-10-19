@@ -6,7 +6,7 @@ function summary(u, r) {
   const k = u && typeof u === 'object' ? Object.keys(u).find((x) => x !== 'update_id') : null;
   const m = u && (u.message || u.chat_member);
   const cmd = u && u.message && typeof u.message.text === 'string' && u.message.text.startsWith('/') ? u.message.text.split(/\s/)[0].slice(0, 30) : undefined;
-  return JSON.stringify({ kind: k, chat: m && m.chat && m.chat.id, cmd, status: r.status, sent: r.sent });
+  return JSON.stringify({ kind: k, chat: m && m.chat && m.chat.id, cmd, status: r.status, sent: r.sent, why: r.why });
 }
 
 module.exports = async (req, res) => {

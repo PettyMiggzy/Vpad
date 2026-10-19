@@ -91,13 +91,15 @@ async function handle(headers, update, env, fetchFn = fetch, now = Date.now(), r
   try {
     // somebody joined the welcome group
     const cm = update.chat_member;
-    if (cm && String(cm.chat?.id) === String(env.WELCOME_CHAT_ID) && isJoin(cm)) {
-      if (String(env.WELCOME || '').toLowerCase() === 'off') return { status: 200, sent: false };
+    if (cm && String(cm.chat?.id) === String(env.WELCOME_CHAT_ID) && !isJoin(cm)) return { status: 200, sent: false, why: `not a join (${cm.old_chat_member?.status} to ${cm.new_chat_member?.status})` };
+    if (cm && String(cm.chat?.id) === String(env.WELCOME_CHAT_ID)) {
+      if (String(env.WELCOME || '').toLowerCase() === 'off') return { status: 200, sent: false, why: 'welcome switched off' };
       const user = cm.new_chat_member.user;
-      if (!firstTime(`${user.id}:${cm.date}`, now) || !allow(now)) return { status: 200, sent: false };
+      if (!firstTime(`${user.id}:${cm.date}`, now)) return { status: 200, sent: false, why: 'already answered' };
+      if (!allow(now)) return { status: 200, sent: false, why: 'too many welcomes in a minute' };
       const sent = await sendWelcome(fetchFn, env, cm.chat.id, user);
       if (sent) await hype.milestone(fetchFn, env, cm.chat.id);
-      return { status: 200, sent };
+      return { status: 200, sent, why: sent ? 'welcomed' : 'telegram refused the welcome' };
     }
     // the owner asks for a preview, in a private chat with the bot or in the group
     const m = update.message;
