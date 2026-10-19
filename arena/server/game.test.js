@@ -178,13 +178,13 @@ test('magazines: a weapon empties, reloads for its time, and cannot fire meanwhi
 });
 
 test('shop gear changes the fight: a helmet cuts head-shot damage, mods change the gun, kits change the grenades, nothing unknown sneaks in', () => {
-  const s = statsOf({ weapon: 'rifle', mod: 'extmag', helmet: 'helmet2', grenade: 'heavy3', armor: 'elite' });
+  const s = statsOf({ weapon: 'rifle', ammo: 'extmag', helmet: 'helmet2', grenade: 'heavy3', armor: 'elite' });
   assert.equal(s.magSize, 45); assert.equal(s.headMul, 1.25); assert.equal(s.nadeCount, 3); assert.equal(s.hpMax, 200);
   assert.ok(s.nadeRadius > 1 && s.nadeDmg > 1);
-  assert.equal(statsOf({ weapon: 'rifle', mod: 'quickmag' }).reloadTime, WEAPONS.rifle.reload * 0.65);
-  assert.ok(statsOf({ weapon: 'rifle', mod: 'grip' }).spreadMul < 1); assert.ok(statsOf({ weapon: 'rifle', mod: 'barrel' }).rangeMul > 1);
-  const bad = statsOf({ weapon: 'rifle', mod: 'nuke', helmet: 'crown', grenade: 'x' });
-  assert.equal(bad.mod, 'nomod'); assert.equal(bad.headMul, 2); assert.equal(bad.nadeCount, GRENADE.count);
+  assert.equal(statsOf({ weapon: 'rifle', ammo: 'quickmag' }).reloadTime, WEAPONS.rifle.reload * 0.65);
+  assert.ok(statsOf({ weapon: 'rifle', grip: 'grip' }).spreadMul < 1); assert.ok(statsOf({ weapon: 'rifle', muzzle: 'barrel' }).rangeMul > 1);
+  const bad = statsOf({ weapon: 'rifle', optic: 'nuke', helmet: 'crown', grenade: 'x' });
+  assert.deepEqual(bad.attach, { optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo' }); assert.equal(bad.headMul, 2); assert.equal(bad.nadeCount, GRENADE.count);
   // the same sniper head shot: a bare head takes double, a heavy helmet far less
   const hs = (helmet) => {
     const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 500, 150]]);

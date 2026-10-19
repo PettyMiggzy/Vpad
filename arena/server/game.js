@@ -1,7 +1,7 @@
 // The arena rules, with no network code in them so they can be tested on their own: two teams (one per token), a map with walls, ramps and
 // high decks, hitscan shooting (head, body, cover you can shoot over), grenades, bots that fill empty seats, and rounds (first to two takes the match).
 // Positions are pixels (50 to the metre), heights are metres.
-import { WEAPONS, ARMOR, BOOTS, FREE, GRENADE, MODS, HELMETS, KITS, MELEE } from './items.js';
+import { WEAPONS, ARMOR, BOOTS, FREE, GRENADE, OPTICS, MUZZLES, GRIPS, AMMO, HELMETS, KITS, MELEE } from './items.js';
 import { MAPS, STEP } from './maps.js';
 import { Recoil, feelOf, spreadFor, falloff } from './gunfeel.js';
 export { MAPS };
@@ -158,17 +158,26 @@ export function navPath(map, x1, y1, z1, x2, y2, z2) {
 /** builds every map's walking grid now, so the first match on a map does not freeze the server for a tenth of a second */
 export function warmNav() { for (const m of Object.values(MAPS)) nav(m); }
 
-/** the stats of a loadout (unknown or missing parts fall back to the free items) */
+/** what a round does to cover that is thin enough to shoot through (armour-piercing ammunition only) */
+const THIN = new Set(['crate', 'barrel', 'barrier', 'sandbag', 'fence', 'rail']);
+const thickView = (map) => (map._thick ??= { ...map, solids: map.solids.filter((q) => !THIN.has(q.kind)) });
+
+/** the stats of a loadout (unknown or missing parts fall back to the free items). The four attachments stack: their effects multiply. */
 export function statsOf(l = {}) {
   const pick = (T, v, d) => (T[v] ? v : d);
   const weapon = pick(WEAPONS, l.weapon, FREE.weapon), armor = pick(ARMOR, l.armor, FREE.armor), boots = pick(BOOTS, l.boots, FREE.boots);
-  const mod = pick(MODS, l.mod, FREE.mod), helmet = pick(HELMETS, l.helmet, FREE.helmet), kit = pick(KITS, l.grenade, FREE.grenade);
-  const md = MODS[mod], w = WEAPONS[weapon];
+  const helmet = pick(HELMETS, l.helmet, FREE.helmet), kit = pick(KITS, l.grenade, FREE.grenade);
+  const attach = { optic: pick(OPTICS, l.optic, FREE.optic), muzzle: pick(MUZZLES, l.muzzle, FREE.muzzle), grip: pick(GRIPS, l.grip, FREE.grip), ammo: pick(AMMO, l.ammo, FREE.ammo) };
+  const parts = [OPTICS[attach.optic], MUZZLES[attach.muzzle], GRIPS[attach.grip], AMMO[attach.ammo]];
+  const mul = (key) => parts.reduce((a, q) => a * (q[key] ?? 1), 1);
+  const w = WEAPONS[weapon];
   return {
-    weapon, armor, boots, mod, helmet, kit, camo: typeof l.camo === 'string' ? l.camo : FREE.camo,
+    weapon, armor, boots, helmet, kit, attach, camo: typeof l.camo === 'string' ? l.camo : FREE.camo,
     hpMax: ARMOR[armor].hp, speedMul: ARMOR[armor].speed * BOOTS[boots].speed * HELMETS[helmet].speed,
-    headMul: HELMETS[helmet].head, dmgMul: md.dmg ?? 1, spreadMul: md.spread ?? 1, rangeMul: md.range ?? 1,
-    magMul: md.mag ?? 1, reloadMul: md.reload ?? 1, gapMul: md.gap ?? 1, zoomMul: md.zoom ?? 1, steady: md.steady ? 1 : 0, magSize: Math.max(1, Math.round(w.mag * (md.mag ?? 1))), reloadTime: w.reload * (md.reload ?? 1),
+    headMul: HELMETS[helmet].head, dmgMul: mul('dmg'), spreadMul: mul('spread'), rangeMul: mul('range'), recoilMul: mul('recoil'),
+    magMul: mul('mag'), reloadMul: mul('reload'), gapMul: mul('gap'), zoomMul: mul('zoom'), steady: parts.some((q) => q.steady) ? 1 : 0,
+    pierce: Math.max(0, ...parts.map((q) => q.pierce ?? 0)), quiet: parts.some((q) => q.quiet) ? 1 : 0,
+    magSize: Math.max(1, Math.round(w.mag * mul('mag'))), reloadTime: w.reload * mul('reload'),
     nadeCount: KITS[kit].count, nadeRadius: KITS[kit].radius, nadeDmg: KITS[kit].dmg,
   };
 }
@@ -250,7 +259,7 @@ export class Match {
       while (this.count(t) < this.perSide) {
         const id = `bot${this.nextId++}`;
         const gear = { weapon: Object.keys(WEAPONS)[(this.nextId * 7) % Object.keys(WEAPONS).length], armor: Object.keys(ARMOR)[this.nextId % 3], boots: Object.keys(BOOTS)[(this.nextId + 1) % 3], camo: ['woodland', 'desert', 'arctic', 'night', 'toxic'][this.nextId % 5],
-          mod: Object.keys(MODS)[(this.nextId * 3) % 6], helmet: Object.keys(HELMETS)[(this.nextId + 2) % 3], grenade: Object.keys(KITS)[(this.nextId * 5) % 4] };
+          optic: Object.keys(OPTICS)[(this.nextId * 3) % 4], muzzle: Object.keys(MUZZLES)[(this.nextId * 5) % 4], grip: Object.keys(GRIPS)[(this.nextId * 7) % 4], ammo: Object.keys(AMMO)[(this.nextId * 11) % 5], helmet: Object.keys(HELMETS)[(this.nextId + 2) % 3], grenade: Object.keys(KITS)[(this.nextId * 5) % 4] };
         const p = this.makePlayer(id, t, ['Rex', 'Nova', 'Bolt', 'Kilo', 'Zed', 'Echo', 'Ghost', 'Viper', 'Rook', 'Axel', 'Dusk', 'Lynx'][this.nextId % 12], gear, true);
         this.players.set(id, p); this.rv++;
         if (this.phase === 'live') { p.alive = false; } else this.spawn(p);
@@ -432,12 +441,15 @@ export class Match {
     const range = (w.range ?? w.speed * w.life) * p.rangeMul, eye = p.z + R.EYE, f = feelOf(p.weapon);
     // the shot goes where the sights point plus what the recoil has done to them; computer players hold the weapon steady, and aim down the sights
     const rcMul = p.bot ? 0.25 : 1, ads = p.bot ? 1 : p.ads;
-    const aimA = p.aim + p.rc.y * rcMul, aimP = p.pitch + p.rc.p * rcMul;
+    const kick = rcMul * p.recoilMul;
+    const aimA = p.aim + p.rc.y * kick, aimP = p.pitch + p.rc.p * kick;
     const sp = spreadFor(p.weapon, w.spread * p.spreadMul, { ads, move: p.moveFrac, air: p.air, bloom: p.rc.bloom * (p.bot ? 0.5 : 1) });
     for (let i = 0; i < w.pellets; i++) {
       const a = aimA + rnd(-sp, sp), pt = aimP + rnd(-sp, sp) * 0.7;
       const dx = Math.cos(a), dy = Math.sin(a), slope = Math.tan(pt) / M;
-      let hitD = raySolids(this.map, p.x, p.y, eye, dx, dy, slope, range), hit = null, head = false, zone = 'body';
+      // armour-piercing rounds go through thin cover (and lose power doing it); every other round stops at the first solid
+      let hitD = raySolids(p.pierce ? thickView(this.map) : this.map, p.x, p.y, eye, dx, dy, slope, range), hit = null, head = false, zone = 'body';
+      const through = p.pierce > 0 && raySolids(this.map, p.x, p.y, eye, dx, dy, slope, range) < hitD;
       for (const q of this.players.values()) {
         if (!q.alive || q.prot > 0 || q.team === p.team) continue;
         const d = rayCircle(p.x, p.y, dx, dy, q.x, q.y, R.RADIUS + 3);
@@ -447,15 +459,15 @@ export class Match {
         hitD = d; hit = q; head = hz >= q.z + R.HEAD; zone = head ? 'head' : hz < q.z + R.LEGS ? 'legs' : 'body';
       }
       const ex = p.x + dx * hitD, ey = p.y + dy * hitD, ez = eye + slope * hitD;
-      this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0 });
+      this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0, ...(p.quiet ? { q: 1 } : {}) });
       if (!hit) continue;
       // damage drops with distance, a leg hit is worth less, a head hit more (less behind a helmet)
-      const dmg = w.dmg * p.dmgMul * falloff(p.weapon, hitD) * (head ? hit.headMul : zone === 'legs' ? f.leg : 1);
+      const dmg = w.dmg * p.dmgMul * falloff(p.weapon, hitD) * (head ? hit.headMul : zone === 'legs' ? f.leg : 1) * (through ? p.pierce : 1);
       hit.hp -= dmg; hit.hurtT = 0;
       if (hit.hp <= 0) this.kill(p, hit, { head: head ? 1 : 0, weapon: p.weapon });
       else this.events.push({ type: 'hit', by: p.id, victim: hit.id, x: ex, y: ey, z: ez, head: head ? 1 : 0, zone, dmg: Math.round(dmg) });
     }
-    p.rc.shot(p.weapon, ads, rcMul);
+    p.rc.shot(p.weapon, ads, kick);
   }
 
   // ---- grenades: thrown along your aim, arc under gravity, bounce off solids and floors, burst after the fuse ----
@@ -587,5 +599,5 @@ export class Match {
     };
   }
 
-  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, weapon: p.weapon, primary: p.primary, armor: p.armor, camo: p.camo, hpMax: p.hpMax, magMul: p.magMul, reloadMul: p.reloadMul, zoomMul: p.zoomMul, steady: p.steady, team: p.team, bot: p.bot })); }
+  roster() { return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, weapon: p.weapon, primary: p.primary, armor: p.armor, camo: p.camo, hpMax: p.hpMax, magMul: p.magMul, reloadMul: p.reloadMul, zoomMul: p.zoomMul, steady: p.steady, recoilMul: p.recoilMul, team: p.team, bot: p.bot })); }
 }

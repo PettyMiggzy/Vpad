@@ -37,7 +37,7 @@ export class NetMatch {
   dress(p, r) {
     if (!r) return;
     p.name = r.name; p.bot = !!r.bot; p.team = r.team; p.hpMax = r.hpMax || 100; p.primary = r.primary; p.camo = r.camo; p.armor = r.armor;
-    p.magMul = r.magMul || 1; p.reloadMul = r.reloadMul || 1; p.zoomMul = r.zoomMul || 1; p.steady = r.steady || 0;
+    p.magMul = r.magMul || 1; p.reloadMul = r.reloadMul || 1; p.zoomMul = r.zoomMul || 1; p.steady = r.steady || 0; p.recoilMul = r.recoilMul || 1;
   }
 
   aliveCount(t) { return this.alive[t] ?? 0; }
@@ -48,7 +48,7 @@ export class NetMatch {
     // your own recoil is replayed here from your own shots, with the same rules the server runs (a shotgun's pellets are one pull)
     if (e.type === 'shot' && e.by === this.meId) {
       const me = this.players.get(this.meId);
-      if (me && me.rc && !((WEAPONS[me.weapon]?.pellets ?? 1) > 1 && now - this.pull < 25)) me.rc.shot(me.weapon, me.ads, 1);
+      if (me && me.rc && !((WEAPONS[me.weapon]?.pellets ?? 1) > 1 && now - this.pull < 25)) me.rc.shot(me.weapon, me.ads, me.recoilMul || 1);
       this.pull = now;
     }
     if (this.events.length < 400) this.events.push(e);

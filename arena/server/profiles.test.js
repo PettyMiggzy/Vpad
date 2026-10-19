@@ -11,7 +11,7 @@ const pid = (n) => `abcdef0123456789abcdef01234567${String(n).padStart(2, '0')}`
 
 test('a new profile has the free items and the starting coins; bad ids get nothing', () => {
   const p = getProfile(pid(1));
-  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'pistol', mod: 'nomod', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' });
+  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'pistol', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' });
   assert.equal(getProfile('../etc/passwd'), null); assert.equal(validPid('x'), false);
 });
 test('buying costs coins once, cannot overspend, and equips what you buy', async () => {
@@ -75,9 +75,9 @@ test('five classes: save the loadout, switch between them, rename; what is no lo
   assert.equal(p.classes.length, 5);
   grantXp(pid(14), xpForLevel(5)); buy(pid(14), 'smg'); buy(pid(14), 'extmag'); buy(pid(14), 'light');
   assert.ok(!classOp(pid(14), 'save', 0).error); assert.equal(p.classes[0].loadout.weapon, 'smg');
-  equip(pid(14), 'pistol'); equip(pid(14), 'nomod');
+  equip(pid(14), 'pistol'); equip(pid(14), 'stdammo');
   assert.ok(!classOp(pid(14), 'save', 1).error);
-  classOp(pid(14), 'select', 0); assert.equal(p.loadout.weapon, 'smg'); assert.equal(p.loadout.mod, 'extmag'); assert.equal(p.activeClass, 0);
+  classOp(pid(14), 'select', 0); assert.equal(p.loadout.weapon, 'smg'); assert.equal(p.loadout.ammo, 'extmag'); assert.equal(p.activeClass, 0);
   classOp(pid(14), 'select', 1); assert.equal(p.loadout.weapon, 'pistol');
   assert.equal(classOp(pid(14), 'rename', 2, 'Sniper <b>').classes[2].name, 'Sniper b');
   assert.ok(classOp(pid(14), 'select', 9).error); assert.ok(classOp(pid(14), 'rename', 0, '   ').error);

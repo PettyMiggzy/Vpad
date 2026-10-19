@@ -83,7 +83,7 @@ export function play(name: string, o: Opt = {}): void {
 }
 const pick = (a: string, b: string) => (Math.random() < 0.5 ? a : b);
 
-export function shot(weapon: string, x: number, z: number, own: boolean): void { const k = SHOT[weapon] ?? weapon; play(pick(`${k}_a`, `${k}_b`), { x, z, own, vol: own ? 0.9 : 1 }); }
+export function shot(weapon: string, x: number, z: number, own: boolean, quiet = false): void { const k = SHOT[weapon] ?? weapon; play(pick(`${k}_a`, `${k}_b`), { x, z, own, vol: (own ? 0.9 : 1) * (quiet ? 0.3 : 1) }); }
 export function reload(weapon: string, x: number, z: number, own: boolean): void {
   const k = RELOAD[weapon] ?? weapon;
   if (k === 'shotgun') { play('shotgun_shell', { x, z, own }); setTimeout(() => play('shotgun_pump', { x, z, own }), 1100); } else play(`reload_${k}`, { x, z, own });

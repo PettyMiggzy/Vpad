@@ -301,8 +301,9 @@ function onEvents(evs) {
   for (const e of evs) {
     if (e.type === 'shot') {
       const sh = match.players.get(e.by), own = !!(me && e.by === me.id), eye = eyeOf();
-      sfx.shot(sh?.weapon ?? 'pistol', e.x / PX_PER_M, e.y / PX_PER_M, own);
-      tracer(e, sh); firedNow.add(e.by); lastShot.set(e.by, performance.now());
+      sfx.shot(sh?.weapon ?? 'pistol', e.x / PX_PER_M, e.y / PX_PER_M, own, !own && !!e.q);
+      if (own || !e.q) tracer(e, sh);      // a suppressed shot leaves no tracer for the other side to follow
+      firedNow.add(e.by); lastShot.set(e.by, performance.now());
       if (own) vm.fire();
       // a bullet that flew past your head, or hit the wall beside you
       if (me && me.alive && !own && sh && sh.team !== me.team && !e.hit && distToSeg(eye.x, eye.y, eye.z, e.x / PX_PER_M, e.z, e.y / PX_PER_M, e.ex / PX_PER_M, e.ez, e.ey / PX_PER_M) < 2.2) sfx.whiz();

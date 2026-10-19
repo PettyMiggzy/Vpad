@@ -1,5 +1,5 @@
 // Levels, weapon mastery and saved classes: pure rules shared by the page (browser profile) and the server (hosted profile).
-import { CATALOG, SLOTS, FREE } from './items.js';
+import { CATALOG, SLOTS, FREE, OLD_MOD_SLOT } from './items.js';
 
 export const MAX_LEVEL = 30;
 export const XP = { kill: 50, head: 25, melee: 25, nade: 10, round: 100, match: 250, play: 50 };
@@ -14,6 +14,7 @@ export function levelFrac(xp) { const L = levelOf(xp); if (L >= MAX_LEVEL) retur
 export const UNLOCK = {
   smg: 2, shotgun: 4, revolver: 4, rifle: 3, burst: 6, sniper: 7, lmg: 8, autosg: 10, dmr: 12,
   extmag: 2, quickmag: 3, grip: 4, barrel: 5, scope: 6, steady: 7, hollow: 8, bolt: 9,
+  reddot: 3, comp: 4, fore: 5, suppressor: 9, ap: 10,
   light: 2, heavy: 5, elite: 9, helmet1: 3, helmet2: 6, swift: 2, runner: 4,
   frag3: 2, frag4: 5, heavy3: 8,
 };
@@ -42,6 +43,8 @@ export const cleanClassName = (v) => String(v ?? '').replace(/[^A-Za-z0-9 ]/g, '
 /** a loadout cut down to what the profile owns and may use (anything else falls back to the free item of that slot) */
 export function usable(p, loadout) {
   const out = { ...FREE };
+  // a loadout saved before the mod slot was split into four still names its one mod: it goes into the slot that mod belongs to now
+  if (loadout && typeof loadout.mod === 'string' && OLD_MOD_SLOT[loadout.mod] && !loadout[OLD_MOD_SLOT[loadout.mod]]) loadout = { ...loadout, [OLD_MOD_SLOT[loadout.mod]]: loadout.mod };
   for (const s of SLOTS) { const id = loadout?.[s]; if (typeof id === 'string' && CATALOG[id]?.slot === s && p.owned.includes(id) && !lockedReason(p, id)) out[s] = id; }
   return out;
 }

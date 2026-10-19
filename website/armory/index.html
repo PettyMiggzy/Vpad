@@ -26,9 +26,9 @@ import { PLAY } from '/site.js';
 const cat = await fetch('/catalog.json').then((r) => r.json());
 const W = Object.fromEntries(cat.weapons.map((w) => [w.id, w]));
 const by = (a) => Object.fromEntries(a.map((x) => [x.id, x]));
-const MODS = by(cat.mods), ARMOR = by(cat.armor), HELM = by(cat.helmets), BOOT = by(cat.boots), NADE = by(cat.grenades), CAMO = by(cat.camo);
-const FREE = { weapon: 'pistol', mod: 'nomod', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' };
-const KEY = 'vyre.site.classes.v1';
+const OPT = by(cat.optics), MUZ = by(cat.muzzles), GRIP = by(cat.grips), AMMO = by(cat.ammo), ARMOR = by(cat.armor), HELM = by(cat.helmets), BOOT = by(cat.boots), NADE = by(cat.grenades), CAMO = by(cat.camo);
+const FREE = { weapon: 'pistol', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' };
+const KEY = 'vyre.site.classes.v2';
 let sel = (location.hash.slice(1) in W) ? location.hash.slice(1) : 'rifle';
 let classes, cur = 0;
 try { classes = JSON.parse(localStorage.getItem(KEY)); } catch {}
@@ -39,12 +39,14 @@ const opts = (T, cur) => Object.values(T).map((o) => `<option value="${o.id}" ${
 const pct = (v, max) => Math.max(4, Math.min(100, (v / max) * 100));
 const app = document.getElementById('app');
 function draw() {
-  const w = W[sel], l = L(), m = MODS[l.mod], a = ARMOR[l.armor], h = HELM[l.helmet], b = BOOT[l.boots], g = NADE[l.grenade], k = CAMO[l.camo];
+  const w = W[sel], l = L(), att = [OPT[l.optic], MUZ[l.muzzle], GRIP[l.grip], AMMO[l.ammo]].filter(Boolean), a = ARMOR[l.armor], h = HELM[l.helmet], b = BOOT[l.boots], g = NADE[l.grenade], k = CAMO[l.camo];
   const primary = W[l.weapon];
   const hp = a.hp, speed = a.speed * b.speed * h.speed;
-  const mag = Math.round(primary.magazine * (m.mag ?? 1)), reload = +(primary.reload * (m.reload ?? 1)).toFixed(1);
-  const dmg = Math.round(primary.damage * (m.dmg ?? 1) * 10) / 10, rpm = Math.round(primary.rpm / (m.gap ?? 1)), range = Math.round(primary.rangeM * (m.range ?? 1));
-  const parts = [primary, m, a, h, b, g, k].filter((x) => x && x.id !== 'nomod'), needLevel = Math.max(1, ...parts.map((x) => x.unlock || 1));
+  const mul = (key) => att.reduce((n, x) => n * (x[key] ?? 1), 1);        // the four attachments stack: their effects multiply
+  const mag = Math.round(primary.magazine * mul('mag')), reload = +(primary.reload * mul('reload')).toFixed(1);
+  const dmg = Math.round(primary.damage * mul('dmg') * 10) / 10, rpm = Math.round(primary.rpm / mul('gap')), range = Math.round(primary.rangeM * mul('range'));
+  const kick = Math.round(100 * mul('recoil')), tight = Math.round(100 * mul('spread')), pierce = Math.max(0, ...att.map((x) => x.pierce ?? 0)), quiet = att.some((x) => x.quiet);
+  const parts = [primary, ...att, a, h, b, g, k].filter((x) => x && (x.cost > 0 || x.unlock > 1)), needLevel = Math.max(1, ...parts.map((x) => x.unlock || 1));
   const cost = parts.reduce((n, x) => n + (x.cost || 0), 0);
   const ttk = (d) => { const t = w.ttk[d]; return t ? `<b>${t.seconds}s</b><small>${t.shots} shot${t.shots === 1 ? '' : 's'} at ${d} m</small>` : `<b>–</b><small>out of reach at ${d} m</small>`; };
   app.innerHTML = `
@@ -67,13 +69,16 @@ function draw() {
     <div class="classes">${classes.map((c, i) => `<button class="${i === cur ? 'on' : ''}" data-c="${i}">${i + 1}</button>`).join('')}</div>
     <input type="text" id="cname" maxlength="14" value="${classes[cur].name}" aria-label="Class name">
     <label>Primary gun</label><select data-s="weapon">${opts(W, l.weapon)}</select>
-    <label>Gun mod</label><select data-s="mod">${opts(MODS, l.mod)}</select>
+    <label>Optic</label><select data-s="optic">${opts(OPT, l.optic)}</select>
+    <label>Muzzle</label><select data-s="muzzle">${opts(MUZ, l.muzzle)}</select>
+    <label>Grip</label><select data-s="grip">${opts(GRIP, l.grip)}</select>
+    <label>Ammo</label><select data-s="ammo">${opts(AMMO, l.ammo)}</select>
     <label>Armour</label><select data-s="armor">${opts(ARMOR, l.armor)}</select>
     <label>Helmet</label><select data-s="helmet">${opts(HELM, l.helmet)}</select>
     <label>Boots</label><select data-s="boots">${opts(BOOT, l.boots)}</select>
     <label>Grenades</label><select data-s="grenade">${opts(NADE, l.grenade)}</select>
     <label>Camo</label><select data-s="camo">${opts(CAMO, l.camo)}</select>
-    <div class="sum"><div><b>${hp}</b><small>health</small></div><div><b>${Math.round(speed * 100)}%</b><small>move speed</small></div><div><b>${dmg}</b><small>damage a hit</small></div><div><b>${mag}</b><small>rounds / ${reload}s reload</small></div><div><b>${rpm}</b><small>shots a minute</small></div><div><b>${range} m</b><small>reach</small></div></div>
+    <div class="sum"><div><b>${hp}</b><small>health</small></div><div><b>${Math.round(speed * 100)}%</b><small>move speed</small></div><div><b>${dmg}</b><small>damage a hit</small></div><div><b>${mag}</b><small>rounds / ${reload}s reload</small></div><div><b>${rpm}</b><small>shots a minute</small></div><div><b>${range} m</b><small>reach</small></div><div><b>${kick}%</b><small>recoil</small></div><div><b>${tight}%</b><small>spread</small></div></div>${pierce || quiet ? `<p class="muted" style="font-size:13px;margin:8px 0 0">${pierce ? `Rounds go through crates, barrels, sandbags and fences at ${Math.round(pierce * 100)}% damage. ` : ''}${quiet ? 'Quiet: no tracer for the other side.' : ''}</p>` : ''}
     <div class="need ${needLevel <= 1 ? 'ok' : ''}">${needLevel <= 1 ? 'Everything in this build is open from the start.' : `You need level ${needLevel} to carry this build. Total ${cost} play coins.`}</div>
     <p style="margin:16px 0 0"><a class="btn primary" style="width:100%" href="${PLAY}/" rel="noopener">EQUIP IT IN THE GAME</a></p>
     <p class="muted" style="font-size:12px;margin:10px 0 0">Plans are saved on this device. In the game, open the menu and pick the same gear in the loadout shop.</p>

@@ -1,7 +1,7 @@
 // Writes catalog.json for the website's armory from the game's own rules files, so the page can never disagree with the game.
 // Usage: node tools/make-catalog.mjs
 import fs from 'node:fs';
-import { WEAPONS, MODS, ARMOR, HELMETS, BOOTS, KITS, CAMO, MELEE, GRENADE } from '../../arena/server/items.js';
+import { WEAPONS, OPTICS, MUZZLES, GRIPS, AMMO, ARMOR, HELMETS, BOOTS, KITS, CAMO, MELEE, GRENADE } from '../../arena/server/items.js';
 import { UNLOCK, MASTERY, MAX_LEVEL, CLASS_COUNT } from '../../arena/server/progress.js';
 import { FEEL, falloff } from '../../arena/server/gunfeel.js';
 
@@ -22,10 +22,10 @@ const weapons = Object.entries(WEAPONS).map(([id, w]) => ({
 }));
 const rows = (T) => Object.entries(T).map(([id, v]) => ({ id, name: v.name, cost: v.cost, unlock: UNLOCK[id] ?? 1, blurb: v.blurb, ...Object.fromEntries(Object.entries(v).filter(([k]) => !['slot', 'name', 'cost', 'blurb', 'tint'].includes(k))) }));
 const out = {
-  weapons, mods: rows(MODS), armor: rows(ARMOR), helmets: rows(HELMETS), boots: rows(BOOTS), grenades: rows(KITS),
+  weapons, optics: rows(OPTICS), muzzles: rows(MUZZLES), grips: rows(GRIPS), ammo: rows(AMMO), armor: rows(ARMOR), helmets: rows(HELMETS), boots: rows(BOOTS), grenades: rows(KITS),
   camo: Object.entries(CAMO).map(([id, v]) => ({ id, name: v.name, cost: v.cost, blurb: v.blurb, tint: '#' + v.tint.toString(16).padStart(6, '0'), unlock: id === 'obsidian' ? 20 : 1 })),
   knife: { name: MELEE.name, damage: MELEE.dmg, backstab: MELEE.back }, grenade: { fuse: GRENADE.fuse, radiusM: GRENADE.radius / PX, damage: GRENADE.dmg },
   mastery: MASTERY, maxLevel: MAX_LEVEL, classes: CLASS_COUNT,
 };
 fs.writeFileSync(new URL('../catalog.json', import.meta.url), JSON.stringify(out));
-console.log('catalog.json:', weapons.length, 'weapons,', out.mods.length, 'mods');
+console.log('catalog.json:', weapons.length, 'weapons,', out.optics.length + out.muzzles.length + out.grips.length + out.ammo.length, 'attachments');

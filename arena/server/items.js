@@ -27,17 +27,35 @@ export const HELMETS = {
   helmet1: { slot: 'helmet', name: 'Combat helmet', cost: 150, head: 1.6, speed: 1.0,  blurb: 'Head shots do 1.6x' },
   helmet2: { slot: 'helmet', name: 'Heavy helmet',  cost: 400, head: 1.25, speed: 0.98, blurb: 'Head shots do 1.25x, a little slower' },
 };
-// a mod changes the weapon you carry: each has a price in the gun, not only in coins
-export const MODS = {
-  nomod:    { slot: 'mod', name: 'No mod',          cost: 0,   blurb: 'Stock weapon' },
-  extmag:   { slot: 'mod', name: 'Extended magazine', cost: 250, mag: 1.5,    blurb: '+50% rounds before a reload' },
-  quickmag: { slot: 'mod', name: 'Quick-draw mag',  cost: 250, reload: 0.65, blurb: 'Reload 35% faster' },
-  grip:     { slot: 'mod', name: 'Steady grip',     cost: 300, spread: 0.6,  blurb: '40% tighter spread' },
-  barrel:   { slot: 'mod', name: 'Long barrel',     cost: 300, range: 1.25,  blurb: '+25% range' },
-  bolt:     { slot: 'mod', name: 'Fast action',     cost: 450, gap: 0.8,    blurb: '20% less time between shots' },
-  scope:    { slot: 'mod', name: 'Long scope',      cost: 350, zoom: 0.65,  blurb: 'Zoom in half as far again when aiming' },
-  steady:   { slot: 'mod', name: 'Steady scope',    cost: 350, steady: 1,   blurb: 'Less wobble, and you hold your breath longer' },
-  hollow:   { slot: 'mod', name: 'Hollow points',   cost: 400, dmg: 1.12, mag: 0.8, blurb: '+12% damage, 20% smaller magazine' },
+// attachments change the weapon you carry. Four slots, one item in each, and they stack: every effect below multiplies with the others.
+// optic: how you see and hold the aim
+export const OPTICS = {
+  noptic: { slot: 'optic', name: 'Iron sights',   cost: 0,   blurb: 'Stock sights' },
+  reddot: { slot: 'optic', name: 'Red dot',       cost: 200, spread: 0.9,  blurb: '10% tighter spread, a clear dot to aim with' },
+  scope:  { slot: 'optic', name: 'Long scope',    cost: 350, zoom: 0.65,   blurb: 'Zoom in half as far again when aiming' },
+  steady: { slot: 'optic', name: 'Steady scope',  cost: 350, steady: 1,    blurb: 'Less wobble, and you hold your breath longer' },
+};
+// muzzle: range, kick and noise
+export const MUZZLES = {
+  nomuzzle:   { slot: 'muzzle', name: 'Bare muzzle',    cost: 0,   blurb: 'Stock muzzle' },
+  barrel:     { slot: 'muzzle', name: 'Long barrel',    cost: 300, range: 1.25, blurb: '+25% range' },
+  comp:       { slot: 'muzzle', name: 'Compensator',    cost: 300, recoil: 0.7, blurb: '30% less kick' },
+  suppressor: { slot: 'muzzle', name: 'Suppressor',     cost: 450, dmg: 0.94, recoil: 0.85, quiet: 1, blurb: 'Quiet and no tracer for others, 6% less damage, a little less kick' },
+};
+// grip and trigger: how steady and how fast
+export const GRIPS = {
+  nogrip: { slot: 'grip', name: 'Plain grip',   cost: 0,   blurb: 'Stock grip' },
+  grip:   { slot: 'grip', name: 'Steady grip',  cost: 300, spread: 0.6,  blurb: '40% tighter spread' },
+  fore:   { slot: 'grip', name: 'Foregrip',     cost: 300, recoil: 0.75, blurb: '25% less kick' },
+  bolt:   { slot: 'grip', name: 'Fast action',  cost: 450, gap: 0.8,     blurb: '20% less time between shots' },
+};
+// ammunition: magazine, reload and what the round does
+export const AMMO = {
+  stdammo:  { slot: 'ammo', name: 'Standard rounds',   cost: 0,   blurb: 'Stock ammunition' },
+  extmag:   { slot: 'ammo', name: 'Extended magazine', cost: 250, mag: 1.5,    blurb: '+50% rounds before a reload' },
+  quickmag: { slot: 'ammo', name: 'Quick-draw mag',    cost: 250, reload: 0.65, blurb: 'Reload 35% faster' },
+  hollow:   { slot: 'ammo', name: 'Hollow points',     cost: 400, dmg: 1.12, mag: 0.8, blurb: '+12% damage, 20% smaller magazine' },
+  ap:       { slot: 'ammo', name: 'Armour-piercing',   cost: 500, pierce: 0.55, blurb: 'Shoot through crates, barrels, sandbags and fences, at 55% damage' },
 };
 // grenade kits: how many you carry, and how hard they hit
 export const KITS = {
@@ -60,9 +78,11 @@ export const CAMO = {
   gold:     { slot: 'camo', name: 'Gold',     cost: 0,   tint: 0xffd24a, blurb: 'Earned: master any weapon' },
   obsidian: { slot: 'camo', name: 'Obsidian', cost: 0,   tint: 0x5a4a78, blurb: 'Earned: reach level 20' },
 };
-export const CATALOG = { ...WEAPONS, ...MODS, ...ARMOR, ...HELMETS, ...BOOTS, ...KITS, ...CAMO };
-export const SLOTS = ['weapon', 'mod', 'armor', 'helmet', 'boots', 'grenade', 'camo'];
-export const FREE = { weapon: 'pistol', mod: 'nomod', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' };
+export const CATALOG = { ...WEAPONS, ...OPTICS, ...MUZZLES, ...GRIPS, ...AMMO, ...ARMOR, ...HELMETS, ...BOOTS, ...KITS, ...CAMO };
+export const SLOTS = ['weapon', 'optic', 'muzzle', 'grip', 'ammo', 'armor', 'helmet', 'boots', 'grenade', 'camo'];
+export const FREE = { weapon: 'pistol', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' };
 export const START_COINS = 600;
 export const REWARD = { kill: 25, round: 100, match: 250 };
 export const itemSlot = (id) => CATALOG[id]?.slot;
+/** the old single mod slot split into four: where each old mod went (a profile saved before the split is moved over with this) */
+export const OLD_MOD_SLOT = { extmag: 'ammo', quickmag: 'ammo', hollow: 'ammo', grip: 'grip', bolt: 'grip', barrel: 'muzzle', scope: 'optic', steady: 'optic' };

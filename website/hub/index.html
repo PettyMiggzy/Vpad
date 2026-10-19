@@ -94,7 +94,7 @@ function linkView(msg) {
       msg ? say('err', msg) : ''),
     el('button', { className: 'btn ghost', textContent: 'USE ANOTHER WALLET', onclick: () => { try { localStorage.removeItem(KEY); } catch {} addr = null; connectView(); } }));
 }
-const SLOTS = [['weapon', 'Gun'], ['mod', 'Mod'], ['armor', 'Armour'], ['helmet', 'Helmet'], ['boots', 'Boots'], ['grenade', 'Grenades'], ['camo', 'Camo']];
+const SLOTS = [['weapon', 'Gun'], ['optic', 'Optic'], ['muzzle', 'Muzzle'], ['grip', 'Grip'], ['ammo', 'Ammo'], ['armor', 'Armour'], ['helmet', 'Helmet'], ['boots', 'Boots'], ['grenade', 'Grenades'], ['camo', 'Camo']];
 function profileView(p) {
   const name = (id) => p.catalog[id]?.name || id;
   const loadout = (l) => { const dl = el('dl'); for (const [s, label] of SLOTS) dl.append(el('dt', { textContent: label }), el('dd', { textContent: name(l[s]) })); return dl; };

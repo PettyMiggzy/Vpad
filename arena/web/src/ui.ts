@@ -9,7 +9,7 @@ import { MAP_LIST } from './world.js';
 
 type Item = { slot: string; name: string; cost: number; blurb: string };
 const items = CATALOG as unknown as Record<string, Item>;
-const TAB_NAMES: Record<string, string> = { weapon: 'Weapon', mod: 'Gun mods', armor: 'Armour', helmet: 'Helmet', boots: 'Boots', grenade: 'Grenades', camo: 'Camo' };
+const TAB_NAMES: Record<string, string> = { weapon: 'Weapon', optic: 'Optics', muzzle: 'Muzzles', grip: 'Grips', ammo: 'Ammo', armor: 'Armour', helmet: 'Helmet', boots: 'Boots', grenade: 'Grenades', camo: 'Camo' };
 
 export interface PlayChoice { name: string; team: 0 | 1; seats: number; map: string; gfx: string; names: [string, string]; mode: 'practice' | 'challenge'; difficulty: number; objective: 'elim' | 'zone' | 'dm'; minutes: number; blood: boolean }
 export interface BoardRow { name: string; team: number; kills: number; deaths: number; bot: boolean; me: boolean; alive: boolean }

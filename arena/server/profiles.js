@@ -24,6 +24,12 @@ export function getProfile(pid) {
   if (!validPid(pid)) return null;
   let p = profiles.get(pid);
   if (!p) { p = { coins: START_COINS, owned: Object.values(FREE), loadout: { ...FREE }, xp: 0, weaponKills: {}, classes: freshClasses(), activeClass: 0 }; profiles.set(pid, p); save(); }
+  // a profile saved before the mod slot became four attachment slots: the free attachments are owned, the old mod moves to its slot
+  if (p.loadout.mod !== undefined || p.loadout.optic === undefined) {
+    for (const id of Object.values(FREE)) if (!p.owned.includes(id)) p.owned.push(id);
+    p.owned = p.owned.filter((id) => CATALOG[id]);
+    p.loadout = usable(p, p.loadout); p.classes = sanitizeClasses(p, p.classes); save();
+  }
   if (p.xp === undefined) { p.xp = 0; p.weaponKills = {}; p.classes = sanitizeClasses(p, null); p.activeClass = 0; }     // a profile saved before levels existed
   return p;
 }
