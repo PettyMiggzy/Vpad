@@ -1,5 +1,7 @@
 // Group hype for @warheadzsbot: member milestones, reactions on streak talk and screenshots, and a few commands anybody can use.
 // Pure logic like _welcome.js: the caller passes the environment, a fetch and a random source.
+const { ce, row, button, sendRich } = require('./_style');
+
 const LINKS = {
   play: 'https://play.vyrebadlands.com',
   dust: 'https://play.vyrebadlands.com/?mode=challenge&type=dm&min=10&map=dust&a=BLUE&b=RED',
@@ -30,6 +32,7 @@ const LINES = [
 ];
 
 const KEYWORDS = /\b(streak|juggernaut|supply crate|killcam|headshot|clutch|ace|lfg|gg|warheadz|bad ?lands|let'?s go)\b/i;
+const ICONS = ['coin', 'frog', 'bulldog', 'ape', 'raccoon', 'crate', 'sniper', 'rifle', 'smg', 'lmg', 'barrel', 'medkit'];
 const REACTIONS = ['🔥', '💯', '🏆', '⚡', '🎉', '👏', '🤩'];
 
 /** every 25 up to 100, every 50 up to 1,000, every 250 after that */
@@ -46,19 +49,18 @@ function ready(chatId, cmd, now) {
   return true;
 }
 
-const btn = (text, url) => ({ text, url });
 const kb = {
-  play: () => ({ inline_keyboard: [[btn('🔫 Play Vyre Bad Lands', LINKS.play)], [btn('🚀 WARHEADZ', LINKS.pad), btn('Website', LINKS.site)]] }),
-  lfg: () => ({ inline_keyboard: [[btn('🔫 Join the lobby', LINKS.play)], [btn('Dust Town deathmatch', LINKS.dust), btn('Cargo Yard elimination', LINKS.cargo)]] }),
-  stickers: () => ({ inline_keyboard: [[btn('Bad Lands stickers', LINKS.stickersBadLands)], [btn('WARHEADZ stickers', LINKS.stickersWarheadz)]] }),
+  play: () => ({ inline_keyboard: [[button('Play Vyre Bad Lands', LINKS.play, 'success', 'sniper')], [button('WARHEADZ', LINKS.pad, 'primary', 'coin'), button('Website', LINKS.site)]] }),
+  lfg: () => ({ inline_keyboard: [[button('Join the lobby', LINKS.play, 'success', 'sniper')], [button('Dust Town deathmatch', LINKS.dust, 'danger', 'rifle'), button('Cargo Yard elimination', LINKS.cargo, 'danger', 'smg')]] }),
+  stickers: () => ({ inline_keyboard: [[button('Bad Lands stickers', LINKS.stickersBadLands, undefined, 'frog')], [button('WARHEADZ stickers', LINKS.stickersWarheadz, undefined, 'ape')]] }),
 };
 
 async function call(fetchFn, token, method, body) {
   const r = await fetchFn(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   return r.json().catch(() => ({}));
 }
-const sendHtml = async (fetchFn, env, chat_id, text, reply_markup, extra = {}) =>
-  !!(await call(fetchFn, env.TELEGRAM_BOT_TOKEN, 'sendMessage', { chat_id, text, parse_mode: 'HTML', reply_markup, link_preview_options: { is_disabled: true }, ...extra })).ok;
+const sendHtml = (fetchFn, env, chat_id, text, reply_markup, extra = {}) =>
+  sendRich(fetchFn, env.TELEGRAM_BOT_TOKEN, 'sendMessage', { chat_id, text, parse_mode: 'HTML', reply_markup, link_preview_options: { is_disabled: true }, ...extra });
 
 const pick = (arr, rng) => arr[Math.min(arr.length - 1, Math.floor(rng() * arr.length))];
 
@@ -68,7 +70,7 @@ async function milestone(fetchFn, env, chatId) {
   const r = await call(fetchFn, env.TELEGRAM_BOT_TOKEN, 'getChatMemberCount', { chat_id: chatId });
   const n = Number(r.result);
   if (!r.ok || !isMilestone(n)) return false;
-  return sendHtml(fetchFn, env, chatId, `🎉 <b>${n} in the squad!</b>\nThe group keeps growing. Spawn in, pick a loadout and push your streak.`, kb.play());
+  return sendHtml(fetchFn, env, chatId, `${row('coin', 'coin', 'coin')} <b>${n} IN THE SQUAD</b> ${row('coin', 'coin', 'coin')}\n<blockquote>The group keeps growing. Spawn in, pick a loadout and push your streak.</blockquote>`, kb.play());
 }
 
 /**
@@ -87,13 +89,13 @@ async function onMessage(m, env, fetchFn, now, rng) {
     if (c[2] && c[2].toLowerCase() !== botName) return false;
     const cmd = c[1].toLowerCase();
     if (!ready(m.chat.id, cmd, now)) return false;
-    if (cmd === 'hype') return sendHtml(fetchFn, env, m.chat.id, esc(pick(LINES, rng)), kb.play());
-    if (cmd === 'play') return sendHtml(fetchFn, env, m.chat.id, '🔫 <b>Vyre Bad Lands</b> is open. Free, in your browser, phone or computer. Play money only.', kb.play());
-    if (cmd === 'stickers') return sendHtml(fetchFn, env, m.chat.id, 'Two sticker packs, both made for this group:', kb.stickers());
+    if (cmd === 'hype') return sendHtml(fetchFn, env, m.chat.id, `${ce(pick(ICONS, rng))} <b>HYPE</b>\n<blockquote>${esc(pick(LINES, rng))}</blockquote>`, kb.play());
+    if (cmd === 'play') return sendHtml(fetchFn, env, m.chat.id, `${row('sniper', 'rifle', 'smg')} <b>VYRE BAD LANDS IS OPEN</b>\n<blockquote>Free, in your browser, phone or computer. Play money only.</blockquote>`, kb.play());
+    if (cmd === 'stickers') return sendHtml(fetchFn, env, m.chat.id, `${row('frog', 'bulldog', 'ape', 'raccoon')}\n<b>Two sticker packs</b>, both made for this group.`, kb.stickers());
     if (cmd === 'lfg') {
       const who = `<a href="tg://user?id=${Number(m.from.id)}">${esc(m.from.first_name || m.from.username || 'Someone').slice(0, 40)}</a>`;
       const note = (c[3] || '').trim().slice(0, 120);
-      return sendHtml(fetchFn, env, m.chat.id, `🔫 ${who} is looking for a match!${note ? `\n“${esc(note)}”` : ''}\nJump into the lobby and squad up.`, kb.lfg());
+      return sendHtml(fetchFn, env, m.chat.id, `${ce('rifle')} ${who} <b>is looking for a match!</b>${note ? `\n<blockquote>${esc(note)}</blockquote>` : ''}\nJump into the lobby and squad up.`, kb.lfg());
     }
   }
   // reactions: a little fire on streak talk and on screenshots and clips, never on every message

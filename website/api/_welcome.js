@@ -2,6 +2,7 @@
 // Pure logic: the caller passes the environment and a fetch, so tests run without Telegram.
 const crypto = require('node:crypto');
 const hype = require('./_hype');
+const { ce, row, button, sendRich, visibleLength } = require('./_style');
 
 const LINKS = {
   play: 'https://play.vyrebadlands.com',
@@ -17,17 +18,20 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 function welcomeFor(user) {
   const name = esc(user.first_name || user.username || 'friend').slice(0, 60);
   const text =
-    `Welcome <a href="tg://user?id=${Number(user.id)}">${name}</a>! 💥\n\n` +
-    'You just landed in the home of two things:\n\n' +
-    '🚀 <b>WARHEADZ</b>: the launchpad. Spin up a token and watch it trade (testnet for now).\n' +
-    '🔫 <b>Vyre Bad Lands</b>: our free first-person shooter. Pick a team, grab a loadout, jump in from your phone or browser. Play money only.\n\n' +
-    'Kill streaks pay out: bottomless ammo at 4, supply crates at 7, Juggernaut at 10. Go get them.\n\n' +
-    'Say hi and drop your best streak.';
+    `${ce('coin')} <b>WELCOME TO THE SQUAD</b> ${ce('coin')}\n\n` +
+    `<a href="tg://user?id=${Number(user.id)}">${name}</a>, you just landed in the home of two things:\n\n` +
+    `${ce('rifle')} <b>WARHEADZ</b>: the launchpad\n` +
+    '<blockquote>Spin up a token and watch it trade. Testnet for now.</blockquote>\n' +
+    `${ce('ape')} <b>VYRE BAD LANDS</b>: the free first-person shooter\n` +
+    '<blockquote>Pick a team, grab a loadout, drop in from your phone or browser. Play money only.</blockquote>\n\n' +
+    '<b>Kill streaks pay out</b>\n' +
+    `<blockquote>${ce('ammo')} 4 kills: bottomless ammo\n${ce('crate')} 7 kills: supply crate\n${ce('sniper')} 10 kills: Juggernaut\n${ce('barrel')} 12 kills: barrage</blockquote>\n\n` +
+    `${row('frog', 'bulldog', 'ape', 'raccoon')} <i>Say hi and drop your best streak.</i>`;
   const keyboard = {
     inline_keyboard: [
-      [{ text: '🔫 Play Vyre Bad Lands', url: LINKS.play }],
-      [{ text: '🚀 WARHEADZ', url: LINKS.pad }, { text: 'Website', url: LINKS.site }],
-      [{ text: 'Bad Lands stickers', url: LINKS.stickersBadLands }, { text: 'WARHEADZ stickers', url: LINKS.stickersWarheadz }],
+      [button('Play Vyre Bad Lands', LINKS.play, 'success', 'sniper')],
+      [button('WARHEADZ', LINKS.pad, 'primary', 'coin'), button('Website', LINKS.site)],
+      [button('Bad Lands stickers', LINKS.stickersBadLands, undefined, 'frog'), button('WARHEADZ stickers', LINKS.stickersWarheadz, undefined, 'ape')],
     ],
   };
   return { text, keyboard };
@@ -66,21 +70,13 @@ function firstTime(key, now) {
   return true;
 }
 
-async function call(fetchFn, token, method, body) {
-  const r = await fetchFn(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const j = await r.json().catch(() => ({}));
-  return j;
-}
-
 async function sendWelcome(fetchFn, env, chatId, user) {
   const { text, keyboard } = welcomeFor(user);
   const token = env.TELEGRAM_BOT_TOKEN;
-  if (env.WELCOME_VIDEO_URL) {
-    const r = await call(fetchFn, token, 'sendVideo', { chat_id: chatId, video: env.WELCOME_VIDEO_URL, caption: text.slice(0, 1024), parse_mode: 'HTML', reply_markup: keyboard, supports_streaming: true });
-    if (r.ok) return true;
+  if (env.WELCOME_VIDEO_URL && visibleLength(text) <= 1024) {
+    if (await sendRich(fetchFn, token, 'sendVideo', { chat_id: chatId, video: env.WELCOME_VIDEO_URL, caption: text, parse_mode: 'HTML', reply_markup: keyboard, supports_streaming: true })) return true;
   }
-  const r = await call(fetchFn, token, 'sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: keyboard, link_preview_options: { is_disabled: true } });
-  return !!r.ok;
+  return sendRich(fetchFn, token, 'sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: keyboard, link_preview_options: { is_disabled: true } });
 }
 
 /**

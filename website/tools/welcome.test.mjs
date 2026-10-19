@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-const { handle, welcomeFor, isJoin, _reset } = createRequire(import.meta.url)('../api/_welcome.js');
+const req = createRequire(import.meta.url);
+const { handle, welcomeFor, isJoin, _reset } = req('../api/_welcome.js');
+const { visibleLength, IDS } = req('../api/_style.js');
 
 const ENV = { TELEGRAM_BOT_TOKEN: 'T', TELEGRAM_WEBHOOK_SECRET: 's3cret', WELCOME_CHAT_ID: '-100123', WELCOME_OWNER_IDS: '42, 43', WELCOME_VIDEO_URL: 'https://example.test/w.mp4' };
 const H = { 'x-telegram-bot-api-secret-token': 's3cret' };
@@ -24,8 +26,8 @@ test('someone joining the group gets the welcome with the video and buttons, nam
   assert.equal(t.calls.length, 1); assert.equal(t.calls[0].method, 'sendVideo');
   const b = t.calls[0].body;
   assert.equal(b.chat_id, -100123); assert.equal(b.video, ENV.WELCOME_VIDEO_URL); assert.equal(b.parse_mode, 'HTML');
-  assert.match(b.caption, /Ana/); assert.match(b.caption, /WARHEADZ/); assert.match(b.caption, /Vyre Bad Lands/);
-  assert.ok(b.caption.length <= 1024, 'a video caption may not pass 1024 characters');
+  assert.match(b.caption, /Ana/); assert.match(b.caption, /WARHEADZ/); assert.match(b.caption, /BAD LANDS/);
+  assert.ok(visibleLength(b.caption) <= 1024, 'a video caption may not pass 1024 characters once it is read');
   assert.ok(b.reply_markup.inline_keyboard.flat().every((x) => x.url.startsWith('https://')));
 });
 
@@ -34,7 +36,7 @@ test('without a video, or when Telegram will not take the video, the same welcom
   assert.deepEqual(a.calls.map((c) => c.method), ['sendMessage']);
   _reset();
   const b = tg(['sendVideo']), r = await handle(H, join(), ENV, b.fetch);
-  assert.deepEqual(b.calls.map((c) => c.method), ['sendVideo', 'sendMessage']); assert.equal(r.sent, true);
+  assert.deepEqual(b.calls.map((c) => c.method), ['sendVideo', 'sendVideo', 'sendMessage']); assert.equal(r.sent, true, 'rich video, plain video, then rich text');
 });
 
 test('nobody is welcomed for leaving, being a bot, a different group, or already being in', async () => {
@@ -152,4 +154,37 @@ test('the hype lines promise nothing about money, prices or winnings', async () 
   const { LINES } = (await import('node:module')).createRequire(import.meta.url)('../api/_hype.js');
   for (const l of LINES) assert.ok(!/\b(win|profit|earn|price|moon|airdrop|invest|pump|\$)/i.test(l), l);
   assert.ok(LINES.length >= 10);
+});
+
+// ---- how it looks ----
+test('the welcome is dressed up: animated emoji from our set, green, blue and red buttons with icons, quote blocks, and it still fits a caption for any name', () => {
+  const { text, keyboard } = welcomeFor({ id: 1, first_name: 'x'.repeat(200) });
+  const emoji = [...text.matchAll(/<tg-emoji emoji-id="(\d+)">/g)].map((m) => m[1]);
+  assert.ok(emoji.length >= 10, `${emoji.length} animated emoji`);
+  assert.ok(emoji.every((id) => Object.values(IDS).includes(id)), 'only ids of our own emoji');
+  assert.ok((text.match(/<blockquote>/g) || []).length >= 3);
+  const buttons = keyboard.inline_keyboard.flat();
+  assert.ok(buttons.some((b) => b.style === 'success') && buttons.some((b) => b.style === 'primary'));
+  assert.ok(buttons.filter((b) => b.icon_custom_emoji_id).every((b) => Object.values(IDS).includes(b.icon_custom_emoji_id)));
+  assert.ok(visibleLength(text) <= 1024);
+  for (const id of ['coin', 'frog', 'bulldog', 'ape', 'raccoon', 'medkit', 'crate', 'ammo', 'barrel', 'sniper', 'rifle', 'smg', 'lmg']) assert.match(IDS[id], /^\d{15,}$/);
+});
+
+test('when Telegram refuses the dressed-up version, the same words go out plain, without custom emoji, colours or icons', async () => {
+  const calls = [];
+  const fetch = async (url, init) => { const body = JSON.parse(init.body); const method = url.split('/').pop(); if (method === 'getChatMemberCount') return { json: async () => ({ ok: true, result: 16 }) }; calls.push({ method, body }); const rich = JSON.stringify(body).includes('tg-emoji') || JSON.stringify(body).includes('"style"'); return { json: async () => ({ ok: !rich }) }; };
+  const r = await handle(H, join(), { ...ENV, WELCOME_VIDEO_URL: '' }, fetch);
+  assert.equal(r.sent, true); assert.equal(calls.length, 2);
+  const plain = calls[1].body;
+  assert.ok(!plain.text.includes('tg-emoji')); assert.match(plain.text, /🪙/);
+  assert.ok(plain.reply_markup.inline_keyboard.flat().every((b) => !('style' in b) && !('icon_custom_emoji_id' in b) && b.url.startsWith('https://')));
+});
+
+test('hype posts use the animated emoji and coloured buttons too', async () => {
+  const t = tg();
+  await handle(H, say('/play'), ENV, t.fetch, 1_000); await handle(H, say('/lfg dust?'), ENV, t.fetch, 2_000); await handle(H, say('/hype'), ENV, t.fetch, 3_000, always);
+  for (const c of t.calls) assert.match(c.body.text, /<tg-emoji emoji-id="\d+">/);
+  assert.ok(t.calls[0].body.reply_markup.inline_keyboard.flat().some((b) => b.style === 'success'));
+  assert.ok(t.calls[1].body.reply_markup.inline_keyboard.flat().some((b) => b.style === 'danger'));
+  assert.match(t.calls[2].body.text, /<blockquote>/);
 });
