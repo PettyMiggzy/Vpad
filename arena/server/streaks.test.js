@@ -136,3 +136,20 @@ test('a bot with nobody in sight heads for a landed crate and takes its gun', ()
   for (let i = 0; i < 60 * 14 && bot.primary !== 'lmg'; i++) { foe.x = 9000; foe.y = 2000; foe.hp = foe.hpMax; m.step(1 / 60); }
   assert.equal(bot.primary, 'lmg');
 });
+
+test('the tenth kill gives juggernaut armour (extra health, healed to it) until you go down; it does not carry into the next life', () => {
+  const [m, a, f] = world();
+  streakTo(m, a, f, 9); assert.equal(a.hpMax, a.hpBase);
+  a.hp = 30; streakTo(m, a, f, 1);
+  assert.equal(a.hpMax, a.hpBase + 75); assert.equal(a.hp, a.hpMax); assert.ok(kinds(m).includes('juggernaut'));
+  assert.equal(m.snapshot().p.find((r) => r[0] === 'a')[19], a.hpBase + 75, 'the snapshot carries the real maximum');
+  m.kill(f[0], a); assert.equal(a.hpMax, a.hpBase);
+  m.spawn(a); assert.equal(a.hp, a.hpBase);
+});
+
+test('the twelfth kill is a barrage: shells on up to five of the nearest enemies', () => {
+  const [m, a, f] = world(6);
+  streakTo(m, a, f, 11); const before = m.nades.length; m.events.length = 0;
+  streakTo(m, a, f, 1);
+  assert.equal(m.nades.length - before, 5); assert.ok(kinds(m).includes('barrage'));
+});

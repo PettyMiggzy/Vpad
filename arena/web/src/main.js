@@ -13,6 +13,7 @@ import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, S
 import { freshProfile, sanitize, award, teamNames, gainXp, level as playerLevel } from './profile.ts';
 import { XP } from '../../server/progress.js';
 import { PICK } from '../../server/pickups.js';
+import { sampleHist } from './replay.js';
 import { feelOf, spreadFor } from '../../server/gunfeel.js';
 import { Ui } from './ui.ts';
 import * as sfx from './audio.ts';
@@ -265,9 +266,9 @@ document.addEventListener('pointerlockchange', () => { locked = document.pointer
 document.addEventListener('pointerlockerror', () => { lockFailed = true; locked = false; ui.showPause(false); });
 const turn = (dx, dy) => { vm.turned(dx, dy); look.yaw += dx * 0.0022; look.pitch = Math.max(-1.4, Math.min(1.4, look.pitch + dy * 0.0022)); };
 addEventListener('mousemove', (e) => { if (!playing) return; if (locked) turn(e.movementX, e.movementY); else if (lockFailed && (e.buttons & 1)) turn(e.movementX, e.movementY); });
-addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
+addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive && !skipKillcam()) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
 addEventListener('mouseup', (e) => { if (e.button === 0) fire = false; if (e.button === 2) zoom = false; });
-addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) cycleSpec(1); if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if (e.code === 'KeyE' && playing && !e.repeat) useQueued = true; if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) { if (!skipKillcam()) cycleSpec(1); } if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if (e.code === 'KeyE' && playing && !e.repeat) useQueued = true; if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Tab') showScore = false; });
 addEventListener('blur', () => { keys.clear(); fire = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -349,7 +350,7 @@ function onEvents(evs) {
       if (me && e.victim === me.id) { streak = 0; multi = { n: 0, t: 0 }; }
       if (v) sfx.dieAt(v.x / PX_PER_M, v.y / PX_PER_M, !!(me && e.victim === me.id));
       if (v && v !== me && bloodOn) { bloodHit(v.x / PX_PER_M, v.z + 1.2, v.y / PX_PER_M, 0, 0, !!e.head); stain(v.x / PX_PER_M, v.y / PX_PER_M, 0.9 + Math.random() * 0.3, 26, (Math.random() * 3) | 0); }
-      if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; ui.banner('ELIMINATED', killedBy(e, a), match.objective === 'dm' ? R.RESPAWN * 1000 - 400 : 3200); }
+      if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; pendingKill = a && a.id !== me.id && !e.nade ? { killer: e.by, at: clockT } : null; ui.banner('ELIMINATED', killedBy(e, a), match.objective === 'dm' ? R.RESPAWN * 1000 - 400 : 3200); }
     } else if (e.type === 'melee') {
       const at = match.players.get(e.by), own = !!(me && e.by === me.id);
       sfx.play('knife_swing', { x: e.x / PX_PER_M, z: e.y / PX_PER_M, own, vol: 0.8 });
@@ -362,12 +363,12 @@ function onEvents(evs) {
       const p = match.players.get(e.by); if (p) sfx.play('jump_land', { x: p.x / PX_PER_M, z: p.y / PX_PER_M, own: !!(me && e.by === me.id), vol: 0.7 });
     } else if (e.type === 'streak') {
       const mine = !!(me && e.by === me.id), mate = !!(me && match.players.get(e.by)?.team === me.team);
-      const TEXT = { uav: 'DRONE ONLINE: ENEMIES ON THE MAP', endless: 'BOTTOMLESS AMMO: UNTIL YOU GO DOWN', boost: 'ADRENALINE: FASTER, QUICK RELOAD', resupply: 'RESUPPLY: FULL HEALTH AND GRENADES', mortar: 'MORTAR STRIKE ON THE NEAREST ENEMIES', crate: 'SUPPLY CRATE INBOUND: GRAB IT BEFORE THEY DO' };
-      if (mine) { ui.medal(TEXT[e.kind] || '', e.kind === 'endless' ? '#b8ff3c' : e.kind === 'mortar' ? '#ff9a3c' : e.kind === 'crate' ? '#ffd24a' : '#7fe8ff'); sfx.play('streak', { own: true, vol: 0.7 }); }
+      const TEXT = { uav: 'DRONE ONLINE: ENEMIES ON THE MAP', endless: 'BOTTOMLESS AMMO: UNTIL YOU GO DOWN', boost: 'ADRENALINE: FASTER, QUICK RELOAD', resupply: 'RESUPPLY: FULL HEALTH AND GRENADES', mortar: 'MORTAR STRIKE ON THE NEAREST ENEMIES', crate: 'SUPPLY CRATE INBOUND: GRAB IT BEFORE THEY DO', juggernaut: 'JUGGERNAUT: EXTRA ARMOUR UNTIL YOU GO DOWN', barrage: 'BARRAGE: SHELLS ON FIVE ENEMIES' };
+      if (mine) { ui.medal(TEXT[e.kind] || '', e.kind === 'endless' ? '#b8ff3c' : e.kind === 'mortar' || e.kind === 'barrage' ? '#ff9a3c' : e.kind === 'crate' ? '#ffd24a' : '#7fe8ff'); sfx.play('streak', { own: true, vol: 0.7 }); }
       else if (e.kind === 'uav' && mate) { sfx.play('uav_ping', { own: true, vol: 0.6 }); ui.banner('YOUR TEAM HAS A DRONE', 'enemies show on the map', 1800); }
       else if (e.kind === 'uav') { ui.banner('ENEMY DRONE OVERHEAD', 'they can see you on the map', 1800); }
-      else if (e.kind === 'mortar' && !mate && me && me.alive) { sfx.play('uav_ping', { own: true, vol: 0.8 }); ui.banner('MORTAR INCOMING', 'get out of the open', 2200); }
-      else if (e.kind === 'endless' || e.kind === 'resupply') { const who = match.players.get(e.by); if (who && !mate) ui.feed(`<span style="color:${TEAM_COLORS[who.team]}">${who.name}</span> ${e.kind === 'endless' ? 'has bottomless ammo' : 'resupplied'}`); }
+      else if ((e.kind === 'mortar' || e.kind === 'barrage') && !mate && me && me.alive) { sfx.play('uav_ping', { own: true, vol: 0.8 }); ui.banner(e.kind === 'barrage' ? 'BARRAGE INCOMING' : 'MORTAR INCOMING', 'get out of the open', 2200); }
+      else if (e.kind === 'endless' || e.kind === 'resupply' || e.kind === 'juggernaut') { const who = match.players.get(e.by); if (who && !mate) ui.feed(`<span style="color:${TEAM_COLORS[who.team]}">${who.name}</span> ${e.kind === 'endless' ? 'has bottomless ammo' : e.kind === 'juggernaut' ? 'is a juggernaut' : 'resupplied'}`); }
     } else if (e.type === 'nade') {
       const th = match.players.get(e.by);
       sfx.throwNade(e.x / PX_PER_M, e.y / PX_PER_M, !!(me && e.by === me.id)); if (me && e.by === me.id) vm.throwNade();
@@ -597,12 +598,40 @@ function showPrompt() {
   const w = WEAPONS[g.weapon]?.name ?? g.weapon;
   ui.prompt(g.crate ? `take supply crate: ${w}` : `pick up ${w}`, `swaps with your ${WEAPONS[me.primary ?? me.weapon]?.name ?? 'gun'}`);
 }
+// ---- killcam: the last seconds before you went down, seen through your killer's eyes ----
+const hist = new Map();            // id -> samples { t, x, y, z, aim, pitch, alive, weapon, team, name }, about 30 a second, the last six seconds
+let histT = 0, killcam = null, pendingKill = null, clockT = 0;
+function recordHist(now) {
+  if (killcam || now - histT < 0.033) return;
+  histT = now;
+  for (const p of match.players.values()) {
+    let a = hist.get(p.id); if (!a) { a = []; hist.set(p.id, a); }
+    a.push({ t: now, x: p.x, y: p.y, z: p.z, aim: p.aim, pitch: p.pitch ?? 0, alive: p.alive, weapon: p.weapon, team: p.team, name: p.name });
+    while (a.length > 2 && now - a[0].t > 6) a.shift();
+  }
+  for (const id of [...hist.keys()]) if (!match.players.has(id)) hist.delete(id);
+}
+/** every soldier as they were at time tt, shaped like the live players the page already draws */
+function ghostsAt(tt) {
+  const out = new Map();
+  for (const [id, a] of hist) if (a.length) out.set(id, { id, ...sampleHist(a, tt) });
+  return out;
+}
+function startKillcam() {
+  const a = pendingKill && hist.get(pendingKill.killer);
+  if (!a || !a.length) { pendingKill = null; return; }
+  const dur = match.objective === 'dm' ? 2.2 : 3, to = pendingKill.at, from = Math.max(a[0].t, to - dur), killer = pendingKill.killer;
+  pendingKill = null;
+  if (to - from < 0.6) return;
+  killcam = { killer, from, to, cur: from };
+}
+function skipKillcam() { if (!killcam) return false; killcam = null; if (deathCam) deathCam.t = 2.2; ui.spec(null); return true; }
 // ---- soldiers ----
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
-function syncUnits(dt, t) {
+function syncUnits(dt, t, players = match.players) {
   camera.updateMatrixWorld(); pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(pv);
   const live = new Set();
-  for (const p of match.players.values()) {
+  for (const p of players.values()) {
     live.add(p.id);
     const key = `${p.team}|${p.weapon}`;
     let u = units.get(p.id);
@@ -776,7 +805,12 @@ function frame(now, manual) {
   const alive = !!(me && me.alive);
   if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
   wasAlive = alive;
-  watchFps(raw); syncUnits(dt, t); syncNades(dt, t); syncPickups(dt, t); stepCrates(dt);
+  clockT = t;
+  if (playing && me && !alive && !killcam && pendingKill && deathCam && deathCam.t >= 1.0 && match.phase !== 'matchover') startKillcam();
+  let ghosts = null;
+  if (killcam) { killcam.cur += dt; if (!playing || alive || killcam.cur >= killcam.to) { killcam = null; if (deathCam) deathCam.t = 2.2; } else ghosts = ghostsAt(killcam.cur); }
+  if (playing && me && alive) { pendingKill = null; recordHist(t); }
+  watchFps(raw); syncUnits(dt, t, ghosts || match.players); syncNades(dt, t); syncPickups(dt, t); stepCrates(dt);
   if (playing && me) sfx.setListener(camera.position.x, camera.position.z, alive ? look.yaw : (spectate ? (match.players.get(spectate)?.aim ?? 0) : 0));
 
   // camera
@@ -795,7 +829,12 @@ function frame(now, manual) {
   } else if (playing && me) {
     const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const killer = deathCam ? match.players.get(deathCam.killer) : null;
-    if (deathCam && deathCam.t < 2.2 && match.phase !== 'matchover') {
+    const kg = ghosts && ghosts.get(killcam.killer);
+    if (kg) {
+      place(kg.x / PX_PER_M, kg.z + R.EYE, kg.y / PX_PER_M, kg.aim, -kg.pitch);
+      const ku = units.get(kg.id); if (ku) ku.root.visible = false;
+      ui.spec(`KILLCAM &middot; ${kg.name}`, ui.touch ? '' : 'click or Space to skip');
+    } else if (deathCam && deathCam.t < 2.2 && match.phase !== 'matchover') {
       // the death cam: you drop to the floor where you fell and turn to look at who got you
       deathCam.t += dt;
       const fall = Math.min(1, deathCam.t / 0.45), ey = me.z + R.EYE - (R.EYE - 0.32) * (1 - (1 - fall) ** 2);
@@ -857,7 +896,7 @@ function frame(now, manual) {
       ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       ui.setZone(match.objective === 'zone' && !!match.map.zone, match.zoneP[0], match.zoneP[1], match.zoneIn[0], match.zoneIn[1], TEAM_COLORS);
       if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0, me.reserve ?? 0, !!me.endless);
-      { const st = [[3, 'DRONE'], [4, 'BOTTOMLESS AMMO'], [5, 'ADRENALINE'], [6, 'RESUPPLY'], [7, 'SUPPLY CRATE'], [8, 'MORTAR STRIKE']].find(([k]) => k > streak); ui.streak(me.alive ? streak : 0, st ? st[1] : '', st ? st[0] : 0); }
+      { const st = [[3, 'DRONE'], [4, 'BOTTOMLESS AMMO'], [5, 'ADRENALINE'], [6, 'RESUPPLY'], [7, 'SUPPLY CRATE'], [8, 'MORTAR STRIKE'], [10, 'JUGGERNAUT'], [12, 'BARRAGE']].find(([k]) => k > streak); ui.streak(me.alive ? streak : 0, st ? st[1] : '', st ? st[0] : 0); }
       showPrompt();
     }
     const w = host.clientWidth, h = host.clientHeight;
