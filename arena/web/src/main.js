@@ -298,6 +298,15 @@ const distToSeg = (px, py, pz, ax, ay, az, bx, by, bz) => {
   const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy + (pz - az) * dz) / L2));
   return Math.hypot(px - (ax + dx * t), py - (ay + dy * t), pz - (az + dz * t));
 };
+/** the line under ELIMINATED: who got you, with what, from how far, and how much health they have left */
+function killedBy(e, a) {
+  if (!a || a.id === me?.id) return match.objective === 'dm' ? `back in ${R.RESPAWN} s` : '';
+  const how = e.melee ? 'KNIFE' : e.nade ? 'GRENADE' : (WEAPONS[a.weapon]?.name ?? a.weapon ?? '').toUpperCase();
+  const m = Math.round(Math.hypot(e.x - a.x, e.y - a.y) / PX_PER_M);
+  const bits = [`by ${a.name}`, how, ...(e.melee || e.nade ? [] : [`${m} m`]), ...(e.head ? ['HEADSHOT'] : []), `${Math.max(1, Math.round(a.hp))} HP left`];
+  if (match.objective === 'dm') bits.push(`back in ${R.RESPAWN} s`);
+  return bits.join(' · ');
+}
 function onEvents(evs) {
   for (const e of evs) {
     if (e.type === 'shot') {
@@ -312,6 +321,8 @@ function onEvents(evs) {
         const ix = e.ex / PX_PER_M, iz = e.ey / PX_PER_M;
         sfx.impact(e.ez < 0.15 ? (curMapId === 'dust' ? 'dirt' : 'concrete') : curMapId === 'dust' ? 'concrete' : (e.x + e.y) % 3 < 1.6 ? 'metal' : 'concrete', ix, iz);
       }
+    } else if (e.type === 'crate') {
+      callCrate(e);
     } else if (e.type === 'pickup') {
       sfx.pickup(e.kind, e.x / PX_PER_M, e.y / PX_PER_M, !!(me && e.by === me.id));
       if (me && e.by === me.id) { buzz(20); ui.feed(e.kind === 'med' ? 'MED KIT +50' : e.kind === 'gun' ? `PICKED UP ${(WEAPONS[e.weapon]?.name ?? e.weapon ?? '').toUpperCase()}` : 'AMMO'); }
@@ -338,7 +349,7 @@ function onEvents(evs) {
       if (me && e.victim === me.id) { streak = 0; multi = { n: 0, t: 0 }; }
       if (v) sfx.dieAt(v.x / PX_PER_M, v.y / PX_PER_M, !!(me && e.victim === me.id));
       if (v && v !== me && bloodOn) { bloodHit(v.x / PX_PER_M, v.z + 1.2, v.y / PX_PER_M, 0, 0, !!e.head); stain(v.x / PX_PER_M, v.y / PX_PER_M, 0.9 + Math.random() * 0.3, 26, (Math.random() * 3) | 0); }
-      if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; ui.banner('ELIMINATED', `${a && a.id !== me.id ? `by ${a.name}` : ''}${match.objective === 'dm' ? ` · back in ${R.RESPAWN} s` : ''}`.replace(/^ · /, ''), match.objective === 'dm' ? R.RESPAWN * 1000 - 400 : 2200); }
+      if (me && e.victim === me.id) { ui.flash('vy-hurt'); deathCam = { t: 0, killer: e.by, yaw: look.yaw, pitch: look.pitch }; spectate = null; ui.banner('ELIMINATED', killedBy(e, a), match.objective === 'dm' ? R.RESPAWN * 1000 - 400 : 3200); }
     } else if (e.type === 'melee') {
       const at = match.players.get(e.by), own = !!(me && e.by === me.id);
       sfx.play('knife_swing', { x: e.x / PX_PER_M, z: e.y / PX_PER_M, own, vol: 0.8 });
@@ -351,8 +362,8 @@ function onEvents(evs) {
       const p = match.players.get(e.by); if (p) sfx.play('jump_land', { x: p.x / PX_PER_M, z: p.y / PX_PER_M, own: !!(me && e.by === me.id), vol: 0.7 });
     } else if (e.type === 'streak') {
       const mine = !!(me && e.by === me.id), mate = !!(me && match.players.get(e.by)?.team === me.team);
-      const TEXT = { uav: 'DRONE ONLINE: ENEMIES ON THE MAP', endless: 'BOTTOMLESS AMMO: UNTIL YOU GO DOWN', boost: 'ADRENALINE: FASTER, QUICK RELOAD', resupply: 'RESUPPLY: FULL HEALTH AND GRENADES', mortar: 'MORTAR STRIKE ON THE NEAREST ENEMIES' };
-      if (mine) { ui.medal(TEXT[e.kind] || '', e.kind === 'endless' ? '#b8ff3c' : e.kind === 'mortar' ? '#ff9a3c' : '#7fe8ff'); sfx.play('streak', { own: true, vol: 0.7 }); }
+      const TEXT = { uav: 'DRONE ONLINE: ENEMIES ON THE MAP', endless: 'BOTTOMLESS AMMO: UNTIL YOU GO DOWN', boost: 'ADRENALINE: FASTER, QUICK RELOAD', resupply: 'RESUPPLY: FULL HEALTH AND GRENADES', mortar: 'MORTAR STRIKE ON THE NEAREST ENEMIES', crate: 'SUPPLY CRATE INBOUND: GRAB IT BEFORE THEY DO' };
+      if (mine) { ui.medal(TEXT[e.kind] || '', e.kind === 'endless' ? '#b8ff3c' : e.kind === 'mortar' ? '#ff9a3c' : e.kind === 'crate' ? '#ffd24a' : '#7fe8ff'); sfx.play('streak', { own: true, vol: 0.7 }); }
       else if (e.kind === 'uav' && mate) { sfx.play('uav_ping', { own: true, vol: 0.6 }); ui.banner('YOUR TEAM HAS A DRONE', 'enemies show on the map', 1800); }
       else if (e.kind === 'uav') { ui.banner('ENEMY DRONE OVERHEAD', 'they can see you on the map', 1800); }
       else if (e.kind === 'mortar' && !mate && me && me.alive) { sfx.play('uav_ping', { own: true, vol: 0.8 }); ui.banner('MORTAR INCOMING', 'get out of the open', 2200); }
@@ -499,8 +510,46 @@ const floorMeshes = new Map();
 const FLOOR_COLOR = { ammo: 0xffc23c, med: 0x5cff7a, gun: 0xe8ffb0 };
 const FLOOR_SIZE = { ammo: 0.42, med: 0.4 };       // longest side, metres
 const GUN_FLOOR_LEN = 0.9;
+/** a supply crate: an olive box with a lime band, strapped; the landed one carries a tall beam so it can be found across the map */
+function makeCrateModel(beam) {
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.62, 0.62), new THREE.MeshStandardMaterial({ color: 0x7d8c4c, roughness: 0.65, metalness: 0.2, emissive: 0x1a2208 })); box.position.y = 0.31; box.castShadow = true;
+  const band = new THREE.MeshStandardMaterial({ color: 0xb8ff3c, roughness: 0.5, emissive: 0x4a6a10 });
+  for (const sx of [-0.28, 0.28]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.64, 0.64), band); b.position.set(sx, 0.31, 0); g.add(b); }
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.06, 0.66), new THREE.MeshStandardMaterial({ color: 0x3c4828, roughness: 0.6, metalness: 0.4 })); lid.position.y = 0.65;
+  g.add(box, lid);
+  if (beam) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 34, 8, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd24a).multiplyScalar(1.4), transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); b.position.y = 17; b.userData.beam = true; g.add(b);
+  }
+  return g;
+}
+const fallingCrates = [];
+/** the warning: a flare of coloured smoke at the spot and a crate coming down on a parachute */
+function callCrate(e) {
+  const x = e.x / PX_PER_M, z = e.y / PX_PER_M, mate = !!(me && e.team === me.team);
+  sfx.play('crate_fall', { x, z, own: false, vol: 1 });
+  ui.banner(mate ? 'SUPPLY DROP INBOUND' : 'ENEMY SUPPLY DROP', `${(WEAPONS[e.w]?.name ?? 'a premium gun')} lands in ${Math.round(e.in)} s: first there takes it`, 2600);
+  const crate = makeCrateModel(false), chute = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.9, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0xffd24a, side: THREE.DoubleSide, roughness: 0.8 })); chute.position.y = 3.2; crate.add(chute);
+  const lines = new THREE.Mesh(new THREE.ConeGeometry(0.02, 2.6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff })); lines.position.y = 1.8; crate.add(lines);
+  crate.position.set(x, e.z + 46, z); scene.add(crate);
+  fallingCrates.push({ mesh: crate, t: 0, dur: e.in, x, z, y1: e.z, chute });
+  for (let i = 0; i < 7; i++) {
+    const sm = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, opacity: 0.8, color: new THREE.Color(1.0, 0.85, 0.2) }));
+    sm.position.set(x + (Math.random() - 0.5) * 0.6, e.z + 0.4 + i * 0.5, z + (Math.random() - 0.5) * 0.6); scene.add(sm);
+    fx.push({ mesh: sm, t: 0, life: e.in + 2.5, kind: 'smoke', r: 0.9 + i * 0.25, vy: 0.55 });
+  }
+}
+function stepCrates(dt) {
+  for (let i = fallingCrates.length - 1; i >= 0; i--) {
+    const c = fallingCrates[i]; c.t += dt;
+    const k = Math.min(1, c.t / c.dur); c.mesh.position.y = c.y1 + 46 * (1 - k); c.chute.visible = k < 0.92;
+    c.mesh.rotation.y += dt * 0.6;
+    if (k >= 1) { scene.remove(c.mesh); fallingCrates.splice(i, 1); sfx.play('crate_land', { x: c.x, z: c.z, own: false, vol: 1 }); shake = Math.max(shake, 0.15 / (1 + Math.hypot(c.x - camera.position.x, c.z - camera.position.z) * 0.15)); burst(c.x, c.y1 + 0.3, c.z, 0xcbb890, 14, 3); }
+  }
+}
 function makeFloorItem(q) {
   const o = new THREE.Group(), inner = new THREE.Group();
+  if (q.crate) { inner.add(makeCrateModel(true)); o.add(inner); o.userData = { inner, ring: new THREE.Mesh(new THREE.RingGeometry(0.5, 0.65, 28), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd24a).multiplyScalar(1.8), side: THREE.DoubleSide, transparent: true, opacity: 0.8, toneMapped: false, depthWrite: false })), seed: 0, crate: true }; o.userData.ring.rotation.x = -Math.PI / 2; o.userData.ring.position.y = 0.03; o.add(o.userData.ring); return o; }
   const src = q.kind === 'gun' ? A.gunsLo[q.weapon] : A.floor?.[q.kind === 'med' ? 'medkit' : 'ammo_box'];
   if (src) {
     const g = src.scene.clone(true);
@@ -521,15 +570,16 @@ function syncPickups(dt, t) {
   for (const q of list) {
     live.add(q.id);
     let o = floorMeshes.get(q.id);
-    if (!o || o.userData.kind !== q.kind || o.userData.weapon !== q.weapon) {
+    if (!o || o.userData.kind !== q.kind || o.userData.weapon !== q.weapon || o.userData.isCrate !== !!q.crate) {
       if (o) scene.remove(o);
-      o = makeFloorItem(q); o.userData.kind = q.kind; o.userData.weapon = q.weapon; scene.add(o); floorMeshes.set(q.id, o);
+      o = makeFloorItem(q); o.userData.kind = q.kind; o.userData.weapon = q.weapon; o.userData.isCrate = !!q.crate; scene.add(o); floorMeshes.set(q.id, o);
     }
     const x = q.x / PX_PER_M, z = q.y / PX_PER_M, dx = x - camera.position.x, dz = z - camera.position.z;
-    o.visible = dx * dx + dz * dz < 70 * 70;
+    o.visible = q.crate || dx * dx + dz * dz < 70 * 70;
     if (!o.visible) continue;
     o.position.set(x, q.z, z);
     const u = o.userData;
+    if (u.crate) { u.ring.material.opacity = 0.55 + 0.25 * Math.sin(t * 3); const bm = u.inner.children[0]?.children.find((c) => c.userData.beam); if (bm) bm.visible = dx * dx + dz * dz > 36; continue; }
     u.inner.rotation.y = t * (q.kind === 'gun' ? 1.1 : 0.8) + u.seed;
     u.inner.position.y = 0.08 + Math.sin(t * 2.2 + u.seed) * 0.05;
     u.ring.material.opacity = 0.5 + 0.25 * Math.sin(t * 3 + u.seed);
@@ -545,7 +595,7 @@ function showPrompt() {
   }
   if (!g) { ui.prompt(null); return; }
   const w = WEAPONS[g.weapon]?.name ?? g.weapon;
-  ui.prompt(`pick up ${w}`, `swaps with your ${WEAPONS[me.primary ?? me.weapon]?.name ?? 'gun'}`);
+  ui.prompt(g.crate ? `take supply crate: ${w}` : `pick up ${w}`, `swaps with your ${WEAPONS[me.primary ?? me.weapon]?.name ?? 'gun'}`);
 }
 // ---- soldiers ----
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
@@ -639,7 +689,7 @@ function drawMinimap() {
   g.clearRect(0, 0, W, H); g.drawImage(mapBg, 0, 0);
   const now = performance.now();
   if (match.objective === 'zone' && m.zone) { g.strokeStyle = '#' + zoneColor().toString(16).padStart(6, '0'); g.lineWidth = 4; g.beginPath(); g.arc(m.zone.x * sx, m.zone.y * sy, m.zone.r * sx, 0, 7); g.stroke(); }
-  for (const q of match.pickups?.list || []) { g.fillStyle = q.kind === 'med' ? '#5cff7a' : q.kind === 'ammo' ? '#ffc23c' : '#ffffff'; g.fillRect(q.x * sx - 3, q.y * sy - 3, 6, 6); }
+  for (const q of match.pickups?.list || []) { g.fillStyle = q.crate ? '#ffd24a' : q.kind === 'med' ? '#5cff7a' : q.kind === 'ammo' ? '#ffc23c' : '#ffffff'; const rr = q.crate ? 5 : 3; g.fillRect(q.x * sx - rr, q.y * sy - rr, rr * 2, rr * 2); }
   const drone = me && match.uav[me.team] > 0;
   for (const p of match.players.values()) {
     if (!p.alive || p === me) continue;
@@ -726,7 +776,7 @@ function frame(now, manual) {
   const alive = !!(me && me.alive);
   if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
   wasAlive = alive;
-  watchFps(raw); syncUnits(dt, t); syncNades(dt, t); syncPickups(dt, t);
+  watchFps(raw); syncUnits(dt, t); syncNades(dt, t); syncPickups(dt, t); stepCrates(dt);
   if (playing && me) sfx.setListener(camera.position.x, camera.position.z, alive ? look.yaw : (spectate ? (match.players.get(spectate)?.aim ?? 0) : 0));
 
   // camera
@@ -807,7 +857,7 @@ function frame(now, manual) {
       ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       ui.setZone(match.objective === 'zone' && !!match.map.zone, match.zoneP[0], match.zoneP[1], match.zoneIn[0], match.zoneIn[1], TEAM_COLORS);
       if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0, me.reserve ?? 0, !!me.endless);
-      { const st = [[3, 'DRONE'], [4, 'BOTTOMLESS AMMO'], [5, 'ADRENALINE'], [6, 'RESUPPLY'], [8, 'MORTAR STRIKE']].find(([k]) => k > streak); ui.streak(me.alive ? streak : 0, st ? st[1] : '', st ? st[0] : 0); }
+      { const st = [[3, 'DRONE'], [4, 'BOTTOMLESS AMMO'], [5, 'ADRENALINE'], [6, 'RESUPPLY'], [7, 'SUPPLY CRATE'], [8, 'MORTAR STRIKE']].find(([k]) => k > streak); ui.streak(me.alive ? streak : 0, st ? st[1] : '', st ? st[0] : 0); }
       showPrompt();
     }
     const w = host.clientWidth, h = host.clientHeight;

@@ -115,3 +115,14 @@ test('bottomless ammunition travels with the snapshot', () => {
   m.players.get('p1').endless = false; nm.apply(m.snapshot());
   assert.equal(nm.players.get('p1').endless, false);
 });
+
+test('a supply crate is told apart from a dropped gun, and its call arrives as an event', () => {
+  const m = setup(), nm = new NetMatch(hello(m), teams);
+  nm.apply(m.snapshot());
+  nm.push({ type: 'pk+', id: 9100, k: 'gun', x: 1, y: 2, z: 0, w: 'lmg', c: 1 });
+  nm.push({ type: 'pk+', id: 9101, k: 'gun', x: 3, y: 4, z: 0, w: 'smg' });
+  assert.equal(nm.pickups.list.find((q) => q.id === 9100).crate, true);
+  assert.equal(nm.pickups.list.find((q) => q.id === 9101).crate, false);
+  nm.push({ type: 'crate', by: 'p1', team: 0, x: 5, y: 6, z: 0, w: 'dmr', in: 3.2 });
+  assert.deepEqual(nm.takeEvents().map((e) => e.type), ['crate']);
+});

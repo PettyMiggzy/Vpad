@@ -1,7 +1,7 @@
 // The arena rules, with no network code in them so they can be tested on their own: two teams (one per token), a map with walls, ramps and
 // high decks, hitscan shooting (head, body, cover you can shoot over), grenades, bots that fill empty seats, and rounds (first to two takes the match).
 // Positions are pixels (50 to the metre), heights are metres.
-import { Pickups, startReserve, nearestFor } from './pickups.js';
+import { Pickups, startReserve, nearestFor, nearestCrate } from './pickups.js';
 import { WEAPONS, ARMOR, BOOTS, FREE, GRENADE, OPTICS, MUZZLES, GRIPS, AMMO, HELMETS, KITS, MELEE } from './items.js';
 import { MAPS, STEP } from './maps.js';
 import { Recoil, feelOf, spreadFor, falloff } from './gunfeel.js';
@@ -429,6 +429,7 @@ export class Match {
       if (by.streak === 4) { by.endless = true; this.events.push({ type: 'streak', by: by.id, kind: 'endless' }); }     // bottomless spare ammunition until they go down
       if (by.streak === 5) { by.boostT = R.BOOST_SECONDS; this.events.push({ type: 'streak', by: by.id, kind: 'boost' }); }
       if (by.streak === 6) { by.hp = by.hpMax; by.grenades = Math.min(by.nadeCount + 2, by.grenades + 2); this.events.push({ type: 'streak', by: by.id, kind: 'resupply' }); }
+      if (by.streak === 7) { this.pickups.callCrate(by); this.events.push({ type: 'streak', by: by.id, kind: 'crate' }); }
       if (by.streak === 8) this.mortar(by);
     }
     this.events.push({ type: 'kill', by: by ? by.id : null, victim: victim.id, x: victim.x, y: victim.y, ...extra });
@@ -520,6 +521,8 @@ export class Match {
     this.nades = keep;
   }
 
+  floorHere(x, y) { return floorAt(this.map, x, y); }
+
   /** the eight-kill reward: three shells drop on the three enemies nearest the shooter, a couple of seconds after the warning, so they can run */
   mortar(by) {
     const foes = [...this.players.values()].filter((q) => q.alive && q.team !== by.team).sort((a, b) => Math.hypot(a.x - by.x, a.y - by.y) - Math.hypot(b.x - by.x, b.y - by.y)).slice(0, 3);
@@ -570,6 +573,18 @@ export class Match {
     // short of rounds or health with nobody in sight: go and fetch a box or a kit
     const dryHands = p.ammo + p.reserve < p.magSize * 0.5, drySide = p.stash + p.stashRes < 10;       // both guns nearly empty
     const need = dryHands && drySide ? 'ammo' : p.hp < p.hpMax * 0.45 ? 'med' : null;
+    const crate = !see && p.primary !== 'lmg' ? nearestCrate(this, p, 2600) : null;
+    if (crate && !need) {
+      if (Math.hypot(crate.x - p.x, crate.y - p.y) < 55) inp.use = true;
+      else {
+        b.lootAt = (b.lootAt ?? 0) - dt;
+        if (!b.lootPath || b.lootPath.length === 0 || b.lootAt <= 0 || b.lootFor !== crate.id) { b.lootPath = navPath(this.map, p.x, p.y, p.z, crate.x, crate.y, crate.z); b.lootAt = rnd(0.8, 1.4); b.lootFor = crate.id; }
+        while (b.lootPath.length > 1 && Math.hypot(b.lootPath[0][0] - p.x, b.lootPath[0][1] - p.y) < 26) b.lootPath.shift();
+        const wp = b.lootPath[0] || [crate.x, crate.y], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
+        inp.dx = Math.cos(wa); inp.dy = Math.sin(wa); inp.aim = wa; inp.pitch = 0; inp.sprint = true;
+      }
+      return;
+    }
     if (need && !see) {
       const k = nearestFor(this, p, need, 2400);
       if (k) {

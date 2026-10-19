@@ -14,10 +14,15 @@ export const PICK = {
   ammoMags: 1.5,                      // magazines of the gun in your hands an ammunition box gives (and a magazine for the sidearm)
   startMags: 4, sideMags: 3,          // spare magazines you carry when you come in
   capMags: 6, sideCap: 5,             // and the most you can hold
+  crateDelay: 3.2,                    // seconds from the call to the crate landing
+  crateLife: 45,                      // seconds a landed crate stays (anyone may take it)
   ammoShare: 0.55,                    // chance that a spot comes back as ammunition (the rest are med kits)
 };
 
 /** spare rounds you start with and the most you may hold, for a gun with this magazine */
+/** what a supply crate may hold: the guns that cost the most */
+export const CRATE_GUNS = ['lmg', 'dmr', 'sniper', 'autosg', 'burst'];
+
 export const startReserve = (mag, side) => Math.round(mag * (side ? PICK.sideMags : PICK.startMags));
 export const capReserve = (mag, side) => Math.round(mag * (side ? PICK.sideCap : PICK.capMags));
 
@@ -63,16 +68,16 @@ export function pickupSpots(map) {
 }
 
 export class Pickups {
-  constructor(match) { this.m = match; this.list = []; this.timers = []; this.t = 0; }
+  constructor(match) { this.m = match; this.list = []; this.timers = []; this.drops = []; this.t = 0; }
 
   #add(o) { const p = { id: this.m.nextId++, ...o }; this.list.push(p); this.m.events.push({ type: 'pk+', ...this.wire(p) }); this.m.pkv++; return p; }
   #remove(p, by = null) { this.list = this.list.filter((q) => q !== p); this.m.events.push({ type: 'pk-', id: p.id, by }); this.m.pkv++; }
   /** the short form that goes over the wire */
-  wire(p) { return { id: p.id, k: p.kind, x: Math.round(p.x), y: Math.round(p.y), z: +p.z.toFixed(2), ...(p.weapon ? { w: p.weapon } : {}) }; }
+  wire(p) { return { id: p.id, k: p.kind, x: Math.round(p.x), y: Math.round(p.y), z: +p.z.toFixed(2), ...(p.weapon ? { w: p.weapon } : {}), ...(p.crate ? { c: 1 } : {}) }; }
 
   /** a new round: every spot holds something, no dropped guns */
   reset() {
-    this.list = []; this.timers = []; this.t = 0;
+    this.list = []; this.timers = []; this.drops = []; this.t = 0;
     for (const s of pickupSpots(this.m.map)) this.#fill(s);
     this.m.pkv++;
   }
@@ -84,14 +89,31 @@ export class Pickups {
     const inHand = p.slot === 0;
     this.#dropAt(p.x, p.y, p.z, p.primary, inHand ? p.ammo : p.stash, inHand ? p.reserve : p.stashRes);
   }
+  /** a supply crate called by a streak: a warning now, and a premium gun lies where it lands a few seconds later, for anyone to take */
+  callCrate(by) {
+    const weapon = CRATE_GUNS[Math.floor(Math.random() * CRATE_GUNS.length)];
+    const x = by.x + Math.cos(by.aim) * 90, y = by.y + Math.sin(by.aim) * 90;
+    const cx = Math.max(60, Math.min(this.m.map.w - 60, x)), cy = Math.max(60, Math.min(this.m.map.h - 60, y));
+    const z = this.m.floorHere(cx, cy);
+    this.drops.push({ t: PICK.crateDelay, x: cx, y: cy, z, weapon, by: by.id, team: by.team });
+    this.m.events.push({ type: 'crate', by: by.id, team: by.team, x: Math.round(cx), y: Math.round(cy), z: +z.toFixed(2), w: weapon, in: PICK.crateDelay });
+  }
   #dropAt(x, y, z, weapon, ammo, res) {
-    const guns = this.list.filter((q) => q.kind === 'gun');
+    const guns = this.list.filter((q) => q.kind === 'gun' && !q.crate);
     if (guns.length >= PICK.maxGuns) this.#remove(guns[0]);
     this.#add({ kind: 'gun', x, y, z, weapon, ammo: Math.max(0, ammo | 0), res: Math.max(0, res | 0), until: this.t + PICK.gunLife });
   }
 
   step(dt) {
     this.t += dt;
+    for (const d of this.drops.slice()) {
+      d.t -= dt;
+      if (d.t > 0) continue;
+      this.drops.splice(this.drops.indexOf(d), 1);
+      const guns = this.list.filter((q) => q.kind === 'gun' && !q.crate);
+      if (this.list.filter((q) => q.kind === 'gun').length >= PICK.maxGuns + 2 && guns[0]) this.#remove(guns[0]);
+      this.#add({ kind: 'gun', x: d.x, y: d.y, z: d.z, weapon: d.weapon, ammo: 999, res: 999, crate: true, until: this.t + PICK.crateLife });
+    }
     for (const p of this.list.slice()) if (p.kind === 'gun' && p.until <= this.t) this.#remove(p);
     for (const q of this.timers.slice()) { q.t -= dt; if (q.t <= 0) { this.timers.splice(this.timers.indexOf(q), 1); this.#fill(q.spot); } }
     for (const pl of this.m.players.values()) {
@@ -155,5 +177,12 @@ export class Pickups {
 export function nearestFor(match, pl, kind, maxDist) {
   let best = null, bd = maxDist;
   for (const q of match.pickups.list) { if (q.kind !== kind) continue; const d = Math.hypot(q.x - pl.x, q.y - pl.y); if (d < bd) { best = q; bd = d; } }
+  return best;
+}
+
+/** a landed supply crate within reach of a soldier, or null (bots head for one when nobody is in sight) */
+export function nearestCrate(match, pl, maxDist) {
+  let best = null, bd = maxDist;
+  for (const q of match.pickups.list) { if (!q.crate) continue; const d = Math.hypot(q.x - pl.x, q.y - pl.y); if (d < bd) { best = q; bd = d; } }
   return best;
 }

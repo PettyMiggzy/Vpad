@@ -108,7 +108,7 @@ test('whoever goes down drops their gun with what is left in it; the free pistol
   // the gun in the primary slot drops even while the sidearm is in hand
   const [m3, d] = world({ weapon: 'sniper' }); m3.swapSlot(d); m3.kill(null, d);
   assert.equal(m3.pickups.list.find((p) => p.kind === 'gun').weapon, 'sniper');
-  for (let i = 0; i < 20; i++) { const [mm, e] = [m, m.players.get('a')]; e.alive = true; e.primary = 'rifle'; m.kill(b, e); }
+  for (let i = 0; i < 20; i++) { const [mm, e] = [m, m.players.get('a')]; e.alive = true; e.primary = 'rifle'; b.streak = 0; m.kill(b, e); }
   assert.ok(m.pickups.list.filter((p) => p.kind === 'gun').length <= PICK.maxGuns);
   tick(m, 60 * 29); assert.ok(m.pickups.list.some((p) => p.kind === 'gun'));
   tick(m, 60 * 2); assert.equal(m.pickups.list.filter((p) => p.kind === 'gun').length, 0, 'gone after 30 seconds');

@@ -8,7 +8,7 @@ import { Recoil, feelOf } from '../../server/gunfeel.js';
 const blank = () => ({ dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false });
 
 /** a thing on the floor, from the short form that goes over the wire */
-const floorItem = (w) => ({ id: w.id, kind: w.k, x: w.x, y: w.y, z: w.z, weapon: w.w });
+const floorItem = (w) => ({ id: w.id, kind: w.k, x: w.x, y: w.y, z: w.z, weapon: w.w, crate: !!w.c });
 
 export class NetMatch {
   constructor(hello, teams) {

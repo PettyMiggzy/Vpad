@@ -97,3 +97,42 @@ test('whole matches of bots: bottomless ammunition and shells come and go and no
     assert.ok(got.size >= 1, `${id}: ${[...got]}`);
   }
 });
+
+test('the seventh kill calls a supply crate: a warning at once, a premium gun lying there a few seconds later, for anyone to take, gone after 45 seconds', () => {
+  const [m, a, f] = world();
+  streakTo(m, a, f, 6); m.events.length = 0;
+  streakTo(m, a, f, 1);
+  const call = m.events.find((e) => e.type === 'crate');
+  assert.ok(call && ['lmg', 'dmr', 'sniper', 'autosg', 'burst'].includes(call.w) && call.in > 3, 'the warning names the spot and the time');
+  assert.ok(kinds(m).includes('crate'));
+  assert.equal(m.pickups.list.filter((p) => p.crate).length, 0, 'nothing has landed yet');
+  for (let i = 0; i < 60 * 2; i++) m.step(1 / 60); assert.equal(m.pickups.list.filter((p) => p.crate).length, 0, 'still falling');
+  for (let i = 0; i < 60 * 2; i++) m.step(1 / 60);
+  const c = m.pickups.list.find((p) => p.crate);
+  assert.ok(c && c.weapon === call.w && Math.abs(c.x - call.x) <= 1 && Math.abs(c.y - call.y) <= 1, 'it landed where it was called');
+  assert.equal(m.pickups.wire(c).c, 1, 'the page can tell a crate from a dropped gun');
+  // the other team can take it too
+  const thief = f[0]; Object.assign(thief, { x: c.x + 20, y: c.y, z: c.z, alive: true, hp: 100 }); thief.input.use = true; m.step(1 / 60);
+  assert.equal(thief.primary, call.w); assert.equal(thief.ammo, thief.magSize); assert.ok(thief.reserve > 0);
+  assert.ok(!m.pickups.list.some((p) => p.crate && p.weapon === call.w && p.x === c.x && p.id === c.id));
+});
+
+test('an untaken crate is gone after its time, and a new round clears a crate that has not landed', () => {
+  const [m, a, f] = world();
+  streakTo(m, a, f, 7); for (let i = 0; i < 60 * 4; i++) m.step(1 / 60);
+  assert.equal(m.pickups.list.filter((p) => p.crate).length, 1);
+  for (let i = 0; i < 60 * 46; i++) m.step(1 / 60); assert.equal(m.pickups.list.filter((p) => p.crate).length, 0);
+  const [m2, b, g] = world(); streakTo(m2, b, g, 7); m2.startRound(); for (let i = 0; i < 60 * 5; i++) m2.step(1 / 60);
+  assert.equal(m2.pickups.list.filter((p) => p.crate).length, 0);
+});
+
+test('a bot with nobody in sight heads for a landed crate and takes its gun', () => {
+  const m = new Match({ teams: T, perSide: 1, bots: true, map: 'cargo' });
+  m.map = { ...m.map, solids: [{ kind: 'wall', x: 3000, y: 0, w: 60, h: 4000, top: 5, walk: false }], ramps: [], _pickupSpots: undefined };
+  m.startRound(); m.phase = 'live'; m.timer = 600; m.pickups.list = []; m.pickups.timers = [];
+  const bot = [...m.players.values()].find((p) => p.bot && p.team === 0), foe = [...m.players.values()].find((p) => p.team === 1);
+  Object.assign(bot, { x: 800, y: 2000, z: 0 }); Object.assign(foe, { x: 9000, y: 2000, z: 0 });
+  m.pickups.drops.push({ t: 0.01, x: 800, y: 2600, z: 0, weapon: 'lmg' });
+  for (let i = 0; i < 60 * 14 && bot.primary !== 'lmg'; i++) { foe.x = 9000; foe.y = 2000; foe.hp = foe.hpMax; m.step(1 / 60); }
+  assert.equal(bot.primary, 'lmg');
+});
