@@ -1,4 +1,4 @@
-// The top of the home page: King of the Bad Lands (the launch with the most USDC traded in the last six hours) with its price,
+// The top of the home page: King of the Bad Lands (the launch the most different wallets bought in the last six hours) with its price,
 // volume, holders and recent price; the contenders, the next four by the same measure; and the top four by USDC in
 // their pools.
 import { change, iso, price, tokenText, usd, usdOf } from '../lib/format';
@@ -41,7 +41,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
     <section className="koth" aria-labelledby="koth-title">
       <div className="koth-head">
         <h2 id="koth-title" className="koth-title"><Crown />King of the Bad Lands</h2>
-        <span className="muted small">Most volume, last {KING_WINDOW_TEXT}</span>
+        <span className="muted small">Bought by the most wallets, last {KING_WINDOW_TEXT}</span>
       </div>
       {king ? (
         <a className="koth-king" href={href({ page: 'token', token: king.token })}>
@@ -57,6 +57,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
           {ks && <RecentChart points={ks.trend} label={`${iso(king.symbol)}'s recent price, from ${price(ks.trend[0])} to ${price(ks.trend[ks.trend.length - 1])}`} />}
           <dl className="koth-stats">
             <div><dt>Price</dt><dd>{king.market ? price(king.market.price) : '—'}</dd></div>
+            <div><dt>Buyers, 6h</dt><dd>{ks?.buyers6h != null ? ks.buyers6h.toLocaleString('en-US') : '—'}</dd></div>
             <div><dt>6h volume</dt><dd>{ks?.volume6h != null ? usdOf(ks.volume6h) : '—'}</dd></div>
             <div><dt>24h volume</dt><dd>{ks?.volume24 != null ? usdOf(ks.volume24) : '—'}</dd></div>
             <div><dt>Holders</dt><dd>{h == null ? '—' : h.toLocaleString('en-US')}</dd></div>
@@ -65,7 +66,7 @@ export function KingCard({ king, stats, holders, status }: { king: Listed | null
       ) : status !== 'ok' ? (
         <p className="koth-empty">{pending(status)}</p>
       ) : (
-        <p className="koth-empty">No king right now. The token with the most USDC traded in the next {KING_WINDOW_TEXT} takes the crown.</p>
+        <p className="koth-empty">No king right now. The token bought by the most different wallets in the next {KING_WINDOW_TEXT} takes the crown (at least three buyers).</p>
       )}
     </section>
   );
@@ -90,7 +91,7 @@ export function Contenders({ rows, stats, status }: { rows: Listed[]; stats: Map
                 <TokenPic uri={c.metadataURI} symbol={c.symbol} token={c.token} size={46} />
                 <span className="grow sym"><bdi>{tokenText(c.symbol)}</bdi></span>
                 <span className="right">
-                  <span className="block">{s?.volume6h != null ? usdOf(s.volume6h) : '—'} <span className="muted small">6h vol</span></span>
+                  <span className="block">{s?.buyers6h != null ? s.buyers6h.toLocaleString('en-US') : '—'} <span className="muted small">buyers, 6h</span></span>
                   {ch && <span className="block"><span className={ch.cls}>{ch.text}</span> <span className="muted small">24h</span></span>}
                 </span>
                 <span className="muted go" aria-hidden="true">↗</span>

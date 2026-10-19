@@ -7,7 +7,7 @@ import { inPieces, LOG_LIST_MAX, pagedLogs } from './pieces';
 import { isQuoteToken0, vyreTokenAbi } from '@vyrechain/sdk';
 import { EXPLORER, vyre } from './chain';
 import { addresses, priceFrom, swapEvent, type Listed } from './market';
-import { KING_WINDOW } from './king';
+import { KING_WINDOW, breadthScore } from './king';
 
 const DAY = 86_400;
 export const launchCreated = parseAbiItem(
@@ -31,8 +31,12 @@ export interface Stats {
    * The creator's first buy is part of the launch, so it's left out of this and of change24.
    */
   volume24: bigint | null;
-  /** The same for the last six hours (the window the crown is judged over); null if the window can't be dated */
+  /** The same for the last six hours; null if the window can't be dated */
   volume6h: bigint | null;
+  /** What the crown is judged on: how many different wallets bought in the last six hours (see king.ts); null if the window can't be dated */
+  kingScore: bigint | null;
+  /** How many different wallets bought in the last six hours (the creator's own wallet left out); null if the window can't be dated */
+  buyers6h: number | null;
   /** Price change over the last 24 hours, in percent (for younger launches, from the price after the launch
    * transaction, its first buy included) */
   change24: number | null;
@@ -101,10 +105,12 @@ export async function loadStats(list: Listed[]): Promise<Map<Address, Stats>> {
   for (const x of openedPieces) opened.push(...x);
   const openPrice = new Map<string, number>();
   const launchTx = new Map<string, string>();
+  const creatorOf = new Map<string, string>();
   for (const e of opened) {
     if (!e.args.pool || !e.args.sqrtPriceX96) continue;
     openPrice.set(e.args.pool.toLowerCase(), priceFrom(e.args.sqrtPriceX96, q0.get(e.args.pool.toLowerCase()) ?? false));
     launchTx.set(e.args.pool.toLowerCase(), e.transactionHash);
+    if (e.args.creator) creatorOf.set(e.args.pool.toLowerCase(), e.args.creator.toLowerCase());
   }
   const byPool = new Map<string, typeof swaps>();
   for (const g of swaps) {
@@ -125,6 +131,9 @@ export async function loadStats(list: Listed[]): Promise<Map<Address, Stats>> {
     const created = launchTx.get(k);
     let volume24: bigint | null = before === null ? null : 0n;
     let volume6h: bigint | null = before6h === null ? null : 0n;
+    // what each wallet bought in the six hours (the creator's own wallet and the launch itself left out)
+    const bought6h = new Map<string, bigint>();
+    const creator = creatorOf.get(k);
     // where the day's change is counted from: the price going into the day, or for a younger launch the price after
     // its launch transaction (the creator's own first buy is part of the launch, not a trade of the day)
     let startPrice = p0;
@@ -144,7 +153,11 @@ export async function loadStats(list: Listed[]): Promise<Map<Address, Stats>> {
       if (before !== null && g.blockNumber <= before) { if (p > 0) startPrice = p; continue; }
       const q = (quoteIs0 ? g.args.amount0 : g.args.amount1) ?? 0n;
       if (volume24 !== null) volume24 += q < 0n ? -q : q;
-      if (volume6h !== null && g.blockNumber > before6h!) volume6h += q < 0n ? -q : q;
+      if (volume6h !== null && g.blockNumber > before6h!) {
+        volume6h += q < 0n ? -q : q;
+        const buyer = g.args.recipient?.toLowerCase();
+        if (q > 0n && buyer && buyer !== creator) bought6h.set(buyer, (bought6h.get(buyer) ?? 0n) + q);
+      }
       if (p > 0) recent.push(p);
     }
     const raised = usdcIn(supply, p0, current);
@@ -152,6 +165,8 @@ export async function loadStats(list: Listed[]): Promise<Map<Address, Stats>> {
     out.set(l.pool, {
       volume24,
       volume6h,
+      kingScore: before6h === null ? null : breadthScore(bought6h),
+      buyers6h: before6h === null ? null : bought6h.size,
       change24: before === null ? null : startPrice > 0 ? (current / startPrice - 1) * 100 : 0,
       // the day's prices; with no trade in the day, a flat line at the price (it didn't move)
       trend: thin(recent.length ? [startPrice, ...recent, current] : [current, current]),

@@ -8,7 +8,7 @@ import { oneAtATime, vyre } from '../lib/chain';
 import { ago, change, price, searchTerm, tokenText, usd, usdOf } from '../lib/format';
 import { listLaunches, marketOf, type Listed } from '../lib/market';
 import { loadHolders, loadStats, MILESTONE_TEXT, type Stats } from '../lib/stats';
-import { CONTENDERS, rankByVolume } from '../lib/king';
+import { CONTENDERS, rankByScore } from '../lib/king';
 import { href } from '../lib/router';
 import { Loading, TokenPic } from '../components/ui';
 import Spark from '../components/Spark';
@@ -125,8 +125,8 @@ export default function Explore({ q = '' }: { q?: string }) {
   const cap = (l: Listed) => l.market?.marketCap ?? 0;
   const top = useMemo(() => {
     if (!list) return { king: null, contenders: [], byLiquidity: [] };
-    // the king is the launch with the most USDC traded in the last six hours, and the next few are chasing the crown
-    const ranked = rankByVolume(list, stats);
+    // the king is the launch the most different wallets bought in the last six hours (king.ts), and the next few are chasing the crown
+    const ranked = rankByScore(list, stats);
     const king = ranked[0] ?? null;
     const contenders = ranked.slice(1, 1 + CONTENDERS);
     // by the USDC in each pool: a market cap alone is a number its creator picked at launch
