@@ -30,6 +30,8 @@ Only trades in the token's WARHEADZ pad pool produce income for its chest. Trade
 
 ## Open points (owner, lawyer)
 
+- Whose money the chest is. The pad belongs to a separate person, and the chest is a share of the pad's own income, so the pad's owner must agree, in writing, to send that share to the chests. It is his choice, not the chain owner's.
+
 - Which token is burned for upgrades (the game's own token is the plan) and its name.
 - The chest's share: 10% of what, exactly. Either 10% of the owner's 1% platform fee on that token's trades (0.1% of volume), or something larger added on top. The owner is to give it in numbers for a 1,000 USDC fee.
 - Whether a buyback of the winner's token, paid from a chest filled by the pad's income, needs anything from the lawyer; and whether burning a launched token for items does.
