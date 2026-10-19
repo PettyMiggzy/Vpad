@@ -7,7 +7,7 @@ const ENV = { TELEGRAM_BOT_TOKEN: 'T', TELEGRAM_WEBHOOK_SECRET: 's3cret', WELCOM
 const H = { 'x-telegram-bot-api-secret-token': 's3cret' };
 const join = (over = {}) => ({ chat_member: { chat: { id: -100123 }, date: 1000, old_chat_member: { status: 'left' }, new_chat_member: { status: 'member', user: { id: 7, first_name: 'Ana' } }, ...over } });
 /** a stand-in Telegram: records each call, and can refuse a method */
-const tg = (fail = []) => { const calls = []; return { calls, fetch: async (url, init) => { const method = url.split('/').pop(); calls.push({ method, body: JSON.parse(init.body) }); return { json: async () => ({ ok: !fail.includes(method) }) }; } }; };
+const tg = (fail = [], members = 16) => { const calls = [], asks = []; return { calls, asks, fetch: async (url, init) => { const method = url.split('/').pop(); const body = JSON.parse(init.body); if (method === 'getChatMemberCount') { asks.push(body); return { json: async () => ({ ok: true, result: members }) }; } calls.push({ method, body }); return { json: async () => ({ ok: !fail.includes(method) }) }; } }; };
 test.beforeEach(() => _reset());
 
 test('a request without the right secret is refused and sends nothing', async () => {
@@ -90,4 +90,66 @@ test('a Telegram failure never turns into a retry storm', async () => {
   const boom = async () => { throw new Error('network'); };
   const r = await handle(H, join(), ENV, boom);
   assert.equal(r.status, 200); assert.equal(r.sent, false);
+});
+
+// ---- group hype ----
+const say = (text, over = {}) => ({ message: { message_id: 5, text, from: { id: 7, first_name: 'Ana' }, chat: { id: -100123, type: 'supergroup' }, ...over } });
+const always = () => 0, never = () => 0.99;
+
+test('reaching a member milestone posts a hype line after the welcome; other counts do not', async () => {
+  for (const n of [25, 50, 75, 100, 150, 1000, 1250]) {
+    _reset(); const t = tg([], n);
+    await handle(H, join(), ENV, t.fetch);
+    assert.deepEqual(t.calls.map((c) => c.method), ['sendVideo', 'sendMessage'], `milestone ${n}`);
+    assert.match(t.calls[1].body.text, new RegExp(String(n)));
+  }
+  for (const n of [16, 24, 26, 99, 101, 1001, 1100]) {
+    _reset(); const t = tg([], n); await handle(H, join(), ENV, t.fetch);
+    assert.deepEqual(t.calls.map((c) => c.method), ['sendVideo'], `no milestone at ${n}`);
+  }
+  _reset(); const off = tg([], 50); await handle(H, join(), { ...ENV, HYPE: 'off' }, off.fetch);
+  assert.deepEqual(off.calls.map((c) => c.method), ['sendVideo'], 'hype off: welcome only');
+});
+
+test('/hype, /play, /stickers and /lfg answer in the group with a button, and pause so nobody can spam them', async () => {
+  const t = tg();
+  assert.equal((await handle(H, say('/hype'), ENV, t.fetch, 1_000, always)).sent, true);
+  assert.equal((await handle(H, say('/hype'), ENV, t.fetch, 5_000, always)).sent, false, 'inside the pause');
+  assert.equal((await handle(H, say('/hype'), ENV, t.fetch, 30_000, always)).sent, true, 'after the pause');
+  assert.equal((await handle(H, say('/play'), ENV, t.fetch, 31_000)).sent, true);
+  assert.equal((await handle(H, say('/stickers@warheadzsbot'), ENV, t.fetch, 32_000)).sent, true);
+  assert.equal((await handle(H, say('/lfg anyone for dust town?'), ENV, t.fetch, 33_000)).sent, true);
+  const lfg = t.calls.at(-1).body;
+  assert.match(lfg.text, /Ana/); assert.match(lfg.text, /dust town/); assert.ok(lfg.reply_markup.inline_keyboard.flat().every((b) => b.url.startsWith('https://')));
+  assert.equal(t.calls.length, 5);
+});
+
+test('commands meant for another bot, from bots, or in other groups are ignored; markup in an /lfg note is escaped', async () => {
+  const t = tg();
+  assert.equal((await handle(H, say('/hype@SomeOtherBot'), ENV, t.fetch, 1_000)).sent, false);
+  assert.equal((await handle(H, say('/hype', { from: { id: 9, is_bot: true } }), ENV, t.fetch, 2_000)).sent, false);
+  assert.equal((await handle(H, say('/hype', { chat: { id: -555, type: 'supergroup' } }), ENV, t.fetch, 3_000)).sent, false);
+  assert.equal((await handle(H, say('/hype', { chat: { id: 7, type: 'private' } }), ENV, t.fetch, 4_000)).sent, true, 'a private chat with the bot is fine');
+  assert.equal((await handle(H, say('/lfg <b>x</b> & <a href="evil">y</a>'), ENV, t.fetch, 5_000)).sent, true);
+  const body = t.calls.at(-1).body.text;
+  assert.ok(!body.includes('<a href="evil">') && !body.includes('<b>x</b>'));
+  assert.equal((await handle(H, say('/hype'), { ...ENV, HYPE: 'off' }, t.fetch, 90_000)).sent, false);
+});
+
+test('streak talk and screenshots get a reaction now and then, never every message, never commands, never other groups', async () => {
+  const t = tg();
+  assert.equal((await handle(H, say('just hit a 7 kill streak'), ENV, t.fetch, 1, always)).sent, true);
+  const r = t.calls[0];
+  assert.equal(r.method, 'setMessageReaction'); assert.equal(r.body.message_id, 5); assert.equal(r.body.reaction[0].type, 'emoji');
+  assert.equal((await handle(H, say('just hit a 7 kill streak'), ENV, t.fetch, 2, never)).sent, false, 'chance said no');
+  assert.equal((await handle(H, say('good morning everyone'), ENV, t.fetch, 3, always)).sent, false, 'nothing to cheer');
+  assert.equal((await handle(H, say(undefined, { text: undefined, photo: [{ file_id: 'x' }] }), ENV, t.fetch, 4, always)).sent, true, 'a screenshot');
+  assert.equal((await handle(H, say('streak', { chat: { id: -555, type: 'supergroup' } }), ENV, t.fetch, 5, always)).sent, false);
+  assert.equal(t.calls.length, 2);
+});
+
+test('the hype lines promise nothing about money, prices or winnings', async () => {
+  const { LINES } = (await import('node:module')).createRequire(import.meta.url)('../api/_hype.js');
+  for (const l of LINES) assert.ok(!/\b(win|profit|earn|price|moon|airdrop|invest|pump|\$)/i.test(l), l);
+  assert.ok(LINES.length >= 10);
 });

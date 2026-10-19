@@ -1,6 +1,7 @@
 // The group welcome for @warheadzsbot. Telegram posts each update to /api/telegram; this decides what to send.
 // Pure logic: the caller passes the environment and a fetch, so tests run without Telegram.
 const crypto = require('node:crypto');
+const hype = require('./_hype');
 
 const LINKS = {
   play: 'https://play.vyrebadlands.com',
@@ -84,9 +85,9 @@ async function sendWelcome(fetchFn, env, chatId, user) {
 
 /**
  * Handles one update. Returns { status, sent } and never throws: Telegram retries anything that is not a 200, and a retry storm helps nobody.
- * env: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, WELCOME_CHAT_ID, WELCOME_OWNER_IDS (comma list), WELCOME_VIDEO_URL (optional), WELCOME (set to "off" to stop)
+ * env: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, WELCOME_CHAT_ID, WELCOME_OWNER_IDS (comma list), WELCOME_VIDEO_URL (optional), WELCOME and HYPE (each set to "off" to stop that part), BOT_USERNAME (default warheadzsbot)
  */
-async function handle(headers, update, env, fetchFn = fetch, now = Date.now()) {
+async function handle(headers, update, env, fetchFn = fetch, now = Date.now(), rng = Math.random) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) return { status: 503, sent: false };
   if (!sameSecret(headers['x-telegram-bot-api-secret-token'], env.TELEGRAM_WEBHOOK_SECRET)) return { status: 401, sent: false };
   if (!update || typeof update !== 'object') return { status: 200, sent: false };
@@ -98,7 +99,9 @@ async function handle(headers, update, env, fetchFn = fetch, now = Date.now()) {
       if (String(env.WELCOME || '').toLowerCase() === 'off') return { status: 200, sent: false };
       const user = cm.new_chat_member.user;
       if (!firstTime(`${user.id}:${cm.date}`, now) || !allow(now)) return { status: 200, sent: false };
-      return { status: 200, sent: await sendWelcome(fetchFn, env, cm.chat.id, user) };
+      const sent = await sendWelcome(fetchFn, env, cm.chat.id, user);
+      if (sent) await hype.milestone(fetchFn, env, cm.chat.id);
+      return { status: 200, sent };
     }
     // the owner asks for a preview, in a private chat with the bot or in the group
     const m = update.message;
@@ -106,8 +109,9 @@ async function handle(headers, update, env, fetchFn = fetch, now = Date.now()) {
       const here = m.chat && (m.chat.type === 'private' || String(m.chat.id) === String(env.WELCOME_CHAT_ID));
       if (here) return { status: 200, sent: await sendWelcome(fetchFn, env, m.chat.id, m.from) };
     }
+    if (m) return { status: 200, sent: await hype.onMessage(m, env, fetchFn, now, rng) };
   } catch { /* a failed send is not worth a retry storm */ }
   return { status: 200, sent: false };
 }
 
-module.exports = { handle, welcomeFor, isJoin, LINKS, _reset: () => { recent.length = 0; seen.clear(); } };
+module.exports = { handle, welcomeFor, isJoin, LINKS, _reset: () => { recent.length = 0; seen.clear(); hype._reset(); } };
