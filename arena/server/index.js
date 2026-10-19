@@ -58,7 +58,7 @@ const api = (app) => {
   app.post('/api/equip', (req, res) => send(res, equip(String(req.body?.pid || ''), String(req.body?.item || ''))));
 };
 
-const transport = new WebSocketTransport({ maxPayload: 4096 });
+const transport = new WebSocketTransport({ maxPayload: 16384 });
 const server = new Server({ transport, express: api });
 // a and b are the two team names; clients that send the same fixture share a room, and a different map or mode does not
 server.define('match', MatchRoom).filterBy(['a', 'b', 'map', 'mode', 'objective', 'minutes', 'perSide', 'difficulty', 'solo', 'spar']);

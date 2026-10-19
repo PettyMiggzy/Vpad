@@ -138,7 +138,7 @@ export async function connect(url, opts = {}) {
   let lastInput = blankInput();
   let lastSent = 0;
   let pendingSend = false;
-  let snapCb = null, eventCb = null, rosterCb = null, helloCb = null, helloMsg = null, closeCb = null;
+  let snapCb = null, eventCb = null, rosterCb = null, helloCb = null, helloMsg = null, closeCb = null, voiceCb = null;
   const tracks = new Map();
   const log = [];
   let lastFrame = performance.now();
@@ -215,6 +215,7 @@ export async function connect(url, opts = {}) {
   });
   room.onMessage('roster', (list) => { if (rosterCb) rosterCb(list); });
   room.onMessage('probe', (n) => { if (typeof n === 'number') room.send('probe', n); });
+  room.onMessage('v', (m) => { if (voiceCb) voiceCb(m); });
   room.onMessage('snap', (s) => {
     const at = performance.now();
     for (const e of s.ev || []) if (eventCb) eventCb(e);
@@ -269,6 +270,9 @@ export async function connect(url, opts = {}) {
     onEvent(cb) { eventCb = cb; },
     onRoster(cb) { rosterCb = cb; },
     onClose(cb) { closeCb = cb; },
+    /** voice chat: setup messages to and from the server (the sound itself goes between browsers) */
+    onVoice(cb) { voiceCb = cb; },
+    sendVoice(m) { try { room.send('v', m); } catch { /* the room is closing */ } },
     onHello(cb) { helloCb = cb; if (helloMsg) cb(helloMsg); },
     get myId() { return myId; },
     leave() {

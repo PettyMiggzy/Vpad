@@ -27,6 +27,8 @@ export interface UiOptions {
   challengeLive: boolean;
   /** a shop or class action the menu took on this device; a hosted game repeats it on the server */
   onShop?: (op: string, a?: string | number, b?: string) => void;
+  /** voice chat: the channel button on a phone */
+  onVoiceChannel?: () => void;
   leaders: () => LeaderData;
 }
 
@@ -183,6 +185,7 @@ export class Ui {
   knifeTouch = false;
   swapTouch = false;
   useTouch = false;
+  micTouch = false;
   sprintTouch = false;
   easy = true;
   tipsPending = false;
@@ -196,12 +199,12 @@ export class Ui {
 <div id="vy-hud" hidden>
   <div id="vy-hurt"></div>
   <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span data-tn="0">${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span data-tn="1">${b}</span><div class="pips" data-pips="1"></div></div></div>
-  <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun &nbsp;<kbd>E</kbd>pick up a gun<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-streak"></div><div id="vy-prompt"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
+  <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun &nbsp;<kbd>E</kbd>pick up a gun<br><kbd>T</kbd>talk &nbsp;<kbd>Y</kbd>team or near voice &nbsp;<kbd>M</kbd>mute voices<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-voice"></div><div id="vy-streak"></div><div id="vy-prompt"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
   <div id="vy-scopeov"><i><b></b></i></div><div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><b data-ammo style="font-size:26px"></b><br><span data-gun></span><small data-nades></small><small data-coins></small></div>
   <div id="vy-tags"></div>
-  <div id="vy-touch" hidden><div id="vy-pad"><i></i></div><div class="vy-tb" id="vy-scope" role="button" aria-label="scope"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></div><div class="vy-tb" id="vy-jump" role="button" aria-label="jump"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14l6-6 6 6M6 20l6-6 6 6"/></svg></div><div class="vy-tb" id="vy-knife" role="button" aria-label="knife"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19L18 4c.8 3-.3 7-3.5 9.5L9 17z"/><path d="M5 19l3-3"/></svg></div><div class="vy-tb" id="vy-swap" role="button" aria-label="swap"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg></div><div class="vy-tb" id="vy-use" style="display:none" role="button" aria-label="use"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v11M7.5 10L12 14.5 16.5 10M4 19h16"/></svg></div><div class="vy-tb" id="vy-reload" role="button" aria-label="reload"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg></div><div class="vy-tb" id="vy-nade" role="button" aria-label="nade"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="14" r="6"/><path d="M11 8V5h4M15 5l3-2"/></svg></div><div class="vy-tb" id="vy-fire">FIRE</div></div>
+  <div id="vy-touch" hidden><div id="vy-pad"><i></i></div><div class="vy-tb" id="vy-scope" role="button" aria-label="scope"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></div><div class="vy-tb" id="vy-jump" role="button" aria-label="jump"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14l6-6 6 6M6 20l6-6 6 6"/></svg></div><div class="vy-tb" id="vy-knife" role="button" aria-label="knife"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19L18 4c.8 3-.3 7-3.5 9.5L9 17z"/><path d="M5 19l3-3"/></svg></div><div class="vy-tb" id="vy-mic" role="button" aria-label="talk"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div><div class="vy-tb" id="vy-chan" role="button" aria-label="channel">TEAM</div><div class="vy-tb" id="vy-swap" role="button" aria-label="swap"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg></div><div class="vy-tb" id="vy-use" style="display:none" role="button" aria-label="use"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v11M7.5 10L12 14.5 16.5 10M4 19h16"/></svg></div><div class="vy-tb" id="vy-reload" role="button" aria-label="reload"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg></div><div class="vy-tb" id="vy-nade" role="button" aria-label="nade"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="14" r="6"/><path d="M11 8V5h4M15 5l3-2"/></svg></div><div class="vy-tb" id="vy-fire">FIRE</div></div>
 </div>
 <div id="vy-rotate"><div><span class="ph">&#128241;</span>Turn your phone sideways<small>The game plays in landscape.</small></div></div>
 <div id="vy-tips" hidden><div class="card"><h2>HOW TO PLAY ON A PHONE</h2><ul><li><b>Left thumb</b>: move. Push the stick all the way out to sprint.</li><li><b>Right thumb</b>: drag anywhere to look around.</li><li><b>FIRE</b>: the big red button. You can hold it and drag to aim at the same time.</li><li>The small round buttons: up arrows jump, the circle arrow reloads, the crosshair zooms, the round one throws a grenade, the blade is the knife, and the two arrows by your ammo swap to your sidearm.</li><li><b>Easy aim</b> is on: it helps line up your shots and fires when you are on target.</li><li>Tap the scoreboard at the top to see everyone. The II button pauses.</li></ul><button id="vy-tipsok">GOT IT, PLAY</button></div></div>
@@ -247,6 +250,8 @@ export class Ui {
     <select id="vy-diff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select>
     <label>Blood</label>
     <select id="vy-blood"><option value="1">On (clean and realistic)</option><option value="0">Off</option></select>
+    <label>Voice chat (team and nearby players, in hosted matches)</label>
+    <select id="vy-voicepref"><option value="1">On: hear others, press T to talk</option><option value="0">Off: no voice at all</option></select>
     <label>Graphics</label>
     <select id="vy-gfx"><option value="auto">Auto (drops detail if slow)</option><option value="ultra">Ultra (a powerful computer)</option><option value="high">High</option><option value="mid">Medium</option><option value="low">Low (fastest)</option></select>
     <label>Seats per side (humans and bots together)</label>
@@ -258,7 +263,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-sparrow', 'vy-spar', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pid', 'vy-voicepref', 'vy-minrow', 'vy-min', 'vy-sparrow', 'vy-spar', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-voice', 'vy-mic', 'vy-chan', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -283,6 +288,8 @@ export class Ui {
       this.mode = t.dataset.mode === 'challenge' ? 'challenge' : 'practice';
       root.querySelectorAll('.mode').forEach((x) => x.classList.toggle('on', x === t));
     }));
+    try { (this.el['vy-voicepref'] as HTMLSelectElement).value = localStorage.getItem('vyre.arena.voice') === '0' ? '0' : '1'; } catch { /* ignore */ }
+    this.el['vy-voicepref'].addEventListener('change', () => { try { localStorage.setItem('vyre.arena.voice', (this.el['vy-voicepref'] as HTMLSelectElement).value); } catch { /* ignore */ } });
     this.el['vy-obj'].addEventListener('change', () => {
       const v = (this.el['vy-obj'] as HTMLSelectElement).value;
       if (v === 'train') (root.querySelector('.map[data-map="training"]') as HTMLElement | null)?.click();
@@ -476,6 +483,18 @@ export class Ui {
     (this.q('#vy-me .hp i')).style.width = `${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%`;
     this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = (items[gun]?.name ?? gun); this.el['vy-scope'].style.display = this.touch ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : (endless ? `${ammo} / \u221e` : reserve >= 0 ? `${ammo} / ${reserve}` : `${ammo} / ${mag}`); this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
   }
+  /** the voice panel: the channel, whether the microphone is on, and who is talking (names are looked up by the caller) */
+  voice(show: boolean, st?: { mode: string; talking: boolean; denied: boolean; muted: boolean }, talkers: string[] = []): void {
+    const box = this.el['vy-voice'], mic = this.el['vy-mic'], chan = this.el['vy-chan'];
+    box.style.display = show ? 'block' : 'none';
+    if (this.touch) { mic.style.display = show ? 'grid' : 'none'; chan.style.display = show ? 'grid' : 'none'; }
+    if (!show || !st) return;
+    const ch = st.mode === 'team' ? 'TEAM' : 'NEAR';
+    chan.textContent = ch; mic.classList.toggle('on', st.talking);
+    const keys = this.touch ? '' : ' &middot; T talk &middot; Y channel &middot; M mute';
+    const label = st.denied ? 'MIC BLOCKED' : st.muted ? 'VOICES MUTED' : st.talking ? `TALKING TO ${ch}` : `VOICE ${ch}`;
+    box.innerHTML = `<span class="st ${st.talking ? 'talk' : st.denied ? 'deny' : ''}">${label}${keys}</span>${talkers.length ? `<div class="who">${talkers.slice(0, 4).map((n) => `<span>&#128266; ${n.replace(/[<>&]/g, '')}</span>`).join('')}</div>` : ''}`;
+  }
   /** your kill streak and what the next step brings (hidden at zero) */
   streak(n: number, next: string, at: number): void {
     const el = this.el['vy-streak']; if (!el) return;
@@ -528,7 +547,7 @@ export class Ui {
     const pad = this.el['vy-pad'], knob = pad.firstElementChild as HTMLElement, R = 62;
     let mv: { id: number; x0: number; y0: number } | null = null, lk: { id: number; x: number; y: number } | null = null, fp: { id: number; x: number; y: number } | null = null;
     const root = document.body;
-    const SKIP = '#vy-fire,#vy-nade,#vy-reload,#vy-scope,#vy-jump,#vy-knife,#vy-swap,#vy-use,#vy-menubtn,#vy-menu,#vy-pause,#vy-tips,.bar';
+    const SKIP = '#vy-fire,#vy-nade,#vy-reload,#vy-scope,#vy-jump,#vy-knife,#vy-swap,#vy-use,#vy-mic,#vy-chan,#vy-menubtn,#vy-menu,#vy-pause,#vy-tips,.bar';
     root.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest(SKIP)) return;
       if (e.clientX < innerWidth * 0.42 && !mv) { mv = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; pad.classList.add('moved', 'live'); pad.style.left = `${e.clientX}px`; pad.style.top = `${e.clientY}px`; pad.style.bottom = 'auto'; }
@@ -556,6 +575,6 @@ export class Ui {
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); b.classList.add('on'); b.setPointerCapture(e.pointerId); });
       const off = () => { set(false); b.classList.remove('on'); }; b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
     };
-    hold('vy-nade', (v) => { this.nadeTouch = v; }); hold('vy-reload', (v) => { this.reloadTouch = v; }); hold('vy-scope', (v) => { this.zoomTouch = v; }); hold('vy-jump', (v) => { this.jumpTouch = v; }); hold('vy-knife', (v) => { this.knifeTouch = v; }); hold('vy-swap', (v) => { this.swapTouch = v; }); hold('vy-use', (v) => { this.useTouch = v; });
+    hold('vy-nade', (v) => { this.nadeTouch = v; }); hold('vy-reload', (v) => { this.reloadTouch = v; }); hold('vy-scope', (v) => { this.zoomTouch = v; }); hold('vy-jump', (v) => { this.jumpTouch = v; }); hold('vy-knife', (v) => { this.knifeTouch = v; }); hold('vy-swap', (v) => { this.swapTouch = v; }); hold('vy-use', (v) => { this.useTouch = v; }); hold('vy-mic', (v) => { this.micTouch = v; }); this.el['vy-chan'].addEventListener('pointerdown', (e) => { e.preventDefault(); this.o.onVoiceChannel?.(); });
   }
 }

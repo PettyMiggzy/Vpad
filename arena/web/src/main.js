@@ -14,6 +14,7 @@ import { freshProfile, sanitize, award, teamNames, gainXp, level as playerLevel 
 import { XP } from '../../server/progress.js';
 import { PICK } from '../../server/pickups.js';
 import { sampleHist } from './replay.js';
+import { Voice } from './voice.js';
 import { feelOf, spreadFor } from '../../server/gunfeel.js';
 import { Ui } from './ui.ts';
 import * as sfx from './audio.ts';
@@ -160,10 +161,11 @@ let paused = false;
 const srv = serverUrl() && (await reachable(serverUrl())) ? serverUrl() : '';
 const pid = srv ? playerId() : '';
 let netH = null, netInfo = null;
+let voice = null, keyTalk = false, micHeld = false;       // voice chat, only in a hosted match with other people in it
 if (srv) await pullProfile(srv, pid, profile);
 let shopQ = Promise.resolve();
 const onShop = (op, a, b) => { if (srv) shopQ = shopQ.then(() => mirrorShop(srv, pid, profile, op, a, b)).then(() => { save(); if (ui.menuOpen()) ui.renderShop(); }); };
-const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => { paused = false; ui.showPause(false); requestLock(); }, onLeave: () => leave(), challengeLive: !!srv, onShop, leaders: () => lb, onPause: () => { paused = true; ui.showPause(true); }, onScore: () => { showScore = !showScore; } });
+const ui = new Ui({ teamNames: [...names], teamColors: TEAM_COLORS, profile, save, onPlay: (c) => start(c), onResume: () => { paused = false; ui.showPause(false); requestLock(); }, onLeave: () => leave(), challengeLive: !!srv, onShop, leaders: () => lb, onPause: () => { paused = true; ui.showPause(true); }, onVoiceChannel: () => voice?.toggleMode(), onScore: () => { showScore = !showScore; } });
 if (pid) ui.setPid(pid);
 // the website's war hub finds this player by a wallet: a short code from here, signed there. Browser only: the store apps carry no wallet link.
 if (pid && !window.Capacitor?.isNativePlatform?.()) {
@@ -234,12 +236,14 @@ async function startOnline(c) {
   const mine = nm.players.get(h.myId);
   if (!nm.ready || !mine) { void h.leave(); return back('The match did not start. Try again.'); }
   netH = h; netInfo = { sent: 0, key: '', edge: { nade: 0, melee: 0, swap: 0, use: 0 } };
+  startVoice();
   match = nm; me = mine;
   return true;
 }
 function leave() {
   clearBlood();
   void keepAwake(false);
+  stopVoice();
   if (netH) { const h = netH; netH = null; void h.leave(); if (srv) void syncProfile(); }
   playing = false; paused = false; fire = false; zoom = false;
   try { document.exitPointerLock?.(); } catch { /* not locked */ }
@@ -270,8 +274,8 @@ const turn = (dx, dy) => { vm.turned(dx, dy); look.yaw += dx * 0.0022; look.pitc
 addEventListener('mousemove', (e) => { if (!playing) return; if (locked) turn(e.movementX, e.movementY); else if (lockFailed && (e.buttons & 1)) turn(e.movementX, e.movementY); });
 addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive && !skipKillcam()) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
 addEventListener('mouseup', (e) => { if (e.button === 0) fire = false; if (e.button === 2) zoom = false; });
-addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) { if (!skipKillcam()) cycleSpec(1); } if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if (e.code === 'KeyE' && playing && !e.repeat) useQueued = true; if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
-addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Tab') showScore = false; });
+addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) { if (!skipKillcam()) cycleSpec(1); } if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if (e.code === 'KeyE' && playing && !e.repeat) useQueued = true; if (voice && playing && !e.repeat && !ui.menuOpen()) { if (e.code === 'KeyT') keyTalk = true; else if (e.code === 'KeyY') voice.toggleMode(); else if (e.code === 'KeyM') voice.setMuted(!voice.muted); } if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Tab') showScore = false; if (e.code === 'KeyT') keyTalk = false; });
 addEventListener('blur', () => { keys.clear(); fire = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('click', () => { if (playing && !locked && !ui.touch && !lockFailed && !ui.menuOpen() && !ui.tipsOpen()) requestLock(); });
@@ -601,6 +605,26 @@ function showPrompt() {
   const w = WEAPONS[g.weapon]?.name ?? g.weapon;
   ui.prompt(g.crate ? `take supply crate: ${w}` : `pick up ${w}`, `swaps with your ${WEAPONS[me.primary ?? me.weapon]?.name ?? 'gun'}`);
 }
+// ---- voice chat: team channel and near channel, between the browsers of the people in a hosted match ----
+const voiceWanted = () => { try { return localStorage.getItem('vyre.arena.voice') !== '0'; } catch { return true; } };
+function startVoice() {
+  stopVoice();
+  if (!netH || !voiceWanted() || typeof RTCPeerConnection === 'undefined') return;
+  voice = new Voice({
+    send: (msg) => netH?.sendVoice(msg),
+    pos: (id) => { const p = match.players.get(id); return p ? { x: p.x / PX_PER_M, y: p.z + R.EYE, z: p.y / PX_PER_M } : null; },
+    onChange: () => drawVoice(),
+  });
+  netH.onVoice((msg) => voice?.handle(msg));
+  drawVoice();
+}
+function stopVoice() { if (voice) { voice.dispose(); voice = null; } keyTalk = false; micHeld = false; ui.voice(false); }
+function drawVoice() {
+  if (!voice) { ui.voice(false); return; }
+  const st = voice.status();
+  ui.voice(true, st, st.speakers.map((id) => match.players.get(id)?.name).filter(Boolean));
+}
+const wantTalk = () => (keyTalk || ui.micTouch) && playing && !paused;
 // ---- killcam: the last seconds before you went down, seen through your killer's eyes ----
 const hist = new Map();            // id -> samples { t, x, y, z, aim, pitch, alive, weapon, team, name }, about 30 a second, the last six seconds
 let histT = 0, killcam = null, pendingKill = null, clockT = 0;
@@ -630,6 +654,7 @@ function startKillcam() {
 }
 function skipKillcam() { if (!killcam) return false; killcam = null; if (deathCam) deathCam.t = 2.2; ui.spec(null); return true; }
 // ---- soldiers ----
+const vdir = new THREE.Vector3();
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
 function syncUnits(dt, t, players = match.players) {
   camera.updateMatrixWorld(); pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(pv);
@@ -779,7 +804,7 @@ function draw() {
 }
 let acc = 0, last = performance.now(), fov = FOV;
 const NO_RC = { p: 0, y: 0, bloom: 0 };
-window.__arena = { advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
+window.__arena = { get voice() { return voice; }, advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
 let manualClock = false;   // set by the film tools: frames are then only drawn when asked for, with a fixed step
 function frame(now, manual) {
@@ -809,6 +834,12 @@ function frame(now, manual) {
   if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
   wasAlive = alive;
   clockT = t;
+  if (voice) {
+    const w = wantTalk();
+    if (w !== micHeld) { micHeld = w; void voice.talk(w); }
+    camera.getWorldDirection(vdir);
+    voice.tick({ x: camera.position.x, y: camera.position.y, z: camera.position.z }, vdir, now);
+  }
   if (playing && me && !alive && !killcam && pendingKill && deathCam && deathCam.t >= 1.0 && match.phase !== 'matchover') startKillcam();
   let ghosts = null;
   if (killcam) { killcam.cur += dt; if (!playing || alive || killcam.cur >= killcam.to) { killcam = null; if (deathCam) deathCam.t = 2.2; } else ghosts = ghostsAt(killcam.cur); }
@@ -908,7 +939,7 @@ function frame(now, manual) {
       const mate = me && p.team === me.team && p.alive;
       let sx = 0, sy = 0, show = false;
       if (mate) { v3.set(p.x / PX_PER_M, p.z + UNIT_H + 0.75, p.y / PX_PER_M).project(camera); if (v3.z < 1 && Math.abs(v3.x) < 1.1) { sx = (v3.x * 0.5 + 0.5) * w; sy = (-v3.y * 0.5 + 0.5) * h; show = true; } }
-      ui.tag(p.id, p.name, TEAM_COLORS[p.team], p.hp / p.hpMax, sx, sy, show);
+      ui.tag(p.id, voice?.speaking(p.id) ? `&#128266; ${p.name}` : p.name, TEAM_COLORS[p.team], p.hp / p.hpMax, sx, sy, show);
     }
   }
 }

@@ -8,6 +8,7 @@ import { loadoutFor, award, grantXp, validPid } from './profiles.js';
 import { XP } from './progress.js';
 import { History, rewindMs } from './lag.js';
 import { slimSnap } from './snap.js';
+import { plan, readVoice, VOICE } from './voice.js';
 
 export { MAP_IDS };
 export const MAX_ROOMS = Math.max(1, Number(process.env.MAX_ROOMS) || 12);
@@ -141,6 +142,9 @@ export class MatchRoom extends Room {
     }
     this.onMessage('input', (client, m) => this.takeInput(client, m));
     this.onMessage('probe', (client, n) => this.takeProbe(client, n));
+    this.sessions = new Map();       // client id -> client, for the voice messages
+    this.voice = new Map();          // client id -> { on, mode, aud, fromKey }: who speaks and in which channel (the voice itself never passes through here)
+    this.onMessage('v', (client, m) => this.takeVoice(client, m));
     // the rules step 30 times a second; a snapshot goes out on 20 of those steps, and the steps in between keep their events
     this.setSimulationInterval(() => this.tickMatch(), 1000 / SIM_HZ);
   }
@@ -157,6 +161,42 @@ export class MatchRoom extends Room {
       pitch: inp.pitch === null ? p.input.pitch : inp.pitch,
       fire: inp.fire, nade: inp.nade, reload: inp.reload, sprint: inp.sprint, jump: inp.jump, melee: inp.melee, swap: inp.swap, use: inp.use, ads: inp.ads,
     };
+  }
+
+  /** a voice setup message: a channel change, or a connection offer, answer or candidate for another player */
+  takeVoice(client, m, now = Date.now()) {
+    const p = this.match.players.get(client.sessionId);
+    if (!p || p.bot) return;
+    const q = client._vq || (client._vq = []);
+    while (q.length && q[0] <= now - 1000) q.shift();
+    if (q.length >= VOICE.sigRate) return;
+    q.push(now);
+    const v = readVoice(m);
+    if (!v) return;
+    if (v.t === 'mode') {
+      const st = this.voice.get(client.sessionId) || { on: false, mode: 'near', aud: new Set(), fromKey: '' };
+      st.on = v.on; st.mode = v.mode; this.voice.set(client.sessionId, st);
+      this.voiceTick();
+      return;
+    }
+    // a setup message goes only between a speaker and a listener the rules allow: an offer from the speaker to a listener in their audience,
+    // an answer or a candidate in either direction between such a pair
+    const to = this.sessions.get(v.to);
+    if (!to || to.sessionId === client.sessionId) return;
+    const ok = (s, l) => this.voice.get(s)?.aud?.has(l);
+    const allowed = v.k === 'offer' ? ok(client.sessionId, v.to) : ok(client.sessionId, v.to) || ok(v.to, client.sessionId);
+    if (!allowed) return;
+    try { to.send('v', { t: 'sig', from: client.sessionId, k: v.k, d: v.d }); } catch { /* the socket is gone */ }
+  }
+
+  /** a look at who may hear whom; changes go out as messages (listeners first) */
+  voiceTick() {
+    if (!this.voice.size) return;
+    for (const id of [...this.voice.keys()]) if (!this.match.players.has(id)) this.voice.delete(id);
+    for (const { to, msg } of plan(this.match.players, this.voice)) {
+      const c = this.sessions.get(to);
+      if (c) try { c.send('v', msg); } catch { /* the socket is gone */ }
+    }
   }
 
   takeProbe(client, n) {
@@ -188,6 +228,7 @@ export class MatchRoom extends Room {
     }
     if (this.tick % 3 !== 0 || this.match.phase !== before) this.sendSnap();
     if (this.tick % 60 === 0) this.probe();
+    if (this.tick % 15 === 0) this.voiceTick();
     if (this.match.phase === 'finished' && !this.didLock) { this.didLock = true; this.lock().catch(() => {}); }
   }
 
@@ -229,6 +270,8 @@ export class MatchRoom extends Room {
     const p = this.match.addPlayer(client.sessionId, { name: options.name, team, loadout });
     if (!p) { client.leave(4001, 'that match is full'); return; }
     if (pid) { seated.set(pid, client.sessionId); this.pids.set(client.sessionId, pid); }
+    this.sessions.set(client.sessionId, client);
+    this.voice.set(client.sessionId, { on: false, mode: 'near', aud: new Set(), fromKey: '' });       // listening needs no permission: everyone is on the list
     this.lag.note(p, this.simTime);
     client.send('hello', {
       id: p.id, team: p.team, teams: this.match.teams, perSide: this.match.perSide, roster: this.match.roster(),
@@ -243,6 +286,7 @@ export class MatchRoom extends Room {
     const pid = this.pids.get(client.sessionId);
     if (pid && seated.get(pid) === client.sessionId) seated.delete(pid);
     this.pids.delete(client.sessionId);
+    this.voice?.delete(client.sessionId); this.sessions?.delete(client.sessionId);
     if (this.match?.players.has(client.sessionId)) {
       this.match.removePlayer(client.sessionId);
       this.broadcast('roster', this.match.roster());
