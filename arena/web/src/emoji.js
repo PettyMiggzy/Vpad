@@ -1,5 +1,5 @@
 // One spinning thing on a transparent background, a frame at a time, for the animated custom emoji.
-// ?size=200&kind=prop&url=/models/props/medkit.glb  (turns round)   ?kind=gun&url=...  (turns round, long side fitted)
+// ?size=200&kind=prop&url=/models/props/medkit.glb  (turns round)   ?kind=gun&url=...  (turns round, long side fitted)   ?kind=gunside  (one still, side on, for the loadout cards)
 // ?kind=head&url=/models/hero/frog.glb  (the character's head, swinging side to side)   ?kind=crate  (the supply crate)
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -32,7 +32,7 @@ if (KIND === 'crate') {
 }
 model.updateMatrixWorld(true);
 const bb = new THREE.Box3().setFromObject(model), size = bb.getSize(new THREE.Vector3()), ctr = bb.getCenter(new THREE.Vector3());
-let aim = ctr.clone(), span = Math.max(size.x, size.y, size.z) * (KIND === 'gun' ? 1.0 : 1.2);
+let aim = ctr.clone(), span = Math.max(size.x, size.y, size.z) * (KIND === 'gun' || KIND === 'gunside' ? 1.0 : 1.2);
 if (KIND === 'head') {
   // the head sits in the top of a standing character: frame that, a little wider than tall so a helmet or ears are not cut
   aim = new THREE.Vector3(ctr.x, bb.max.y - size.y * Number(q.get('hy') || 0.095), ctr.z);
@@ -47,6 +47,7 @@ window.__emoji = {
   frame(u) {
     const a = u * Math.PI * 2;
     if (KIND === 'head') { holder.rotation.y = 0.7 * Math.sin(a); holder.rotation.x = 0.06 * Math.sin(a * 2); holder.position.y = 0.01 * Math.sin(a * 2); }
+    else if (KIND === 'gunside') { holder.rotation.y = 0.32; holder.rotation.x = 0.08; holder.rotation.z = 0; }
     else if (KIND === 'gun') { holder.rotation.y = 0.75 * Math.sin(a) - 0.35; holder.rotation.x = 0.1; holder.rotation.z = 0.2; holder.position.y = 0.03 * Math.sin(a * 2) * span; }
     else { holder.rotation.y = a; holder.rotation.x = tilt; holder.position.y = 0.03 * Math.sin(a * 2) * span; }
     renderer.render(scene, cam);

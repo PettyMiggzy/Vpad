@@ -6,6 +6,8 @@ import { buy, equip, level, levelProgress, classSave, classSelect, classRename, 
 import { lockedReason, masteryOf, levelOf, xpForLevel, MAX_LEVEL } from '../../server/progress.js';
 import { SEATS, DEFAULT_SEATS } from './config.js';
 import { MAP_LIST } from './world.js';
+import { LoadoutScreen } from './loadoutui.js';
+import { cleanLook } from './aimcore.js';
 
 type Item = { slot: string; name: string; cost: number; blurb: string };
 const items = CATALOG as unknown as Record<string, Item>;
@@ -51,6 +53,7 @@ const CSS = `
 #vy-scopeov i { position: absolute; left: 50%; top: calc(50% + 35.4vmin + 8px); transform: translateX(-50%); width: min(220px, 40vw); height: 5px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; }
 #vy-scopeov i b { display: block; height: 100%; width: 100%; background: #d8f0ff; transform-origin: left; }
 #vy-scopeov i.out b { background: #ff8a70; }
+#vy-cross.foe::before, #vy-cross.foe::after { background: #ff3b30; box-shadow: 0 0 5px #ff3b30; }
 #vy-cross { position: absolute; left: 50%; top: 50%; width: var(--cs, 26px); height: var(--cs, 26px); transform: translate(-50%, -50%); --g: 5px; }
 #vy-cross::before, #vy-cross::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
 #vy-cross::before { left: calc(50% - 1px); top: 0; width: 2px; height: 100%; -webkit-mask: linear-gradient(#000 0 calc(50% - var(--g)), transparent calc(50% - var(--g)) calc(50% + var(--g)), #000 calc(50% + var(--g))); mask: linear-gradient(#000 0 calc(50% - var(--g)), transparent calc(50% - var(--g)) calc(50% + var(--g)), #000 calc(50% + var(--g))); }
@@ -156,6 +159,10 @@ body.touch #vy-gun small { display: none; } body.touch #vy-gun b { font-size: 24
 #vy-menu .xpbar { height: 8px; border-radius: 5px; background: #0d160a; border: 1px solid var(--line); overflow: hidden; margin-top: 4px; } #vy-menu .xpbar i { display: block; height: 100%; background: linear-gradient(90deg, #7ac900, var(--lime)); }
 #vy-menu .classes { display: flex; flex-wrap: wrap; gap: 6px; } #vy-menu .cls { padding: 8px 10px; border-radius: 10px; border: 2px solid var(--line); background: #0d160a; font-weight: 800; font-size: 12px; cursor: pointer; } #vy-menu .cls.on { border-color: var(--lime); box-shadow: 0 0 10px rgba(182,255,0,.35); }
 #vy-menu .clsb { border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 900; font-size: 12px; cursor: pointer; background: var(--lime); color: #071000; } #vy-menu .clsb.alt { background: transparent; color: var(--lime); border: 1px solid var(--lime); }
+#vy-lo-card { display: grid; grid-template-columns: 84px 1fr; gap: 4px 10px; align-items: center; margin-top: 10px; padding: 8px 10px; border: 2px solid var(--lime); border-radius: 14px; background: linear-gradient(135deg, rgba(40,62,16,.85), rgba(10,16,8,.9)); cursor: pointer; position: relative; }
+#vy-lo-card img { width: 84px; height: 44px; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,.6)); } #vy-lo-card div { min-width: 0; } #vy-lo-card small { display: block; color: var(--lime); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #vy-lo-card b { display: block; font-size: 15px; } #vy-lo-card span { display: block; color: var(--muted); font-size: 10px; line-height: 1.3; }
+#vy-lo-card em { grid-column: 1 / -1; font-style: normal; text-align: center; background: var(--lime); color: #071000; font-weight: 900; letter-spacing: .08em; border-radius: 9px; padding: 8px; font-size: 14px; }
+@media (max-height: 520px) { #vy-lo-card { margin-top: 6px; padding: 6px 8px; } #vy-lo-card em { padding: 6px; } #vy-lo-card span { display: none; } }
 #vy-menu .it.lock { opacity: .6; } #vy-menu .stars { color: #ffd24a; letter-spacing: 1px; } #vy-menu .it i { color: #ffb070; font-style: normal; }
 #vy-hints { position: absolute; left: calc(12px + env(safe-area-inset-left)); bottom: calc(70px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.55); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 12px; line-height: 1.55; display: none; } #vy-hints.on { display: block; } #vy-hints kbd { background: #1c2a14; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; font: 800 11px system-ui; color: var(--lime); margin-right: 4px; }
 #vy-menu .tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; } #vy-menu .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0d160a; font-weight: 800; font-size: 13px; cursor: pointer; } #vy-menu .tab.on { background: var(--lime); color: #071000; border-color: var(--lime); }
@@ -188,6 +195,9 @@ export class Ui {
   micTouch = false;
   sprintTouch = false;
   easy = true;
+  /** the player's look speed (1 = normal), aim help and vibration choices; the page reads them live */
+  prefs = { look: 1, friction: true, vibe: true };
+  setVibeNote(text: string): void { this.el['vy-vibenote'].textContent = text; }
   tipsPending = false;
 
   constructor(private o: UiOptions) {
@@ -216,6 +226,7 @@ export class Ui {
     <div style="text-align:center;color:var(--lime);letter-spacing:.3em;font-size:11px;font-weight:800;margin-bottom:10px">TOKEN ARENA</div>
     <div class="sub">First-person team shooter. Two token teams, best of three rounds, bots fill the empty seats so a match is always on. Play money only: nothing here touches a wallet. Prototype.</div>
     <label>Your name</label><input id="vy-name" type="text" maxlength="12" placeholder="e.g. FROGGY" autocomplete="off" />
+    <div id="vy-lo-card" role="button" tabindex="0"></div>
     <button class="go" id="vy-go">PLAY</button>
     <div class="pick" id="vy-pick"></div>
     <div class="err" id="vy-err"></div>
@@ -237,12 +248,6 @@ export class Ui {
       <div class="team on" data-team="0" style="--c:${ca}"><span data-tc="0">${a}</span><small>tap to join</small></div>
       <div class="team" data-team="1" style="--c:${cb}"><span data-tc="1">${b}</span><small>tap to join</small></div>
     </div>
-    <label>Your classes (saved loadouts)</label>
-    <div class="classes" id="vy-classes"></div>
-    <label>Loadout shop <span id="vy-coins" style="float:right;color:var(--lime);letter-spacing:0;font-size:14px;font-weight:800"></span></label>
-    <div class="tabs" id="vy-tabs"></div>
-    <div class="items" id="vy-items"></div>
-    <div style="color:var(--muted);font-size:11px;margin-top:6px">Upgrades cost play coins you earn in matches. Paying with a wallet comes later, after a legal review: nothing here touches a wallet.</div>
     <label>Map</label>
     <div class="maps" id="vy-maps">${MAP_LIST.map(([id, name, blurb], i) => `<div class="map${i === 0 ? ' on' : ''}" data-map="${id}"><b>${name}</b><small>${blurb}</small></div>`).join('')}</div>
     <label class="easyrow" id="vy-easyrow" style="display:none;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)"><input id="vy-easy" type="checkbox" checked style="width:auto;margin-right:8px" />Easy aim (phones): helps line up shots and fires when you are on target</label>
@@ -250,6 +255,13 @@ export class Ui {
     <select id="vy-diff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select>
     <label>Blood</label>
     <select id="vy-blood"><option value="1">On (clean and realistic)</option><option value="0">Off</option></select>
+    <label>Look speed <span id="vy-lookv" style="float:right;letter-spacing:0;color:var(--lime)">100%</span></label>
+    <input id="vy-look" type="range" min="40" max="250" step="5" value="100" style="padding:0" />
+    <label>Aim help</label>
+    <select id="vy-friction"><option value="1">On: the view slows down over an enemy, the crosshair turns red on a body</option><option value="0">Off</option></select>
+    <label>Vibration (shots, hits and kills)</label>
+    <select id="vy-vibe"><option value="1">On</option><option value="0">Off</option></select>
+    <div class="vibenote" id="vy-vibenote" style="color:var(--muted);font-size:11px;margin-top:4px"></div>
     <label>Voice chat (team and nearby players, in hosted matches)</label>
     <select id="vy-voicepref"><option value="1">On: hear others, press T to talk</option><option value="0">Off: no voice at all</option></select>
     <label>Graphics</label>
@@ -263,8 +275,12 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-pid', 'vy-voicepref', 'vy-minrow', 'vy-min', 'vy-sparrow', 'vy-spar', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-voice', 'vy-mic', 'vy-chan', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pid', 'vy-voicepref', 'vy-look', 'vy-lookv', 'vy-friction', 'vy-vibe', 'vy-vibenote', 'vy-minrow', 'vy-min', 'vy-sparrow', 'vy-spar', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-lo-card', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-voice', 'vy-mic', 'vy-chan', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
+    this.lo = new LoadoutScreen({ root, profile: o.profile, save: () => o.save(), onShop: (...a) => o.onShop?.(...a), base: import.meta.env.BASE_URL, onClose: () => this.renderShop() });
+    const openLo = () => this.lo.open();
+    this.el['vy-lo-card'].addEventListener('click', openLo);
+    this.el['vy-lo-card'].addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLo(); } });
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
       root.querySelectorAll('.team').forEach((x) => x.classList.toggle('on', x === t));
@@ -288,6 +304,15 @@ export class Ui {
       this.mode = t.dataset.mode === 'challenge' ? 'challenge' : 'practice';
       root.querySelectorAll('.mode').forEach((x) => x.classList.toggle('on', x === t));
     }));
+    // look speed, aim help and vibration: stored on the device, read live by the page through `prefs`
+    try {
+      const lk = cleanLook(localStorage.getItem('vyre.arena.look')); this.prefs.look = lk; (this.el['vy-look'] as HTMLInputElement).value = String(Math.round(lk * 100)); this.el['vy-lookv'].textContent = `${Math.round(lk * 100)}%`;
+      this.prefs.friction = localStorage.getItem('vyre.arena.friction') !== '0'; (this.el['vy-friction'] as HTMLSelectElement).value = this.prefs.friction ? '1' : '0';
+      this.prefs.vibe = localStorage.getItem('vyre.arena.vibe') !== '0'; (this.el['vy-vibe'] as HTMLSelectElement).value = this.prefs.vibe ? '1' : '0';
+    } catch { /* storage may be blocked */ }
+    this.el['vy-look'].addEventListener('input', () => { const v = cleanLook(Number((this.el['vy-look'] as HTMLInputElement).value) / 100); this.prefs.look = v; this.el['vy-lookv'].textContent = `${Math.round(v * 100)}%`; try { localStorage.setItem('vyre.arena.look', String(v)); } catch { /* ignore */ } });
+    this.el['vy-friction'].addEventListener('change', () => { this.prefs.friction = (this.el['vy-friction'] as HTMLSelectElement).value !== '0'; try { localStorage.setItem('vyre.arena.friction', this.prefs.friction ? '1' : '0'); } catch { /* ignore */ } });
+    this.el['vy-vibe'].addEventListener('change', () => { this.prefs.vibe = (this.el['vy-vibe'] as HTMLSelectElement).value !== '0'; try { localStorage.setItem('vyre.arena.vibe', this.prefs.vibe ? '1' : '0'); } catch { /* ignore */ } });
     try { (this.el['vy-voicepref'] as HTMLSelectElement).value = localStorage.getItem('vyre.arena.voice') === '0' ? '0' : '1'; } catch { /* ignore */ }
     this.el['vy-voicepref'].addEventListener('change', () => { try { localStorage.setItem('vyre.arena.voice', (this.el['vy-voicepref'] as HTMLSelectElement).value); } catch { /* ignore */ } });
     this.el['vy-obj'].addEventListener('change', () => {
@@ -420,32 +445,13 @@ export class Ui {
   // ---- menu and shop ----
   renderShop(): void {
     const p = this.o.profile, L = level(p);
-    this.el['vy-coins'].textContent = `${p.coins} coins`;
     // level and experience
     const into = p.xp - xpForLevel(L), span = L >= MAX_LEVEL ? 1 : xpForLevel(L + 1) - xpForLevel(L);
     this.el['vy-level'].innerHTML = `<div class="lv"><b>LEVEL ${L}</b><span>${L >= MAX_LEVEL ? 'max' : `${into} / ${span} XP`}</span></div><div class="xpbar"><i style="width:${Math.round(levelProgress(p) * 100)}%"></i></div>`;
-    // the five saved classes
-    this.el['vy-classes'].innerHTML = p.classes.map((c, i) => `<div class="cls${i === p.activeClass ? ' on' : ''}" data-cls="${i}">${c.name}</div>`).join('') +
-      `<button class="clsb" data-clsdo="save">Save gear to ${p.classes[p.activeClass].name}</button><button class="clsb alt" data-clsdo="rename">Rename</button>`;
-    this.el['vy-classes'].querySelectorAll<HTMLElement>('.cls').forEach((c) => c.addEventListener('click', () => { classSelect(p, Number(c.dataset.cls)); this.o.save(); this.o.onShop?.('class-select', Number(c.dataset.cls)); this.el['vy-err'].textContent = ''; this.renderShop(); }));
-    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="save"]')!.addEventListener('click', () => { classSave(p, p.activeClass); this.o.save(); this.o.onShop?.('class-save', p.activeClass); this.el['vy-err'].textContent = `Saved to ${p.classes[p.activeClass].name}`; });
-    this.el['vy-classes'].querySelector<HTMLElement>('[data-clsdo="rename"]')!.addEventListener('click', () => { const n = window.prompt('Name this class', p.classes[p.activeClass].name); if (n !== null) { const r = classRename(p, p.activeClass, n); this.el['vy-err'].textContent = r.error || ''; this.o.save(); if (!r.error) this.o.onShop?.('class-rename', p.activeClass, n); this.renderShop(); } });
-    this.el['vy-tabs'].innerHTML = (SLOTS as string[]).map((s) => `<div class="tab${s === this.tab ? ' on' : ''}" data-tab="${s}">${TAB_NAMES[s]}</div>`).join('');
-    this.el['vy-tabs'].querySelectorAll<HTMLElement>('.tab').forEach((t) => t.addEventListener('click', () => { this.tab = t.dataset.tab || 'weapon'; this.renderShop(); }));
-    const rows = Object.entries(items).filter(([, it]) => it.slot === this.tab).sort((a, b) => a[1].cost - b[1].cost);
-    this.el['vy-items'].innerHTML = rows.map(([id, it]) => {
-      const owned = p.owned.includes(id), on = p.loadout[it.slot] === id, lock = lockedReason(p, id);
-      const btn = on ? '<button class="eq" disabled>Equipped</button>' : lock && !owned ? `<button disabled title="${lock}">${lock.replace('Reach level ', 'Lv ').replace(/^Master.*/, 'Earn it').replace(/^Reach level 20.*/, 'Lv 20')}</button>` : owned ? `<button class="eq" data-do="equip" data-id="${id}">Equip</button>` : `<button data-do="buy" data-id="${id}"${p.coins < it.cost ? ' disabled' : ''}>${it.cost ? `${it.cost} coins` : 'Take it'}</button>`;
-      const kills = p.weaponKills[id] ?? 0, stars = it.slot === 'weapon' ? masteryOf(kills) : 0;
-      const sub = it.slot === 'weapon' ? `${it.blurb} &middot; <span class="stars">${'&#9733;'.repeat(stars)}${'&#9734;'.repeat(3 - stars)}</span> ${kills} kills` : lock && !owned ? `${it.blurb} &middot; <i>${lock}</i>` : it.blurb;
-      return `<div class="it${lock && !owned ? ' lock' : ''}"><div><b>${it.name}</b><small>${sub}</small></div>${btn}</div>`;
-    }).join('');
-    this.el['vy-items'].querySelectorAll<HTMLElement>('button[data-do]').forEach((b) => b.addEventListener('click', () => {
-      const r = b.dataset.do === 'buy' ? buy(p, b.dataset.id || '') : equip(p, b.dataset.id || '');
-      this.el['vy-err'].textContent = r.error || '';
-      if (!r.error) { this.o.save(); this.o.onShop?.(b.dataset.do || '', b.dataset.id || ''); }
-      this.renderShop();
-    }));
+    // the loadout card: the gun you carry, and a way into the full loadout screen
+    const w = items[p.loadout.weapon] ?? items.pistol, cls = p.classes[p.activeClass]?.name ?? '';
+    this.el['vy-lo-card'].innerHTML = `<img src="${import.meta.env.BASE_URL}guns/${p.loadout.weapon}.webp" alt="" draggable="false" /><div><small>YOUR LOADOUT &middot; ${cls}</small><b>${w.name}</b><span>${p.coins} coins &middot; tap to change gun, attachments and gear</span></div><em>LOADOUT</em>`;
+    if (this.lo?.isOpen()) this.lo.render();
   }
   showMenu(on: boolean): void { this.el['vy-menu'].hidden = !on; this.el.hud.hidden = on; if (on) { this.renderShop(); this.renderBoard(); this.spec(null); this.scoreboard(false, [], this.names(), [0, 0]); this.showPause(false); } }
   /** the key list at the bottom left on a computer: shown for a while at the start, H toggles it */

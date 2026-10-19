@@ -10,6 +10,8 @@ import { makeGradePass, applyGrade } from './post.js';
 import { Match, MAPS, R, floorAt, clearLine } from '../../server/game.js';
 import { REWARD, WEAPONS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
+import { coneLimit, frictionFor, zoomScale, onBody, flinchAmount } from './aimcore.js';
+import { Haptics } from './haptics.js';
 import { freshProfile, sanitize, award, teamNames, gainXp, level as playerLevel } from './profile.ts';
 import { XP } from '../../server/progress.js';
 import { PICK } from '../../server/pickups.js';
@@ -270,7 +272,12 @@ function requestLock() {
 }
 document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; if (playing && !ui.touch && !lockFailed) { paused = !locked; ui.showPause(!locked); } });
 document.addEventListener('pointerlockerror', () => { lockFailed = true; locked = false; ui.showPause(false); });
-const turn = (dx, dy) => { vm.turned(dx, dy); look.yaw += dx * 0.0022; look.pitch = Math.max(-1.4, Math.min(1.4, look.pitch + dy * 0.0022)); };
+// how fast the view turns: the player's own look speed, slower when zoomed in, and slower while an enemy is near the crosshair (aim help)
+let turnFriction = 1;
+const flinch = { t: 0, roll: 0, pitch: 0 };       // the knock of a hit on the view: strongest at once, gone in about a quarter of a second
+const hap = new Haptics({ enabled: () => ui.prefs.vibe, touch: ui.touch });
+ui.setVibeNote(hap.native() ? 'Uses your phone\'s own haptic motor.' : hap.available() ? 'Your browser can vibrate.' : ui.touch ? 'This browser cannot vibrate (iPhone browsers do not allow it); the phone app can.' : 'Vibration is for phones.');
+const turn = (dx, dy) => { const k = ui.prefs.look * zoomScale(fov, FOV) * turnFriction; vm.turned(dx * k, dy * k); look.yaw += dx * 0.0022 * k; look.pitch = Math.max(-1.4, Math.min(1.4, look.pitch + dy * 0.0022 * k)); };
 addEventListener('mousemove', (e) => { if (!playing) return; if (locked) turn(e.movementX, e.movementY); else if (lockFailed && (e.buttons & 1)) turn(e.movementX, e.movementY); });
 addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive && !skipKillcam()) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
 addEventListener('mouseup', (e) => { if (e.button === 0) fire = false; if (e.button === 2) zoom = false; });
@@ -322,7 +329,7 @@ function onEvents(evs) {
       sfx.shot(sh?.weapon ?? 'pistol', e.x / PX_PER_M, e.y / PX_PER_M, own, !own && !!e.q);
       if (own || !e.q) tracer(e, sh);      // a suppressed shot leaves no tracer for the other side to follow
       firedNow.add(e.by); lastShot.set(e.by, performance.now());
-      if (own) vm.fire();
+      if (own) { vm.fire(); const w = WEAPONS[sh?.weapon] ?? WEAPONS.pistol; hap.fire('shot', w.dmg * (w.pellets > 1 ? w.pellets * 0.5 : 1)); }
       // a bullet that flew past your head, or hit the wall beside you
       if (me && me.alive && !own && sh && sh.team !== me.team && !e.hit && distToSeg(eye.x, eye.y, eye.z, e.x / PX_PER_M, e.z, e.y / PX_PER_M, e.ex / PX_PER_M, e.ez, e.ey / PX_PER_M) < 2.2) sfx.whiz();
       if (!e.hit) {
@@ -333,9 +340,9 @@ function onEvents(evs) {
       callCrate(e);
     } else if (e.type === 'pickup') {
       sfx.pickup(e.kind, e.x / PX_PER_M, e.y / PX_PER_M, !!(me && e.by === me.id));
-      if (me && e.by === me.id) { buzz(20); ui.feed(e.kind === 'med' ? 'MED KIT +50' : e.kind === 'gun' ? `PICKED UP ${(WEAPONS[e.weapon]?.name ?? e.weapon ?? '').toUpperCase()}` : 'AMMO'); }
+      if (me && e.by === me.id) { hap.fire('tick'); ui.feed(e.kind === 'med' ? 'MED KIT +50' : e.kind === 'gun' ? `PICKED UP ${(WEAPONS[e.weapon]?.name ?? e.weapon ?? '').toUpperCase()}` : 'AMMO'); }
     } else if (e.type === 'hit') {
-      if (me && e.victim === me.id) { ui.flash('vy-hurt'); sfx.hurtMe(); buzz(45); const at = match.players.get(e.by); if (at && at.id !== me.id) ui.hitDir(Math.atan2(at.y - me.y, at.x - me.x) - look.yaw); }
+      if (me && e.victim === me.id) { ui.flash('vy-hurt'); sfx.hurtMe(); const amt = flinchAmount(e.dmg); hap.fire('hit', amt); const at = match.players.get(e.by); let rel = 0; if (at && at.id !== me.id) { rel = Math.atan2(at.y - me.y, at.x - me.x) - look.yaw; ui.hitDir(rel); } flinch.t = 1; flinch.roll = (Math.sin(rel) >= 0 ? -1 : 1) * 0.07 * amt; flinch.pitch = 0.045 * amt; }
       if (me && e.by === me.id) { ui.flash('vy-hitm'); sfx.hitMarker(); }
       sfx.impact('flesh', e.x / PX_PER_M, e.y / PX_PER_M);
       units.get(e.victim)?.hit();
@@ -345,7 +352,7 @@ function onEvents(evs) {
       const a = match.players.get(e.by), v = match.players.get(e.victim);
       if (a && v) ui.feed(`<span style="color:${TEAM_COLORS[a.team]}">${a.name}</span> ${e.melee ? '&#9876;' : e.nade ? '&#9679;' : e.head ? '&#9678;' : '&#9656;'} <span style="color:${TEAM_COLORS[v.team]}">${v.name}</span>`);
       if (me && e.by === me.id && e.victim !== me.id) {
-        sfx.kill(); buzz(28); if (!netH) { award(profile, REWARD.kill); save(); }
+        sfx.kill(); hap.fire(e.head ? 'head' : 'kill'); if (!netH) { award(profile, REWARD.kill); save(); }
         streak += 1; const now = performance.now() / 1000; multi = { n: now - multi.t < 4 ? multi.n + 1 : 1, t: now };
         const tags = []; if (e.melee) tags.push(e.back ? 'BACKSTAB' : 'KNIFE KILL');
         if (multi.n === 2) tags.push('DOUBLE KILL'); else if (multi.n === 3) tags.push('TRIPLE KILL'); else if (multi.n >= 4) tags.push('RAMPAGE');
@@ -482,6 +489,7 @@ function explosion(x, y, z) {
   const eye = eyeOf(), dist = Math.hypot(x - eye.x, y - eye.y, z - eye.z);
   sfx.boom(x, z);
   shake = Math.max(shake, Math.min(1, 7 / (1 + dist * dist * 0.12)));
+  if (dist < 14) hap.fire('boom', 1 - dist / 14);
   boomT = 0.35; boomLight.position.set(x, y + 0.6, z);
   for (let i = 0; i < 4; i++) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, color: new THREE.Color(1.6, 1.1, 0.7) }));
@@ -710,24 +718,31 @@ function updateZone(t) {
   const c = new THREE.Color(zoneColor()).multiplyScalar(1.6), pulse = 0.85 + Math.sin(t * 3) * 0.15;
   zoneFx.mats.forEach((m, i) => { m.color.copy(c); m.opacity = zoneFx.base[i] * pulse; });
 }
-// ---- easy aim for phones: lines the view up with an enemy near the crosshair and fires when you are on target ----
-function assist(dt) {
-  autoFire = false;
-  if (!ui.touch || !ui.easy || !me || !me.alive || match.phase !== 'live' || paused) return;
-  const w = WEAPONS[me.weapon], eyeZ = me.z + R.EYE, held = fire || ui.fireTouch;
-  let best = null, bestA = 9;
+// ---- aim help: finds the enemy nearest the crosshair (inside a catch cone, in clear view). Every phone gets easy aim (the view lines up and fires on target),
+// and everyone gets a slowdown of the turn while an enemy is near the crosshair, plus a red crosshair when it is on a body ----
+let foe = null;                                    // { p, a, d, lim }: the enemy this frame, a is the angle off the crosshair
+function acquire() {
+  foe = null; turnFriction = 1;
+  if (!me || !me.alive || match.phase !== 'live' || paused || !playing) return;
+  const w = WEAPONS[me.weapon], eyeZ = me.z + R.EYE, rc = me.rc || NO_RC;
+  let bestA = 9;
   for (const p of match.players.values()) {
     if (!p.alive || p.team === me.team) continue;
     const dx = p.x - me.x, dy = p.y - me.y, d = Math.hypot(dx, dy);
     if (d > w.range * 0.95) continue;
-    const rc = me.rc || NO_RC;
     let a = Math.atan2(dy, dx) - look.yaw - rc.y; a = Math.atan2(Math.sin(a), Math.cos(a));
-    const lim = 0.05 + 0.22 * Math.min(1, 600 / Math.max(d, 150));          // a wider catch cone up close
+    const lim = coneLimit(d);
     if (Math.abs(a) > lim || Math.abs(a) >= bestA) continue;
     if (!clearLine(match.map, me.x, me.y, eyeZ, p.x, p.y, p.z + 1.35)) continue;
-    best = { p, a, d }; bestA = Math.abs(a);
+    foe = { p, a, d, lim }; bestA = Math.abs(a);
   }
-  if (!best) return;
+  if (foe && ui.prefs.friction) turnFriction = frictionFor(foe.a, foe.lim, ui.touch ? 0.55 : 0.4);
+}
+function assist(dt) {
+  autoFire = false;
+  acquire();
+  if (!ui.touch || !ui.easy || !foe) return;
+  const best = foe, eyeZ = me.z + R.EYE, held = fire || ui.fireTouch;
   const pull = Math.min(1, dt * (held ? 8 : 3.5));
   look.yaw += best.a * pull;
   look.pitch += ((-Math.atan2(best.p.z + 1.35 - eyeZ, best.d / PX_PER_M) + (me.rc || NO_RC).p) - look.pitch) * pull;
@@ -804,7 +819,7 @@ function draw() {
 }
 let acc = 0, last = performance.now(), fov = FOV;
 const NO_RC = { p: 0, y: 0, bloom: 0 };
-window.__arena = { get voice() { return voice; }, advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
+window.__arena = { get voice() { return voice; }, get aim() { return { fov, zoom: [zoom, ui.zoomTouch], foe: foe && { a: foe.a, d: foe.d, lim: foe.lim }, friction: turnFriction, flinch: { ...flinch } }; }, turnBy: (dx, dy) => turn(dx, dy), hap, advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
 let manualClock = false;   // set by the film tools: frames are then only drawn when asked for, with a fixed step
 function frame(now, manual) {
@@ -819,8 +834,7 @@ function frame(now, manual) {
   const wantFov = zoomNow && playing && me ? feelOf(me.weapon).ads.zoom * (me.zoomMul ?? 1) : FOV + (me && me.alive && me.sprinting ? 7 : 0);
   fov += (wantFov - fov) * Math.min(1, dt * 14);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
-  const sens = fov / FOV;
-  if (ui.touch && (ui.lookDelta.x || ui.lookDelta.y)) { turn(ui.lookDelta.x * LOOK_TOUCH * sens, ui.lookDelta.y * LOOK_TOUCH * sens); ui.lookDelta.x = 0; ui.lookDelta.y = 0; }
+  if (ui.touch && (ui.lookDelta.x || ui.lookDelta.y)) { turn(ui.lookDelta.x * LOOK_TOUCH, ui.lookDelta.y * LOOK_TOUCH); ui.lookDelta.x = 0; ui.lookDelta.y = 0; }
   if ((playing && !paused && (ui.touch || locked || lockFailed)) || !playing) {
     if (netH) { assist(dt); sendInput(now); }
     else {
@@ -892,6 +906,7 @@ function frame(now, manual) {
     camera.position.set(cx + Math.cos(a) * 30, 9 + Math.sin(a * 0.7) * 1.5, cz + Math.sin(a) * 20);
     camera.lookAt(cx, 2, cz);
   }
+  if (flinch.t > 0.01) { camera.rotation.z += flinch.roll * flinch.t; camera.rotation.x += flinch.pitch * flinch.t; flinch.t *= Math.pow(0.0004, dt); }
   if (shake > 0.002) { camera.rotation.x += (Math.random() - 0.5) * 0.05 * shake; camera.rotation.z += (Math.random() - 0.5) * 0.05 * shake; shake *= Math.pow(0.002, dt); }
   vm.update(dt, alive && Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1, walkPhase, camera.aspect, !(playing && alive) || scoped);
   ui.scope(playing && alive && scoped, breath, winded);
@@ -925,7 +940,7 @@ function frame(now, manual) {
       const ended = match.phase === 'matchover' || match.phase === 'finished';
       ui.scoreboard(showScore || ended, [...match.players.values()].map((p) => ({ name: p.name, team: p.team, kills: p.kills, deaths: p.deaths, bot: p.bot, me: p === me, alive: p.alive })), names, match.score,
         ended && match.winner !== null ? `${names[match.winner]} wins the match${match.mode === 'practice' ? ' &middot; practice, not counted on the ranked board' : ''}` : '');
-      document.getElementById('vy-cross').style.display = me && me.alive ? '' : 'none';
+      { const ch = document.getElementById('vy-cross'); ch.style.display = me && me.alive ? '' : 'none'; ch.classList.toggle('foe', !!foe && onBody(foe.a, foe.d / PX_PER_M)); }
       if (me && me.alive) { const w = WEAPONS[me.weapon] || WEAPONS.pistol, mv = Math.min(1, Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) * (me.sprinting ? 1.32 : 1)); const sp = spreadFor(me.weapon, w.spread, { ads: me.ads ?? 0, move: mv, air: !!me.air, bloom: me.rc?.bloom ?? 0 }) * (w.pellets > 1 ? 1 : 1); ui.cross(Math.tan(sp) * (host.clientHeight / 2) / Math.tan(camera.fov * Math.PI / 360), me.ads ?? 0); }
       ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       ui.setZone(match.objective === 'zone' && !!match.map.zone, match.zoneP[0], match.zoneP[1], match.zoneIn[0], match.zoneIn[1], TEAM_COLORS);
@@ -951,7 +966,7 @@ async function keepAwake(on) {
     else if (!on && wake) { const w = wake; wake = null; await w.release(); }
   } catch { wake = null; }
 }
-const buzz = (ms) => { if (ui.touch) try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (playing && ui.touch && !paused) { paused = true; ui.showPause(true); } void keepAwake(false); }
   else if (playing) void keepAwake(true);
