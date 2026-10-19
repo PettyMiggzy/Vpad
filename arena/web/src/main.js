@@ -288,7 +288,8 @@ const firedNow = new Set();
 const eyeOf = () => (me && me.alive ? { x: me.x / PX_PER_M, y: me.z + R.EYE, z: me.y / PX_PER_M } : { x: mapDims.w / 2, y: 1.6, z: mapDims.h / 2 });
 const surfaceAt = (x, z, zz) => {
   const th = curMapId;
-  if (zz > 0.3) return th === 'dust' ? 'concrete' : 'metal';
+  if (zz > 0.3) return th === 'dust' || th === 'testsite' ? 'concrete' : 'metal';
+  if (th === 'testsite') return z > 21.8 && z < 34.2 ? 'concrete' : 'sand';        // the street is paved, the yards are dry earth
   return th === 'dust' ? 'sand' : th === 'refinery' && x > 26 && x < 38 ? 'metal' : 'concrete';
 };
 const distToSeg = (px, py, pz, ax, ay, az, bx, by, bz) => {

@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const maps = ['cargo', 'dust', 'refinery'];
+const maps = ['cargo', 'dust', 'refinery', 'testsite'];
 const PER_SIDE = Number(process.env.PER_SIDE) || 6;
 const SECONDS = 8;
 const PER_WORKER = 6;

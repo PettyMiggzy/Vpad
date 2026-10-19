@@ -208,7 +208,33 @@ function refineryBig() {
   return b.done();
 }
 
-export const MAPS = { cargo: cargoBig(), dust: dustBig(), refinery: refineryBig() };
+// ---------------------------------------------------------------------------------------------- TEST SITE (daylight, a small suburb)
+// A short, fast map: two rows of flat-roofed houses facing a street, a bus in the middle, and a watchtower over each end of the street.
+function testsiteBig() {
+  const W = 96, H = 56, b = builder('testsite', 'Test Site', W, H, 'rot', 'testsite', 150);
+  // a turned map: every piece below has its twin turned half a circle, so only one set is written
+  // the two houses on the team's side: flat roofs you can walk on, a ramp up from the back yard to each
+  b.deck('house', 16, 8, 12, 14, 4.2, ['w'], { v: 0 }); b.ramp(4, 13.7, 12, 2.6, 'x+', 0, 4.2);
+  b.deck('house', 16, 34, 12, 14, 4.2, ['w'], { v: 1 }); b.ramp(4, 39.7, 12, 2.6, 'x+', 0, 4.2);
+  // back yards: fences, crates and barrels to hide behind on the way out
+  b.box('fence', 8, 21.4, 8, 0.4, 1.5); b.box('fence', 8, 34.2, 8, 0.4, 1.5);
+  b.box('crate', 6, 5, 1.6, 1.6, 1.3); b.box('barrel', 8.2, 6.2, 0.9, 0.9, 1.1); b.box('crate', 10, 50, 1.6, 1.6, 1.3);
+  // the garages beside the houses and the parked cars between them and the street
+  b.box('shed', 30, 9, 5, 4.5, 2.7, { v: 0 }); b.box('shed', 30, 42.5, 5, 4.5, 2.7, { v: 1 });
+  b.box('car', 30, 22.4, 4.6, 2.2, 1.6); b.box('car', 32, 31.4, 4.6, 2.2, 1.6);
+  // the watchtower over each end of the street: a long ramp up from the house side
+  b.deck('tower', 40, 3.2, 6, 6, 8.4, ['w'], { v: 0 }); b.ramp(22, 4.7, 18, 2.6, 'x+', 0, 8.4);
+  // cover in the street: sandbags, barriers, a crate stack
+  b.box('sandbag', 38, 16, 3.5, 0.9, 1.1); b.box('barrier', 36, 25, 3, 0.7, 1.1); b.box('crate', 42, 20, 2, 2, 1.6); b.box('barrel', 44, 14, 0.9, 0.9, 1.1);
+  // the bus across the middle of the street, with room to run round both ends
+  b.one('bus', 42.5, 26.7, 11, 2.7, 3.2);
+  b.one('crate', 48, 34.5, 1.6, 1.6, 1.3);
+  spawnField(b, W, H, 'rot', [4, 7, 10], [24.5, 27, 29.5, 32]);
+  b.zone(48, 28, 4, 0);
+  return b.done();
+}
+
+export const MAPS = { cargo: cargoBig(), dust: dustBig(), refinery: refineryBig(), testsite: testsiteBig() };
 /** the old 64 by 40 metre layouts: not offered to players, kept because the rules' tests rely on their exact positions */
 export const LEGACY = { cargo: cargoSmall(), dust: dustSmall(), refinery: refinerySmall() };
 export const MAP_IDS = Object.keys(MAPS);

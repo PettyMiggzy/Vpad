@@ -11,7 +11,7 @@ const NAMES = [
   'reload_pistol', 'reload_smg', 'reload_rifle', 'reload_sniper', 'shotgun_pump', 'shotgun_shell', 'empty_click', 'equip',
   'nade_throw', 'nade_bounce', 'boom_a', 'boom_b', 'impact_concrete', 'impact_metal', 'impact_dirt', 'impact_flesh', 'whiz',
   'step_concrete_a', 'step_concrete_b', 'step_sand_a', 'step_sand_b', 'step_metal_a', 'step_metal_b', 'hurt_a', 'hurt_b', 'death',
-  'amb_cargo', 'amb_dust', 'amb_refinery',
+  'amb_cargo', 'amb_dust', 'amb_refinery', 'amb_testsite',
   'revolver_a', 'revolver_b', 'lmg_a', 'lmg_b', 'dmr_a', 'dmr_b', 'reload_revolver', 'reload_lmg', 'knife_swing', 'knife_hit', 'uav_ping', 'streak', 'jump_land',
 ];
 // how loud each file plays (they are all normalised to the same peak, so the quiet ones are turned down by hand)

@@ -29,7 +29,7 @@ export async function liveStats() {
   try { const rooms = await get('/rooms'); return { rooms: rooms.length, players: rooms.reduce((n, r) => n + (r.humans ?? 0), 0), bots: 0, matches: rooms.map((r) => ({ ...r, humans: r.humans ?? 0, bots: r.bots ?? 0, objective: r.objective ?? 'elim', score: r.score ?? [0, 0], phase: r.phase ?? 'live', timer: r.timer ?? 0 })), maxRooms: 12 }; } catch { return null; }
 }
 const pill = (s) => { const p = document.getElementById('livepill'); if (!p) return; p.classList.toggle('off', !s || !s.rooms); document.getElementById('livetext').textContent = !s ? 'server offline' : s.rooms ? `${s.rooms} live match${s.rooms === 1 ? '' : 'es'}` : 'no matches right now'; };
-export const MAPS = { cargo: 'Cargo Yard', dust: 'Dust Town', refinery: 'Refinery' };
+export const MAPS = { cargo: 'Cargo Yard', dust: 'Dust Town', refinery: 'Refinery', testsite: 'Test Site' };
 export const TYPES = { elim: 'Elimination', zone: 'Hold the Zone', dm: 'Deathmatch' };
 export const fmtClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 export { PLAY, PAD, X };

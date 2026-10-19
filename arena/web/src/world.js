@@ -28,8 +28,14 @@ export const THEMES = {
     grade: { sat: 1.05, contrast: 1.14, vig: 0.42, grain: 0.03, shadow: [0.9, 0.98, 1.12], high: [1.1, 1.02, 0.88] },
     props: ['tank_vertical', 'tank_horizontal', 'pipe_rack', 'generator', 'shed_metal', 'crate_steel', 'barrel_red', 'barrel_blue', 'barrier_concrete', 'lamp_flood', 'water_tower', 'watchtower', 'truck_cargo', 'fence_chainlink', 'pallet_boxes'],
   },
+  testsite: {
+    hdr: 'kloofendal_43d_clear_puresky', ground: 'dirt_floor', gtile: 7, wall: 'white_stucco', metal: 'corrugated_iron', deck: 'concrete_floor_worn_001', roof: 'concrete_floor_worn_001', road: 'asphalt_02',
+    sun: 3.4, sunColor: 0xfff0d8, env: 1.35, exposure: 0.95, fogNear: 140, fogFar: 460, hazeLum: 0.5, night: false,
+    grade: { sat: 1.12, contrast: 1.07, vig: 0.28, grain: 0.016, shadow: [0.96, 0.99, 1.05], high: [1.05, 1.0, 0.94] },
+    props: ['school_bus', 'sedan_classic', 'mannequins', 'tree_green', 'picket_fence', 'car_wreck', 'shed_metal', 'crate_wood', 'barrel_red', 'barrel_blue', 'sandbags', 'barrier_concrete', 'fence_chainlink', 'water_tower', 'watchtower', 'adobe_house_a', 'adobe_house_b'],
+  },
 };
-export const MAP_LIST = [['cargo', 'Cargo Yard', 'dusk, stacked containers, four sniper decks'], ['dust', 'Dust Town', 'noon, rooftops and a tower'], ['refinery', 'Refinery', 'night, tanks and a long catwalk']];
+export const MAP_LIST = [['cargo', 'Cargo Yard', 'dusk, stacked containers, four sniper decks'], ['dust', 'Dust Town', 'noon, rooftops and a tower'], ['refinery', 'Refinery', 'night, tanks and a long catwalk'], ['testsite', 'Test Site', 'daylight, a small suburb, short and fast']];
 
 const glow = (hex, k = 2.2) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), toneMapped: false });
 const rngOf = (seed) => { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
@@ -71,7 +77,7 @@ function hazeOf(tex, sun) {
 
 export async function buildWorld(scene, renderer, map, A, colors, quality, onProgress) {
   const th = THEMES[map.theme] || THEMES.cargo;
-  await loadMapAssets(A, { props: th.props, tex: [th.ground, th.wall, th.metal, th.deck, th.roof], hdr: th.hdr }, onProgress);
+  await loadMapAssets(A, { props: th.props, tex: [th.ground, th.wall, th.metal, th.deck, th.roof, ...(th.road ? [th.road] : [])], hdr: th.hdr }, onProgress);
   const group = new THREE.Group(); scene.add(group);
   const W = map.wM, H = map.hM;
   const own = [];                                                    // geometries made here, freed when the map is dropped
@@ -89,7 +95,7 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
   scene.fog = new THREE.Fog(haze, th.fogNear, th.fogFar);
   renderer.toneMappingExposure = th.exposure;
   // sky-and-ground fill so the shaded sides are lifted in the colour of what surrounds them
-  const hemi = { cargo: [0xb0b8d0, 0x58483c, 0.45], dust: [0xbcd0ff, 0xd8b880, 1.1], refinery: [0x6070a0, 0x30302c, 0.18] }[map.theme] || [0xffffff, 0x444444, 0.3];
+  const hemi = { cargo: [0xb0b8d0, 0x58483c, 0.45], dust: [0xbcd0ff, 0xd8b880, 1.1], refinery: [0x6070a0, 0x30302c, 0.18], testsite: [0xbcd0ff, 0xd8c8a0, 0.95] }[map.theme] || [0xffffff, 0x444444, 0.3];
   group.add(new THREE.HemisphereLight(hemi[0], hemi[1], hemi[2]));
   const sun = new THREE.DirectionalLight(th.sunColor, th.sun);
   sun.position.copy(sunDir).multiplyScalar(90).add(new THREE.Vector3(W / 2, 0, H / 2));
@@ -204,8 +210,8 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
     if (walk) mesh(keep(boxGeo(w + 0.05, 0.12, d + 0.05, 2.5)), deckMat, x0 + w / 2, top - 0.05, z0 + d / 2);
   };
   // an adobe building: sandstone walls, a flat roof you can walk on, dark doors and windows
-  const building = (x0, z0, w, d, top, walk, doors) => {
-    slab(wallMat, 3.2, x0, z0, w, d, 0, top);
+  const building = (x0, z0, w, d, top, walk, doors, mat = wallMat) => {
+    slab(mat, 3.2, x0, z0, w, d, 0, top);
     if (walk) mesh(keep(boxGeo(w - 0.06, 0.1, d - 0.06, 2.6)), roofMat, x0 + w / 2, top + 0.02, z0 + d / 2, false);
     const win = (px, pz, ry, ww, hh, y) => { const o = mesh(keep(new THREE.BoxGeometry(ww, hh, 0.12)), dark, px, y, pz, false); o.rotation.y = ry; };
     for (const side of ['n', 's', 'w', 'e']) {
@@ -242,11 +248,22 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
       case 'barrel': prop(nBarrel++ % 2 ? 'barrel_blue' : 'barrel_red', w, nom, d, cx, y, cz); break;
       case 'barrier': prop('barrier_concrete', w, nom, d, cx, y, cz); break;
       case 'sandbag': prop('sandbags', w, nom, d, cx, y, cz); break;
-      case 'house': building(x0, z0, w, d, top, true, ['s', 'n']); break;
+      case 'house':
+        if (map.theme === 'testsite') {
+          // painted suburban houses: a yellow row on one side of the street and a green row on the other, a parapet round the flat roof, a porch awning over the street door
+          const mat = pbr(th.wall, x0 < W / 2 ? 0xf2d56e : 0xa6cfa0, 1, { patches: 0.5, grime: 0.35, streaks: 0.4 });
+          building(x0, z0, w, d, top, true, z0 < H / 2 ? ['s'] : ['n'], mat);
+          const north = z0 < H / 2, doorZ = north ? z0 + d + 0.35 : z0 - 0.35;
+          mesh(keep(new THREE.BoxGeometry(2.6, 0.12, 1.1)), roofMat, x0 + w / 2, 2.7, doorZ, true);
+          for (const dx of [-1.15, 1.15]) mesh(keep(new THREE.BoxGeometry(0.1, 2.7, 0.1)), dark, x0 + w / 2 + dx, 1.35, north ? doorZ + 0.45 : doorZ - 0.45, false);
+        } else building(x0, z0, w, d, top, true, ['s', 'n']);
+        break;
+      case 'bus': { const o = prop('school_bus', w, top, d, cx, 0, cz); if (!o) slab(new THREE.MeshStandardMaterial({ color: 0xe8b800, roughness: 0.6 }), 3, x0, z0, w, d, 0, top); break; }
+      case 'fence': prop('fence_chainlink', w, top, d, cx, 0, cz); break;
       case 'tower': building(x0, z0, w, d, top, true, ['w', 'e']); break;
       case 'hut': prop('adobe_house_b', w, top, d, cx, 0, cz); break;
       case 'stall': prop('market_stall', w, top, d, cx, 0, cz); break;
-      case 'car': prop(th.night ? 'pickup_truck' : 'car_wreck', w, top, d, cx, 0, cz); break;
+      case 'car': prop(th.night ? 'pickup_truck' : map.theme === 'testsite' ? 'sedan_classic' : 'car_wreck', w, top, d, cx, 0, cz); break;
       case 'rock': prop('rock_large', w, top, d, cx, 0, cz); break;
       case 'fountain': prop('fountain_dry', w, top, d, cx, 0, cz); break;
       case 'tank': prop('tank_vertical', w, top, d, cx, 0, cz); break;
@@ -259,6 +276,21 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
       default: slab(wallMat, 3, x0, z0, w, d, 0, top);
     }
   }
+  // ---- the street, sidewalks and yard decor of the suburb ----
+  if (map.theme === 'testsite') {
+    const roadMat = pbr(th.road, 0xd8d8d8, 1, { patches: 0.6, grime: 0.4, streaks: 0.3 });
+    const walkMat = pbr(th.roof, 0xe8e2d4, 1, { patches: 0.5, grime: 0.2, streaks: 0.2 });
+    const z0 = 21.8, z1 = 34.2;
+    const road = mesh(keep(boxGeo(W - 4, 0.04, z1 - z0, 4)), roadMat, W / 2, 0.02, (z0 + z1) / 2, false); road.receiveShadow = true;
+    for (const zz of [z0 - 0.7, z1 + 0.7]) mesh(keep(boxGeo(W - 4, 0.08, 1.4, 2)), walkMat, W / 2, 0.04, zz, false);
+    const dash = new THREE.MeshStandardMaterial({ color: 0xe8d070, roughness: 0.8 });
+    for (let x = 4; x < W - 4; x += 4) mesh(keep(new THREE.BoxGeometry(2, 0.05, 0.16)), dash, x + 1, 0.055, H / 2, false);
+    // fenced front lawns and the family of mannequins in each back yard, both ends alike
+    for (const [x, z, ry] of [[12.5, 5.2, 0.4], [12.5, 50.8, 3.5], [W - 12.5, H - 5.2, 3.5], [W - 12.5, 5.2, 0.4]]) tall('mannequins', 1.8, x, z, ry);
+    for (const [x, z] of [[34, 19.5], [34, 36.5], [W - 34, 19.5], [W - 34, 36.5]]) tall('tree_green', 6.2, x, z, R() * 6);
+    for (let k = 0; k < 6; k++) for (const z of [19.9, 36.1]) { const px = 38 + k * 3.7; if (px < W - 38) prop('picket_fence', 3.7, 1.1, 0.2, px + 1.85, 0, z); }
+  }
+
   // ---- ramps: a wedge of steel plate from the floor up to the deck ----
   for (const r of map.ramps) {
     const w = m(r.w), d = m(r.h), L = r.axis[0] === 'x' ? w : d, Wd = r.axis[0] === 'x' ? d : w;
@@ -282,7 +314,7 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
   for (let k = 1; k <= 5; k++) for (const f of [0.25, 0.75]) lampSpots.push([W * k / 6, H * f]);
   const blocked = (x, z) => map.solids.some((s) => x >= m(s.x) - 0.5 && x <= m(s.x + s.w) + 0.5 && z >= m(s.y) - 0.5 && z <= m(s.y + s.h) + 0.5);
   lampSpots.forEach(([x, z], i) => {
-    if (map.theme === 'dust' || blocked(x, z)) return;
+    if (map.theme === 'dust' || map.theme === 'testsite' || blocked(x, z)) return;
     const o = A.props.lamp_flood ? tall('lamp_flood', lampH, x, z, x < W / 2 ? Math.PI / 2 : -Math.PI / 2) : null;
     if (i < nPoint) {
       const l = new THREE.PointLight(th.night ? 0xffe0b0 : 0xffd8a0, th.night ? 30 : 7, 22, 1.6);
@@ -302,6 +334,10 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
     for (let i = 0; i < 9; i++) out('rock_large', 3 + R() * 5, -20 + R() * (W + 40), (i % 2 ? -24 : H + 24) + R() * 8, R() * 6);
     for (let i = 0; i < 7; i++) out('tree_dead', 5 + R() * 3, -16 + R() * (W + 32), (i % 2 ? -14 : H + 14) + R() * 6, R() * 6);
     out('water_tower', 16, W + 28, H / 2 + 6, 0);
+  } else if (map.theme === 'testsite') {
+    ring(22, (i, x, z, a) => { const o = tall(i % 2 ? 'adobe_house_a' : 'adobe_house_b', 4 + R() * 2.5, x, z, a + Math.PI); if (o) o.rotation.y = a + Math.PI / 2; });
+    for (let i = 0; i < 9; i++) out('tree_green', 5 + R() * 3, -14 + R() * (W + 28), (i % 2 ? -10 : H + 10) + R() * 5, R() * 6);
+    out('water_tower', 17, W + 22, H / 2 - 4, 0); out('watchtower', 12, -14, H + 8, 0.4);
   } else {
     ring(16, (i, x, z, a) => { out(i % 3 === 0 ? 'tank_horizontal' : 'tank_vertical', 10 + R() * 8, x, z, a); });
     out('water_tower', 20, -26, 4, 0); out('water_tower', 18, W + 26, H - 4, 0); out('watchtower', 13, -10, -12, 0.3); out('watchtower', 13, W + 10, H + 12, 3.3);
