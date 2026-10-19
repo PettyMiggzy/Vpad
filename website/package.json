@@ -1,0 +1,6 @@
+{
+  "name": "vyre-bad-lands-website",
+  "private": true,
+  "description": "The Vyre Bad Lands site and the Telegram bot's serverless function. The only dependency is the storage client the bot uses to remember which of its posts to take down.",
+  "dependencies": { "@vercel/blob": "^2.8.2" }
+}

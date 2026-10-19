@@ -2,6 +2,7 @@
 // Pure logic: the caller passes the environment and a fetch, so tests run without Telegram.
 const crypto = require('node:crypto');
 const hype = require('./_hype');
+const { makeTidy, _reset: resetTidy } = require('./_tidy');
 const { ce, row, button, sendRich, visibleLength } = require('./_style');
 
 const LINKS = {
@@ -71,19 +72,20 @@ function firstTime(key, now) {
 }
 
 async function sendWelcome(fetchFn, env, chatId, user) {
+  const track = env._tidy?.tracker('welcome');
   const { text, keyboard } = welcomeFor(user);
   const token = env.TELEGRAM_BOT_TOKEN;
   if (env.WELCOME_VIDEO_URL && visibleLength(text) <= 1024) {
-    if (await sendRich(fetchFn, token, 'sendVideo', { chat_id: chatId, video: env.WELCOME_VIDEO_URL, caption: text, parse_mode: 'HTML', reply_markup: keyboard, supports_streaming: true })) return true;
+    if (await sendRich(fetchFn, token, 'sendVideo', { chat_id: chatId, video: env.WELCOME_VIDEO_URL, caption: text, parse_mode: 'HTML', reply_markup: keyboard, supports_streaming: true }, track)) return true;
   }
-  return sendRich(fetchFn, token, 'sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: keyboard, link_preview_options: { is_disabled: true } });
+  return sendRich(fetchFn, token, 'sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: keyboard, link_preview_options: { is_disabled: true } }, track);
 }
 
 /**
  * Handles one update. Returns { status, sent } and never throws: Telegram retries anything that is not a 200, and a retry storm helps nobody.
  * env: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, WELCOME_CHAT_ID, WELCOME_OWNER_IDS (comma list), WELCOME_VIDEO_URL (optional), WELCOME and HYPE (each set to "off" to stop that part), BOT_USERNAME (default warheadzsbot)
  */
-async function handle(headers, update, env, fetchFn = fetch, now = Date.now(), rng = Math.random) {
+async function handleUpdate(headers, update, env, fetchFn, now, rng) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) return { status: 503, sent: false };
   if (!sameSecret(headers['x-telegram-bot-api-secret-token'], env.TELEGRAM_WEBHOOK_SECRET)) return { status: 401, sent: false };
   if (!update || typeof update !== 'object') return { status: 200, sent: false };
@@ -97,6 +99,7 @@ async function handle(headers, update, env, fetchFn = fetch, now = Date.now(), r
       const user = cm.new_chat_member.user;
       if (!firstTime(`${user.id}:${cm.date}`, now)) return { status: 200, sent: false, why: 'already answered' };
       if (!allow(now)) return { status: 200, sent: false, why: 'too many welcomes in a minute' };
+      await env._tidy?.removeKind(cm.chat.id, 'welcome');           // the last welcome goes when a new one comes
       const sent = await sendWelcome(fetchFn, env, cm.chat.id, user);
       if (sent) await hype.milestone(fetchFn, env, cm.chat.id);
       return { status: 200, sent, why: sent ? 'welcomed' : 'telegram refused the welcome' };
@@ -112,4 +115,14 @@ async function handle(headers, update, env, fetchFn = fetch, now = Date.now(), r
   return { status: 200, sent: false };
 }
 
-module.exports = { handle, welcomeFor, isJoin, LINKS, _reset: () => { recent.length = 0; seen.clear(); hype._reset(); } };
+/** the public entry: handles the update, then tidies up (see _tidy.js). TIDY_MINUTES (default 10) is how long the bot's posts stay; 0 keeps them. */
+async function handle(headers, update, env, fetchFn = fetch, now = Date.now(), rng = Math.random) {
+  const ok = env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_WEBHOOK_SECRET && sameSecret(headers['x-telegram-bot-api-secret-token'], env.TELEGRAM_WEBHOOK_SECRET);
+  const tidy = ok ? makeTidy(env, fetchFn, now) : null;
+  let r;
+  try { r = await handleUpdate(headers, update, tidy ? { ...env, _tidy: tidy } : env, fetchFn, now, rng); }
+  finally { if (tidy) await tidy.finish(); }
+  return tidy ? { ...r, tidy: { ...tidy.stats } } : r;
+}
+
+module.exports = { handle, welcomeFor, isJoin, LINKS, _reset: () => { recent.length = 0; seen.clear(); hype._reset(); resetTidy(); } };

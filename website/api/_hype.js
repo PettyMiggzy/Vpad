@@ -60,7 +60,7 @@ async function call(fetchFn, token, method, body) {
   return r.json().catch(() => ({}));
 }
 const sendHtml = (fetchFn, env, chat_id, text, reply_markup, extra = {}) =>
-  sendRich(fetchFn, env.TELEGRAM_BOT_TOKEN, 'sendMessage', { chat_id, text, parse_mode: 'HTML', reply_markup, link_preview_options: { is_disabled: true }, ...extra });
+  sendRich(fetchFn, env.TELEGRAM_BOT_TOKEN, 'sendMessage', { chat_id, text, parse_mode: 'HTML', reply_markup, link_preview_options: { is_disabled: true }, ...extra }, env._tidy?.tracker('post'));
 
 const pick = (arr, rng) => arr[Math.min(arr.length - 1, Math.floor(rng() * arr.length))];
 

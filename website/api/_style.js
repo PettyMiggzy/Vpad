@@ -28,11 +28,13 @@ function plainBody(body) {
 /** length of a text as Telegram counts it for a caption (tags and custom emoji wrappers do not count) */
 const visibleLength = (html) => stripEmoji(html).replace(/<[^>]+>/g, '').replace(/&amp;|&lt;|&gt;|&quot;/g, 'x').length;
 
-/** sends the rich version; when Telegram says no, the plain one. Returns true when either went out. */
-async function sendRich(fetchFn, token, method, body) {
+/** sends the rich version; when Telegram says no, the plain one. Returns true when either went out. track(chat_id, message_id) is told which message it was. */
+async function sendRich(fetchFn, token, method, body, track) {
   const go = async (b) => {
     const r = await fetchFn(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
-    return !!(await r.json().catch(() => ({}))).ok;
+    const j = await r.json().catch(() => ({}));
+    if (j.ok && typeof track === 'function' && j.result && j.result.message_id) { try { track(b.chat_id, j.result.message_id); } catch { /* bookkeeping must not stop a post */ } }
+    return !!j.ok;
   };
   if (await go(body)) return true;
   const plain = plainBody(body);
