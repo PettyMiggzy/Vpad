@@ -32,7 +32,7 @@ Only trades in the token's WARHEADZ pad pool produce income for its chest. Trade
 
 - Which token is burned for upgrades (the game's own token is the plan) and its name.
 - The chest's share: 10% of what, exactly. Either 10% of the owner's 1% platform fee on that token's trades (0.1% of volume), or something larger added on top. The owner is to give it in numbers for a 1,000 USDC fee.
-- Whether a buyback of the winner's token, paid from a chest filled by tax, needs anything from the lawyer; and whether burning a launched token for items does.
+- Whether a buyback of the winner's token, paid from a chest filled by the pad's income, needs anything from the lawyer; and whether burning a launched token for items does.
 - Fairness: burning lets the biggest holder get the strongest gear. Cosmetics and small side-grades avoid that; it is the owner's call.
 - Wording everywhere: "war chest", "buyback and burn". Never price talk, promises, "prize", "jackpot".
 
