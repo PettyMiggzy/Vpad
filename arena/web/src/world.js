@@ -30,7 +30,7 @@ export const THEMES = {
   },
   testsite: {
     hdr: 'kloofendal_43d_clear_puresky', ground: 'dirt_floor', gtile: 7, wall: 'white_stucco', metal: 'corrugated_iron', deck: 'concrete_floor_worn_001', roof: 'concrete_floor_worn_001', road: 'asphalt_02',
-    sun: 3.4, sunColor: 0xfff0d8, env: 1.35, exposure: 0.95, fogNear: 140, fogFar: 460, hazeLum: 0.5, night: false,
+    sun: 2.8, sunColor: 0xfff0d8, env: 1.0, exposure: 0.8, fogNear: 200, fogFar: 620, hazeLum: 0.26, night: false,
     grade: { sat: 1.12, contrast: 1.07, vig: 0.28, grain: 0.016, shadow: [0.96, 0.99, 1.05], high: [1.05, 1.0, 0.94] },
     props: ['school_bus', 'sedan_classic', 'mannequins', 'tree_green', 'picket_fence', 'car_wreck', 'shed_metal', 'crate_wood', 'barrel_red', 'barrel_blue', 'sandbags', 'barrier_concrete', 'fence_chainlink', 'water_tower', 'watchtower', 'adobe_house_a', 'adobe_house_b'],
   },
@@ -152,7 +152,7 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
   const warm = map.theme === 'dust';
   const wet = map.theme === 'dust' ? 0 : th.night ? 0.9 : 0.7;       // puddles on the dry sand would look wrong
   const wallMat = pbr(th.wall, warm ? 0xf4dcb0 : 0xffffff, 1, warm ? { patches: 0.7, grime: 0.45, streaks: 0.35 } : { patches: 0.9, grime: 0.9, streaks: 0.7 }), metalMat = pbr(th.metal, 0xffffff, 1, { patches: 0.5, grime: 0.6, streaks: 0.8 });
-  const deckMat = pbr(th.deck, warm ? 0x9c8868 : 0xffffff, 1, { patches: 0.6, grime: 0.3, streaks: 0.2, puddles: wet * 0.8 }), roofMat = pbr(th.roof, warm ? 0x6e604a : 0xffffff, 1, { patches: 0.8, grime: 0.3, streaks: 0.2, puddles: wet * 0.6 });
+  const deckMat = pbr(th.deck, warm ? 0x9c8868 : map.theme === 'testsite' ? 0xb4a894 : 0xffffff, 1, { patches: 0.6, grime: 0.3, streaks: 0.2, puddles: wet * 0.8 }), roofMat = pbr(th.roof, warm ? 0x6e604a : map.theme === 'testsite' ? 0xa89c8a : 0xffffff, 1, { patches: 0.8, grime: 0.3, streaks: 0.2, puddles: wet * 0.6 });
   const groundMat = pbr(th.ground, 0xffffff, 1, { patches: 0.9, grime: 0, streaks: 0, puddles: wet });
   const railMat = pbr(th.metal, 0xa88c78, 1, { patches: 0.5, grime: 0.5, streaks: 0.6 });
   const hazard = new THREE.MeshStandardMaterial({ color: 0xe8b800, roughness: 0.7 });
