@@ -1,3 +1,5 @@
+import { telegramHaptics } from './tgapp.js';
+
 // Buzz in the hand: a tick for each shot, a jolt when you are hit, a pulse for a kill. The native app uses the phone's own haptic engine
 // (Capacitor's Haptics plugin, when the page runs inside the app); a browser on Android uses the Vibration API; an iPhone's browser has neither,
 // so there it stays silent (Apple does not offer vibration to web pages).
@@ -23,8 +25,8 @@ export class Haptics {
   constructor({ enabled = () => true, touch = true, win = globalThis.window, nav = globalThis.navigator, now = () => Date.now() } = {}) {
     this.enabled = enabled; this.touch = touch; this.win = win; this.nav = nav; this.now = now; this.last = {};
   }
-  /** the app's haptic engine, or null in a browser */
-  native() { try { return this.win?.Capacitor?.isNativePlatform?.() ? this.win.Capacitor.Plugins?.Haptics ?? null : null; } catch { return null; } }
+  /** the phone's own haptic engine: the app's plugin, or Telegram's when the page is a Mini App; null in a plain browser */
+  native() { try { return (this.win?.Capacitor?.isNativePlatform?.() ? this.win.Capacitor.Plugins?.Haptics : null) ?? telegramHaptics(this.win) ?? null; } catch { return null; } }
   /** true when a buzz of this kind could reach the player's hand on this device */
   available() { return !!(this.native() || (this.touch && typeof this.nav?.vibrate === 'function')); }
   fire(kind, arg) {

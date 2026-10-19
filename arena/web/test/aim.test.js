@@ -74,3 +74,36 @@ test('inside the app the phone haptic engine is used instead of the browser', ()
 test('a browser without vibration (an iPhone) stays quiet and does not throw', () => {
   const { h } = mk({ nav: {} }); assert.equal(h.fire('hit', 1), false); assert.equal(h.available(), false);
 });
+
+import { inTelegram, nameFrom, telegramHaptics, setupTelegram } from '../src/tgapp.js';
+
+test('a page is a Telegram Mini App only when Telegram passed its launch data', () => {
+  assert.equal(inTelegram('#tgWebAppData=query_id%3DAAA&tgWebAppVersion=8.0'), true);
+  assert.equal(inTelegram('#tgWebAppVersion=7.2'), true);
+  assert.equal(inTelegram(''), false); assert.equal(inTelegram('#loadout'), false); assert.equal(inTelegram('#x=tgWebAppDataFake'), false);
+});
+
+test('a Telegram name is cut down to what the game accepts', () => {
+  assert.equal(nameFrom({ first_name: 'Ada <b>Lovelace</b> The Great' }), 'Ada bLovelac');
+  assert.equal(nameFrom({ username: 'frog_99' }), 'frog99'); assert.equal(nameFrom(null), '');
+});
+
+test('Telegram haptics are shaped like the app plugin and drive the same buzzes', () => {
+  const seen = [];
+  const win = { Telegram: { WebApp: { HapticFeedback: { impactOccurred: (s) => seen.push(['impact', s]), notificationOccurred: (t) => seen.push(['note', t]) } } } };
+  assert.equal(telegramHaptics({}), null);
+  const h = new Haptics({ win, touch: false, nav: {}, now: () => (h.t += 500) }); h.t = 0;
+  assert.ok(h.available());
+  h.fire('hit', 1); h.fire('kill'); h.fire('shot', 40);
+  assert.deepEqual(seen, [['impact', 'heavy'], ['note', 'success'], ['impact', 'medium']]);
+});
+
+test('setup does nothing outside Telegram and uses what the new Telegram offers inside it', () => {
+  const doc = { createElement: () => ({}), head: { appendChild: () => { throw new Error('loaded a script outside Telegram'); } } };
+  assert.equal(setupTelegram({ win: { location: { hash: '' } }, doc }), false);
+  const calls = [];
+  const w = { ready: () => calls.push('ready'), expand: () => calls.push('expand'), isVersionAtLeast: (v) => v === '7.7', requestFullscreen: () => calls.push('full'), lockOrientation: () => calls.push('lock'), disableVerticalSwipes: () => calls.push('noswipe'), initDataUnsafe: { user: { first_name: 'Ada' } } };
+  let got; assert.equal(setupTelegram({ win: { location: { hash: '#tgWebAppData=x' }, Telegram: { WebApp: w } }, doc, onReady: (x) => { got = x; } }), true);
+  assert.deepEqual(calls, ['ready', 'expand', 'noswipe']);      // version 7.7: no fullscreen or orientation lock, which need 8.0
+  assert.equal(got, w);
+});

@@ -12,6 +12,7 @@ import { REWARD, WEAPONS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
 import { coneLimit, frictionFor, zoomScale, onBody, flinchAmount } from './aimcore.js';
 import { Haptics } from './haptics.js';
+import { setupTelegram, nameFrom } from './tgapp.js';
 import { freshProfile, sanitize, award, teamNames, gainXp, level as playerLevel } from './profile.ts';
 import { XP } from '../../server/progress.js';
 import { PICK } from '../../server/pickups.js';
@@ -277,6 +278,7 @@ let turnFriction = 1;
 const flinch = { t: 0, roll: 0, pitch: 0 };       // the knock of a hit on the view: strongest at once, gone in about a quarter of a second
 const hap = new Haptics({ enabled: () => ui.prefs.vibe, touch: ui.touch });
 ui.setVibeNote(hap.native() ? 'Uses your phone\'s own haptic motor.' : hap.available() ? 'Your browser can vibrate.' : ui.touch ? 'This browser cannot vibrate (iPhone browsers do not allow it); the phone app can.' : 'Vibration is for phones.');
+setupTelegram({ onReady: (w) => { ui.setVibeNote('Uses Telegram\'s haptics.'); const box = document.getElementById('vy-name'); if (box && !box.value) box.value = nameFrom(w.initDataUnsafe?.user); } });
 const turn = (dx, dy) => { const k = ui.prefs.look * zoomScale(fov, FOV) * turnFriction; vm.turned(dx * k, dy * k); look.yaw += dx * 0.0022 * k; look.pitch = Math.max(-1.4, Math.min(1.4, look.pitch + dy * 0.0022 * k)); };
 addEventListener('mousemove', (e) => { if (!playing) return; if (locked) turn(e.movementX, e.movementY); else if (lockFailed && (e.buttons & 1)) turn(e.movementX, e.movementY); });
 addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive && !skipKillcam()) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
