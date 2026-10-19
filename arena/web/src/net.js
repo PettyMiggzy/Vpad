@@ -96,7 +96,7 @@ export function decayOffset(offset, dt) {
 }
 
 function blankInput() {
-  return { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, ads: false };
+  return { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false };
 }
 
 function cleanInput(m) {
@@ -110,7 +110,7 @@ function cleanInput(m) {
   return {
     dx: clamp(n('dx'), -1, 1), dy: clamp(n('dy'), -1, 1), aim, pitch: clamp(n('pitch'), -PITCH, PITCH),
     fire: src.fire === true, nade: src.nade === true, reload: src.reload === true, sprint: src.sprint === true,
-    jump: src.jump === true, melee: src.melee === true, swap: src.swap === true, ads: src.ads === true,
+    jump: src.jump === true, melee: src.melee === true, swap: src.swap === true, use: src.use === true, ads: src.ads === true,
   };
 }
 

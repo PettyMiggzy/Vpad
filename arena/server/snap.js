@@ -27,7 +27,7 @@ export function slimSnap(state, snap) {
     if (full || state.keys.get(q[0]) !== k) p.push(q);
   }
   const out = { ...snap, p };
-  if (full) out.full = 1;
+  if (full) out.full = 1; else delete out.pk;      // what lies on the floor is sent whole with a full snapshot; between those the events carry the changes
   return { snap: out, state: { keys, ids, since: full ? 0 : state.since + 1 } };
 }
 

@@ -54,7 +54,7 @@ function release(A, need) {
 }
 
 export async function loadAssets(onProgress = () => {}) {
-  const A = { hero: {}, heroLo: {}, clips: null, gunsH: {}, gunsLo: {}, props: {}, tex: {}, hdr: {} };
+  const A = { hero: {}, heroLo: {}, clips: null, gunsH: {}, gunsLo: {}, props: {}, floor: {}, tex: {}, hdr: {} };
   const jobs = [];
   let done = 0;
   const add = (p) => { jobs.push(p); p.then(() => onProgress(done += 1, jobs.length)); return p; };
@@ -65,6 +65,8 @@ export async function loadAssets(onProgress = () => {}) {
   // more characters for the crowd (bots and other players): only the light copy, since your own arms are always the first two
   for (const c of EXTRA_HEROES) add(load(`${BASE}models${S}/hero/${c}_lo.glb`).then((g) => { shade(g.scene); A.heroLo[c] = g; A.hero[c] = g; }));
   for (const w of WEAPON_IDS) add(load(`${BASE}models${S}/hero/gun_${w}_lo.glb`).then((g) => { shade(g.scene); A.gunsLo[w] = g; }));
+  // the ammunition box and the med kit that lie about the maps
+  for (const n of ['ammo_box', 'medkit']) add(load(`${BASE}models${S}/props/${n}.glb`).then((g) => { shadeProp(g.scene); A.floor[n] = g; }).catch(() => null));
   const clipSets = [];
   for (const f of ['clips', 'clips2', 'clips3']) add(load(`${BASE}models${S}/hero/${f}.glb`).then((g) => { clipSets[['clips', 'clips2', 'clips3'].indexOf(f)] = g.animations; }));
   await Promise.all(jobs);

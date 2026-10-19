@@ -86,3 +86,23 @@ test('a deathmatch comes through the network match: the type, the time limit, ov
   assert.deepEqual(nm.score, [1, 0]); assert.equal(nm.objective, 'dm'); assert.equal(nm.overtime, false);
   m.overtime = true; nm.apply(m.snapshot()); assert.equal(nm.overtime, true);
 });
+
+test('what lies on the floor comes with a full snapshot, then changes arrive as events; spare rounds are shown', () => {
+  const m = setup(), nm = new NetMatch(hello(m), teams);
+  nm.apply(m.snapshot());
+  assert.equal(nm.pickups.list.length, m.pickups.list.length);
+  const src = m.players.get('p1');
+  assert.equal(nm.players.get('p1').reserve, src.reserve);
+  assert.ok(nm.pickups.list.every((q) => ['ammo', 'med', 'gun'].includes(q.kind) && Number.isFinite(q.x) && Number.isFinite(q.y)));
+  // a gun is dropped and taken again: the events keep the list right without a new full snapshot
+  const n0 = nm.pickups.list.length;
+  nm.push({ type: 'pk+', id: 9001, k: 'gun', x: 500, y: 600, z: 0, w: 'sniper' });
+  nm.push({ type: 'pk+', id: 9001, k: 'gun', x: 500, y: 600, z: 0, w: 'sniper' });         // the same drop twice (an event and a full list can overlap)
+  assert.equal(nm.pickups.list.length, n0 + 1);
+  assert.equal(nm.pickups.list.at(-1).weapon, 'sniper');
+  nm.push({ type: 'pk-', id: 9001, by: 'p1' });
+  assert.equal(nm.pickups.list.length, n0);
+  assert.deepEqual(nm.takeEvents().filter((e) => e.type === 'pk+' || e.type === 'pk-'), [], 'the page draws from the list, the events are not passed on');
+  nm.push({ type: 'pickup', by: 'p1', kind: 'med', x: 1, y: 2 });
+  assert.equal(nm.takeEvents().length, 1, 'the pickup itself (the sound and the feed line) is passed on');
+});

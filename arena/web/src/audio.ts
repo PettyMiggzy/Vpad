@@ -12,14 +12,14 @@ const NAMES = [
   'nade_throw', 'nade_bounce', 'boom_a', 'boom_b', 'impact_concrete', 'impact_metal', 'impact_dirt', 'impact_flesh', 'whiz',
   'step_concrete_a', 'step_concrete_b', 'step_sand_a', 'step_sand_b', 'step_metal_a', 'step_metal_b', 'hurt_a', 'hurt_b', 'death',
   'amb_cargo', 'amb_dust', 'amb_refinery', 'amb_testsite',
-  'revolver_a', 'revolver_b', 'lmg_a', 'lmg_b', 'dmr_a', 'dmr_b', 'reload_revolver', 'reload_lmg', 'knife_swing', 'knife_hit', 'uav_ping', 'streak', 'jump_land',
+  'revolver_a', 'revolver_b', 'lmg_a', 'lmg_b', 'dmr_a', 'dmr_b', 'reload_revolver', 'reload_lmg', 'knife_swing', 'knife_hit', 'uav_ping', 'streak', 'jump_land', 'pickup_ammo', 'pickup_med', 'pickup_gun',
 ];
 // how loud each file plays (they are all normalised to the same peak, so the quiet ones are turned down by hand)
 const GAIN: Record<string, number> = { pistol_a: 0.7, pistol_b: 0.7, smg_a: 0.6, smg_b: 0.6, rifle_a: 0.8, rifle_b: 0.8, shotgun_a: 1, shotgun_b: 1, sniper_a: 1, sniper_b: 1,
   reload_pistol: 0.5, reload_smg: 0.5, reload_rifle: 0.55, reload_sniper: 0.5, shotgun_pump: 0.6, shotgun_shell: 0.4, empty_click: 0.5, equip: 0.25, nade_throw: 0.5, nade_bounce: 0.45,
   boom_a: 1, boom_b: 1, impact_concrete: 0.5, impact_metal: 0.5, impact_dirt: 0.4, impact_flesh: 0.5, whiz: 0.6,
   step_concrete_a: 0.12, step_concrete_b: 0.3, step_sand_a: 0.3, step_sand_b: 0.15, step_metal_a: 0.15, step_metal_b: 0.2, hurt_a: 0.6, hurt_b: 0.6, death: 0.7,
-  revolver_a: 0.9, revolver_b: 0.9, lmg_a: 0.8, lmg_b: 0.8, dmr_a: 0.9, dmr_b: 0.9, reload_revolver: 0.5, reload_lmg: 0.55, knife_swing: 0.5, knife_hit: 0.6, uav_ping: 0.5, streak: 0.5, jump_land: 0.35 };
+  revolver_a: 0.9, revolver_b: 0.9, lmg_a: 0.8, lmg_b: 0.8, dmr_a: 0.9, dmr_b: 0.9, reload_revolver: 0.5, reload_lmg: 0.55, knife_swing: 0.5, knife_hit: 0.6, uav_ping: 0.5, streak: 0.5, pickup_ammo: 0.7, pickup_med: 0.7, pickup_gun: 0.7, jump_land: 0.35 };
 // which recorded set each weapon uses (the new ones share with the nearest kind where there is no file of their own)
 const SHOT: Record<string, string> = { burst: 'smg', autosg: 'shotgun' };
 const RELOAD: Record<string, string> = { burst: 'smg', dmr: 'rifle', autosg: 'shotgun' };
@@ -89,6 +89,8 @@ export function reload(weapon: string, x: number, z: number, own: boolean): void
   if (k === 'shotgun') { play('shotgun_shell', { x, z, own }); setTimeout(() => play('shotgun_pump', { x, z, own }), 1100); } else play(`reload_${k}`, { x, z, own });
 }
 export function dry(x: number, z: number, own: boolean): void { play('empty_click', { x, z, own }); }
+/** something taken from the floor: ammunition, a med kit or a gun (heard where it was taken, loudest for your own) */
+export function pickup(kind: string, x: number, z: number, own: boolean): void { play(`pickup_${kind === 'med' ? 'med' : kind === 'gun' ? 'gun' : 'ammo'}`, { x, z, own }); }
 export function equip(): void { play('equip', { own: true }); }
 export function throwNade(x: number, z: number, own: boolean): void { play('nade_throw', { x, z, own }); }
 export function boom(x: number, z: number): void { play(pick('boom_a', 'boom_b'), { x, z, vol: 1.2, delayCap: 1.2 }); }

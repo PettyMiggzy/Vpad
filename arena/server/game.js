@@ -1,6 +1,7 @@
 // The arena rules, with no network code in them so they can be tested on their own: two teams (one per token), a map with walls, ramps and
 // high decks, hitscan shooting (head, body, cover you can shoot over), grenades, bots that fill empty seats, and rounds (first to two takes the match).
 // Positions are pixels (50 to the metre), heights are metres.
+import { Pickups, startReserve, nearestFor } from './pickups.js';
 import { WEAPONS, ARMOR, BOOTS, FREE, GRENADE, OPTICS, MUZZLES, GRIPS, AMMO, HELMETS, KITS, MELEE } from './items.js';
 import { MAPS, STEP } from './maps.js';
 import { Recoil, feelOf, spreadFor, falloff } from './gunfeel.js';
@@ -202,6 +203,7 @@ export class Match {
     // deathmatch: one timed match, everyone comes back a few seconds after going down, and the team with more kills when the clock ends wins
     this.minutes = clamp(Math.round(Number(minutes)) || 5, 1, 30); this.overtime = false; this.zoneP = [0, 0]; this.zoneIn = [0, 0]; this.uav = [0, 0];
     this.events = []; this.rv = 0;   // rv counts every change of who is in the match, so the room knows when to send the roster again
+    this.pkv = 0; this.pickups = new Pickups(this);   // what lies on the floor (ammunition, med kits, dropped guns); pkv counts its changes
   }
 
   humans(team) { return [...this.players.values()].filter((p) => !p.bot && p.team === team).length; }
@@ -228,12 +230,25 @@ export class Match {
 
   removePlayer(sid) { this.players.delete(sid); this.rv++; }
 
+  magOf(p, weapon) { return magFor(p, weapon); }
+  reloadOf(p, weapon) { return reloadFor(p, weapon); }
+  /** between the primary and the sidearm: what is in each magazine and each reserve is kept */
+  swapSlot(p) {
+    const next = p.slot === 0 ? 'pistol' : p.primary;
+    [p.ammo, p.stash] = [p.stash, p.ammo]; [p.reserve, p.stashRes] = [p.stashRes, p.reserve]; p.slot = 1 - p.slot; p.weapon = next; p.rl = 0; p.burstLeft = 0;
+    p.magSize = magFor(p, next); p.reloadTime = reloadFor(p, next); p.swapT = 0.38; p.cd = Math.max(p.cd, 0.2);
+    this.events.push({ type: 'swap', by: p.id, weapon: next });
+    return next;
+  }
+  toPrimary(p) { if (p.slot === 1) this.swapSlot(p); }
+
   makePlayer(id, team, name, loadout, bot) {
     const st = statsOf(loadout);
     const p = { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, alive: false, kills: 0, deaths: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
       primary: st.weapon, slot: 0, stash: 0, swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, moveMul: st.speedMul, rc: new Recoil(), ads: 0, moveFrac: 0, prot: 0, respawn: 0,
-      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, ads: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
+      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
     p.stash = magFor(p, 'pistol');
+    p.reserve = startReserve(magFor(p, p.primary), false); p.stashRes = startReserve(magFor(p, 'pistol'), true);
     return p;
   }
 
@@ -249,7 +264,7 @@ export class Match {
     [x, y] = pushOut(this.map, x, y, 0);
     Object.assign(p, { x, y, z: floorAt(this.map, x, y), hp: p.hpMax, alive: true, cd: 0, nadeCd: 0, grenades: p.nadeCount, rl: 0, aim: p.team === 0 ? 0 : Math.PI, pitch: 0,
       weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, rc: new Recoil(), ads: 0, moveFrac: 0 });
-    p.ammo = p.magSize; p.stash = magFor(p, 'pistol');
+    p.ammo = p.magSize; p.stash = magFor(p, 'pistol'); p.reserve = startReserve(p.magSize, false); p.stashRes = startReserve(magFor(p, 'pistol'), true);
     p.respawn = 0; p.prot = this.objective === 'dm' && this.phase === 'live' ? R.PROTECT : 0;
   }
 
@@ -270,6 +285,7 @@ export class Match {
   startRound() {
     this.round += 1; this.phase = 'countdown'; this.timer = 3; this.nades = []; this.roundWinner = null; this.zoneP = [0, 0]; this.zoneIn = [0, 0]; this.uav = [0, 0];
     this.fillBots();
+    this.pickups.reset();
     for (const p of this.players.values()) { p.brain.perch = null; p.brain.goZone = undefined; p.alive = false; }
     for (const p of this.players.values()) this.spawn(p);
     this.events.push({ type: 'round', n: this.round });
@@ -308,6 +324,7 @@ export class Match {
     // live
     this.timer -= dt;
     this.think(dt, true);
+    this.pickups.step(dt);
     this.moveNades(dt);
     this.uav = this.uav.map((t) => Math.max(0, t - dt));
     if (this.objective === 'dm') { this.stepDm(dt); return; }
@@ -378,15 +395,12 @@ export class Match {
       } else p.z = f >= p.z ? f : Math.max(f, p.z - R.FALL * dt);
       // health comes back a little at a time once you have been out of a fight for a few seconds
       if (p.hp < p.hpMax && p.hurtT > R.REGEN_AFTER) p.hp = Math.min(p.hpMax, p.hp + R.REGEN_RATE * dt);
-      // the sidearm: swap between the primary and the pistol (what is in each magazine is kept)
-      if (live && inp.swap && p.swapT === 0 && p.primary !== 'pistol') {
-        const next = p.slot === 0 ? 'pistol' : p.primary;
-        [p.ammo, p.stash] = [p.stash, p.ammo]; p.slot = 1 - p.slot; p.weapon = next; p.rl = 0; p.burstLeft = 0;
-        p.magSize = magFor(p, next); p.reloadTime = reloadFor(p, next); p.swapT = 0.38; p.cd = Math.max(p.cd, 0.2);
-        this.events.push({ type: 'swap', by: p.id, weapon: next }); w = WEAPONS[next];
-      }
-      if (p.rl > 0) { p.rl = Math.max(0, p.rl - dt); if (p.rl === 0) p.ammo = p.magSize; }
-      else if (live && p.swapT === 0 && (inp.reload || (inp.fire && p.ammo <= 0)) && p.ammo < p.magSize) { p.rl = p.reloadTime * (p.boostT > 0 ? 0.5 : 1); this.events.push({ type: 'reload', by: p.id }); }
+      // the sidearm: swap between the primary and the pistol (what is in each magazine and each reserve is kept)
+      if (live && inp.swap && p.swapT === 0 && p.primary !== 'pistol') w = WEAPONS[this.swapSlot(p)];
+      // the use key: take the dropped gun at your feet
+      if (live && inp.use) { inp.use = false; if (p.alive && this.pickups.use(p)) w = WEAPONS[p.weapon]; }
+      if (p.rl > 0) { p.rl = Math.max(0, p.rl - dt); if (p.rl === 0) { const take = Math.min(p.magSize - p.ammo, p.reserve); p.ammo += take; p.reserve -= take; } }
+      else if (live && p.swapT === 0 && (inp.reload || (inp.fire && p.ammo <= 0)) && p.ammo < p.magSize && p.reserve > 0) { p.rl = p.reloadTime * (p.boostT > 0 ? 0.5 : 1); this.events.push({ type: 'reload', by: p.id }); }
       // the knife
       if (live && inp.melee && p.meleeCd === 0 && p.swapT === 0) { p.meleeCd = MELEE.gap; p.cd = Math.max(p.cd, 0.35); p.rl = 0; p.burstLeft = 0; this.melee(p); }
       // firing: a burst weapon queues its rounds, the rest fire one round a trigger pull
@@ -405,6 +419,7 @@ export class Match {
 
   /** a kill, from a shot, a blast or the knife: counts it, runs the streak rewards, tells everyone */
   kill(by, victim, extra = {}) {
+    this.pickups.dropGun(victim);
     victim.alive = false; victim.deaths += 1; victim.streak = 0; victim.boostT = 0; victim.burstLeft = 0; victim.respawn = R.RESPAWN;
     if (this.objective === 'dm' && this.phase === 'live' && by && by.team !== victim.team) { this.score[by.team] += 1; if (this.overtime) this.endDm(by.team); }
     if (by && by.id !== victim.id) {
@@ -539,6 +554,20 @@ export class Match {
     const err = (0.012 + d / 60000) * DF.aim;
     inp.aim = ang + rnd(-err, err) * 4;
     inp.pitch = Math.atan2(target.z + 1.3 - (p.z + R.EYE), d / M) + rnd(-err, err) * 3;
+    // short of rounds or health with nobody in sight: go and fetch a box or a kit
+    const dryHands = p.ammo + p.reserve < p.magSize * 0.5, drySide = p.stash + p.stashRes < 10;       // both guns nearly empty
+    const need = dryHands && drySide ? 'ammo' : p.hp < p.hpMax * 0.45 ? 'med' : null;
+    if (need && !see) {
+      const k = nearestFor(this, p, need, 2400);
+      if (k) {
+        b.lootAt = (b.lootAt ?? 0) - dt;
+        if (!b.lootPath || b.lootPath.length === 0 || b.lootAt <= 0 || b.lootFor !== k.id) { b.lootPath = navPath(this.map, p.x, p.y, p.z, k.x, k.y, k.z); b.lootAt = rnd(0.8, 1.4); b.lootFor = k.id; }
+        while (b.lootPath.length > 1 && Math.hypot(b.lootPath[0][0] - p.x, b.lootPath[0][1] - p.y) < 26) b.lootPath.shift();
+        const wp = b.lootPath[0] || [k.x, k.y], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
+        inp.dx = Math.cos(wa); inp.dy = Math.sin(wa); inp.aim = wa; inp.pitch = 0; inp.sprint = true;
+        return;
+      }
+    }
     // snipers head for a high deck on their own half and hold it; everyone else closes to a sensible range
     if (p.weapon === 'sniper' && !see) {
       if (!b.perch) {
@@ -593,8 +622,9 @@ export class Match {
     return {
       mode: this.mode, obj: this.objective, uv: this.uav.map((t) => Math.ceil(t)), zn: this.objective === 'zone' && this.map.zone ? [this.map.zone.x, this.map.zone.y, this.map.zone.r, this.map.zone.z ?? 0, +this.zoneP[0].toFixed(3), +this.zoneP[1].toFixed(3), this.zoneIn[0], this.zoneIn[1]] : null, ph: this.phase, ot: this.overtime ? 1 : 0, mn: this.minutes, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
       al: [this.aliveCount(0), this.aliveCount(1)], n: [this.count(0), this.count(1)],
-      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0]),
+      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0, p.reserve]),
       g: this.nades.map((n) => [n.id, Math.round(n.x), Math.round(n.y), +n.z.toFixed(2)]),
+      pk: this.pickups.list.map((q) => this.pickups.wire(q)),
       ev: this.events,
     };
   }

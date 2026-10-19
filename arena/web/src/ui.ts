@@ -85,7 +85,11 @@ const CSS = `
 #vy-jump { right: calc(36px + env(safe-area-inset-right)); bottom: calc(222px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 10px; background: rgba(255,210,74,.28); border: 3px solid rgba(255,210,74,.8); }
 #vy-knife { right: calc(126px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 58px; height: 58px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); }
 #vy-swap { right: calc(210px + env(safe-area-inset-right)); bottom: calc(112px + env(safe-area-inset-bottom)); width: 54px; height: 54px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); }
-#vy-jump.on, #vy-knife.on, #vy-swap.on { background: rgba(255,255,255,.45); }
+#vy-use { right: calc(150px + env(safe-area-inset-right)); bottom: calc(190px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 11px; background: rgba(184,255,60,.28); border: 3px solid #b8ff3c; color: #fff; }
+#vy-prompt { position: absolute; left: 0; right: 0; bottom: 24%; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: .04em; text-shadow: 0 2px 8px #000; pointer-events: none; display: none; }
+#vy-prompt kbd { background: #b8ff3c; color: #000; border-radius: 4px; padding: 1px 7px; margin-right: 6px; font-weight: 900; }
+#vy-prompt small { display: block; font-size: 12px; opacity: .8; font-weight: 600; }
+#vy-jump.on, #vy-knife.on, #vy-swap.on, #vy-use.on { background: rgba(255,255,255,.45); }
 #vy-scope { right: calc(124px + env(safe-area-inset-right)); bottom: calc(186px + env(safe-area-inset-bottom)); width: 54px; height: 54px; font-size: 10px; background: rgba(255,255,255,.14); border: 3px solid rgba(255,255,255,.6); display: none; }
 #vy-scope.on { background: rgba(255,255,255,.4); }
 body.touch #vy-me { left: 50%; transform: translateX(-108%); bottom: calc(8px + env(safe-area-inset-bottom)); width: min(180px, 26vw); }
@@ -179,6 +183,7 @@ export class Ui {
   jumpTouch = false;
   knifeTouch = false;
   swapTouch = false;
+  useTouch = false;
   sprintTouch = false;
   easy = true;
   tipsPending = false;
@@ -192,12 +197,12 @@ export class Ui {
 <div id="vy-hud" hidden>
   <div id="vy-hurt"></div>
   <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span data-tn="0">${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span data-tn="1">${b}</span><div class="pips" data-pips="1"></div></div></div>
-  <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
+  <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun &nbsp;<kbd>E</kbd>pick up a gun<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-prompt"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
   <div id="vy-scopeov"><i><b></b></i></div><div id="vy-cross"></div><div id="vy-hitm"></div>
   <div id="vy-me"><b data-hp>100</b><div class="hp"><i></i></div><small data-me></small></div>
   <div id="vy-gun"><b data-ammo style="font-size:26px"></b><br><span data-gun></span><small data-nades></small><small data-coins></small></div>
   <div id="vy-tags"></div>
-  <div id="vy-touch" hidden><div id="vy-pad"><i></i></div><div class="vy-tb" id="vy-scope">AIM</div><div class="vy-tb" id="vy-jump">JUMP</div><div class="vy-tb" id="vy-knife">KNIFE</div><div class="vy-tb" id="vy-swap">SWAP</div><div class="vy-tb" id="vy-reload">RELOAD</div><div class="vy-tb" id="vy-nade">GRENADE</div><div class="vy-tb" id="vy-fire">FIRE</div></div>
+  <div id="vy-touch" hidden><div id="vy-pad"><i></i></div><div class="vy-tb" id="vy-scope">AIM</div><div class="vy-tb" id="vy-jump">JUMP</div><div class="vy-tb" id="vy-knife">KNIFE</div><div class="vy-tb" id="vy-swap">SWAP</div><div class="vy-tb" id="vy-use" style="display:none">TAKE</div><div class="vy-tb" id="vy-reload">RELOAD</div><div class="vy-tb" id="vy-nade">GRENADE</div><div class="vy-tb" id="vy-fire">FIRE</div></div>
 </div>
 <div id="vy-rotate"><div><span class="ph">&#128241;</span>Turn your phone sideways<small>The game plays in landscape.</small></div></div>
 <div id="vy-tips" hidden><div class="card"><h2>HOW TO PLAY ON A PHONE</h2><ul><li><b>Left thumb</b>: move. Push the stick all the way out to sprint.</li><li><b>Right thumb</b>: drag anywhere to look around.</li><li><b>FIRE</b>: the big red button. You can hold it and drag to aim at the same time.</li><li><b>Easy aim</b> is on: it helps line up your shots and fires when you are on target.</li><li>Tap the scoreboard at the top to see everyone. The II button pauses.</li></ul><button id="vy-tipsok">GOT IT, PLAY</button></div></div>
@@ -253,7 +258,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pid', 'vy-minrow', 'vy-min', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-classes', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-items', 'vy-tabs', 'vy-coins', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     root.querySelectorAll<HTMLElement>('.team').forEach((t) => t.addEventListener('click', () => {
       this.team = t.dataset.team === '1' ? 1 : 0;
@@ -437,7 +442,7 @@ export class Ui {
       let seen = false; try { seen = localStorage.getItem('vyre.arena.tips.desk') === '1'; } catch { /* ignore */ }
       if (seen) return false;
       this.el['vy-tips'].querySelector('h2')!.textContent = 'HOW TO PLAY';
-      this.el['vy-tips'].querySelector('ul')!.innerHTML = '<li><b>WASD</b> move, <b>mouse</b> aim, <b>click</b> fire, <b>right click</b> zoom in.</li><li><b>G</b> throws a grenade, <b>F</b> is the knife for close range (from behind it kills), <b>R</b> reloads, <b>Q</b> swaps to your pistol and back.</li><li><b>Space</b> jumps (you can hop over low cover), <b>Shift</b> sprints (you cannot shoot while sprinting).</li><li><b>Tab</b> shows the scoreboard, <b>Esc</b> pauses, <b>H</b> hides the key list.</li><li>In <b>Hold the Zone</b>, stand in the glowing circle with no enemy in it to fill your bar.</li>';
+      this.el['vy-tips'].querySelector('ul')!.innerHTML = '<li><b>WASD</b> move, <b>mouse</b> aim, <b>click</b> fire, <b>right click</b> zoom in.</li><li><b>G</b> throws a grenade, <b>F</b> is the knife for close range (from behind it kills), <b>R</b> reloads, <b>Q</b> swaps to your pistol and back, <b>E</b> picks up a gun from the floor (it swaps with yours).</li><li>Walk over an <b>ammo box</b> or a <b>med kit</b> to take it. Guns have spare rounds now, so watch the number on the right.</li><li><b>Space</b> jumps (you can hop over low cover), <b>Shift</b> sprints (you cannot shoot while sprinting).</li><li><b>Tab</b> shows the scoreboard, <b>Esc</b> pauses, <b>H</b> hides the key list.</li><li>In <b>Hold the Zone</b>, stand in the glowing circle with no enemy in it to fill your bar.</li>';
       try { localStorage.setItem('vyre.arena.tips.desk', '1'); } catch { /* ignore */ }
       this.el['vy-tips'].hidden = false; return true;
     }
@@ -458,10 +463,17 @@ export class Ui {
     this.q('[data-time]').textContent = overtime ? 'OVERTIME' : phase === 'live' || phase === 'countdown' ? clock : '-';
     this.q('[data-alive]').textContent = dm ? (overtime ? 'next kill wins' : 'most kills wins') : `${alive[0]} vs ${alive[1]} alive`;
   }
-  setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0, ammo = 0, mag = 0, reloading = false): void {
+  setMe(hp: number, hpMax: number, text: string, gun: string, coins: number, nades = 0, ammo = 0, mag = 0, reloading = false, reserve = -1): void {
     this.q('[data-hp]').textContent = String(Math.max(0, Math.ceil(hp)));
     (this.q('#vy-me .hp i')).style.width = `${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%`;
-    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = (items[gun]?.name ?? gun); this.el['vy-scope'].style.display = this.touch ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : `${ammo} / ${mag}`; this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
+    this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = (items[gun]?.name ?? gun); this.el['vy-scope'].style.display = this.touch ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : (reserve >= 0 ? `${ammo} / ${reserve}` : `${ammo} / ${mag}`); this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
+  }
+  /** what lies at your feet and can be taken with the use key (null hides it); on a phone the TAKE button shows instead of the key */
+  prompt(text: string | null, sub = ''): void {
+    const el = this.el['vy-prompt'], b = this.el['vy-use'];
+    if (b) b.style.display = text && this.touch ? 'grid' : 'none';
+    if (!text) { el.style.display = 'none'; return; }
+    el.innerHTML = `${this.touch ? '' : '<kbd>E</kbd>'}${text}${sub ? `<small>${sub}</small>` : ''}`; el.style.display = 'block';
   }
   banner(title: string, sub = '', ms = 2200): void {
     const b = this.el['vy-banner']; b.innerHTML = `${title}${sub ? `<small>${sub}</small>` : ''}`; b.classList.add('on');
@@ -502,7 +514,7 @@ export class Ui {
     const pad = this.el['vy-pad'], knob = pad.firstElementChild as HTMLElement, R = 62;
     let mv: { id: number; x0: number; y0: number } | null = null, lk: { id: number; x: number; y: number } | null = null, fp: { id: number; x: number; y: number } | null = null;
     const root = document.body;
-    const SKIP = '#vy-fire,#vy-nade,#vy-reload,#vy-scope,#vy-jump,#vy-knife,#vy-swap,#vy-menubtn,#vy-menu,#vy-pause,#vy-tips,.bar';
+    const SKIP = '#vy-fire,#vy-nade,#vy-reload,#vy-scope,#vy-jump,#vy-knife,#vy-swap,#vy-use,#vy-menubtn,#vy-menu,#vy-pause,#vy-tips,.bar';
     root.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'touch' || this.el.hud.hidden || (e.target as HTMLElement).closest(SKIP)) return;
       if (e.clientX < innerWidth * 0.42 && !mv) { mv = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; pad.classList.add('moved', 'live'); pad.style.left = `${e.clientX}px`; pad.style.top = `${e.clientY}px`; pad.style.bottom = 'auto'; }
@@ -530,6 +542,6 @@ export class Ui {
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); b.classList.add('on'); b.setPointerCapture(e.pointerId); });
       const off = () => { set(false); b.classList.remove('on'); }; b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
     };
-    hold('vy-nade', (v) => { this.nadeTouch = v; }); hold('vy-reload', (v) => { this.reloadTouch = v; }); hold('vy-scope', (v) => { this.zoomTouch = v; }); hold('vy-jump', (v) => { this.jumpTouch = v; }); hold('vy-knife', (v) => { this.knifeTouch = v; }); hold('vy-swap', (v) => { this.swapTouch = v; });
+    hold('vy-nade', (v) => { this.nadeTouch = v; }); hold('vy-reload', (v) => { this.reloadTouch = v; }); hold('vy-scope', (v) => { this.zoomTouch = v; }); hold('vy-jump', (v) => { this.jumpTouch = v; }); hold('vy-knife', (v) => { this.knifeTouch = v; }); hold('vy-swap', (v) => { this.swapTouch = v; }); hold('vy-use', (v) => { this.useTouch = v; });
   }
 }

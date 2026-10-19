@@ -12,6 +12,7 @@ import { REWARD, WEAPONS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
 import { freshProfile, sanitize, award, teamNames, gainXp, level as playerLevel } from './profile.ts';
 import { XP } from '../../server/progress.js';
+import { PICK } from '../../server/pickups.js';
 import { feelOf, spreadFor } from '../../server/gunfeel.js';
 import { Ui } from './ui.ts';
 import * as sfx from './audio.ts';
@@ -132,7 +133,7 @@ const units = new Map();
 const tracers = [], bits = [];
 /** a number from a player's id, so the same player is always drawn as the same character */
 const idSeed = (id) => { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) | 0; return Math.abs(h); };
-let walkPhase = 0, hudT = 0, spectate = null, nadeQueued = false, meleeQueued = false, swapQueued = false, hintsOn = false, zoneFx = null, zoom = false, eyeY = 1.6, shake = 0, boomT = 0;
+let walkPhase = 0, hudT = 0, spectate = null, nadeQueued = false, meleeQueued = false, swapQueued = false, useQueued = false, hintsOn = false, zoneFx = null, zoom = false, eyeY = 1.6, shake = 0, boomT = 0;
 const nadeMeshes = new Map(), fx = [];
 const sway = { y: 0, p: 0 };                 // the scope's wobble (radians): part of where the shot goes, so the player has to follow it
 let breath = 1, winded = false;                // the share of held breath left, and whether it ran out
@@ -229,7 +230,7 @@ async function startOnline(c) {
   for (let i = 0; i < 160 && !nm.ready; i++) await new Promise((r) => setTimeout(r, 50));
   const mine = nm.players.get(h.myId);
   if (!nm.ready || !mine) { void h.leave(); return back('The match did not start. Try again.'); }
-  netH = h; netInfo = { sent: 0, key: '', edge: { nade: 0, melee: 0, swap: 0 } };
+  netH = h; netInfo = { sent: 0, key: '', edge: { nade: 0, melee: 0, swap: 0, use: 0 } };
   match = nm; me = mine;
   return true;
 }
@@ -266,7 +267,7 @@ const turn = (dx, dy) => { vm.turned(dx, dy); look.yaw += dx * 0.0022; look.pitc
 addEventListener('mousemove', (e) => { if (!playing) return; if (locked) turn(e.movementX, e.movementY); else if (lockFailed && (e.buttons & 1)) turn(e.movementX, e.movementY); });
 addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
 addEventListener('mouseup', (e) => { if (e.button === 0) fire = false; if (e.button === 2) zoom = false; });
-addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) cycleSpec(1); if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) cycleSpec(1); if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if (e.code === 'KeyE' && playing && !e.repeat) useQueued = true; if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Tab') showScore = false; });
 addEventListener('blur', () => { keys.clear(); fire = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -278,7 +279,7 @@ function readInput() {
   let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - ui.move.y;
   let str = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + ui.move.x;
   const len = Math.hypot(fwd, str); if (len > 1) { fwd /= len; str /= len; }
-  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw + sway.y, pitch: -look.pitch + sway.p, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch, ads: zoom || ui.zoomTouch };
+  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw + sway.y, pitch: -look.pitch + sway.p, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, use: useQueued || ui.useTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch, ads: zoom || ui.zoomTouch };
   ui.nadeTouch = false;
 }
 
@@ -311,6 +312,9 @@ function onEvents(evs) {
         const ix = e.ex / PX_PER_M, iz = e.ey / PX_PER_M;
         sfx.impact(e.ez < 0.15 ? (curMapId === 'dust' ? 'dirt' : 'concrete') : curMapId === 'dust' ? 'concrete' : (e.x + e.y) % 3 < 1.6 ? 'metal' : 'concrete', ix, iz);
       }
+    } else if (e.type === 'pickup') {
+      sfx.pickup(e.kind, e.x / PX_PER_M, e.y / PX_PER_M, !!(me && e.by === me.id));
+      if (me && e.by === me.id) { buzz(20); ui.feed(e.kind === 'med' ? 'MED KIT +50' : e.kind === 'gun' ? `PICKED UP ${(WEAPONS[e.weapon]?.name ?? e.weapon ?? '').toUpperCase()}` : 'AMMO'); }
     } else if (e.type === 'hit') {
       if (me && e.victim === me.id) { ui.flash('vy-hurt'); sfx.hurtMe(); buzz(45); const at = match.players.get(e.by); if (at && at.id !== me.id) ui.hitDir(Math.atan2(at.y - me.y, at.x - me.x) - look.yaw); }
       if (me && e.by === me.id) { ui.flash('vy-hitm'); sfx.hitMarker(); }
@@ -486,6 +490,59 @@ function syncNades(dt, t) {
   for (const [id, o] of nadeMeshes) if (!live.has(id)) { scene.remove(o); o.traverse((c) => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } }); nadeMeshes.delete(id); }
 }
 
+// ---- what lies on the floor: ammunition boxes, med kits and the guns of the fallen ----
+const floorMeshes = new Map();
+const FLOOR_COLOR = { ammo: 0xffc23c, med: 0x5cff7a, gun: 0xe8ffb0 };
+const FLOOR_SIZE = { ammo: 0.42, med: 0.4 };       // longest side, metres
+const GUN_FLOOR_LEN = 0.9;
+function makeFloorItem(q) {
+  const o = new THREE.Group(), inner = new THREE.Group();
+  const src = q.kind === 'gun' ? A.gunsLo[q.weapon] : A.floor?.[q.kind === 'med' ? 'medkit' : 'ammo_box'];
+  if (src) {
+    const g = src.scene.clone(true);
+    const bb = new THREE.Box3().setFromObject(g), sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+    g.position.sub(c); g.scale.setScalar((q.kind === 'gun' ? GUN_FLOOR_LEN : FLOOR_SIZE[q.kind]) / Math.max(sz.x, sz.y, sz.z));
+    const wrap = new THREE.Group(); wrap.add(g); wrap.position.y = q.kind === 'gun' ? 0.22 : 0.3; inner.add(wrap);
+  } else {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.24), new THREE.MeshStandardMaterial({ color: FLOOR_COLOR[q.kind], roughness: 0.6 })); m.position.y = 0.25; inner.add(m);
+  }
+  const col = new THREE.Color(FLOOR_COLOR[q.kind]);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 28), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(1.8), side: THREE.DoubleSide, transparent: true, opacity: 0.75, toneMapped: false, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03;
+  o.add(inner, ring); o.userData = { inner, ring, seed: Math.random() * 6.28 };
+  return o;
+}
+function syncPickups(dt, t) {
+  const list = match.pickups?.list || [], live = new Set();
+  for (const q of list) {
+    live.add(q.id);
+    let o = floorMeshes.get(q.id);
+    if (!o || o.userData.kind !== q.kind || o.userData.weapon !== q.weapon) {
+      if (o) scene.remove(o);
+      o = makeFloorItem(q); o.userData.kind = q.kind; o.userData.weapon = q.weapon; scene.add(o); floorMeshes.set(q.id, o);
+    }
+    const x = q.x / PX_PER_M, z = q.y / PX_PER_M, dx = x - camera.position.x, dz = z - camera.position.z;
+    o.visible = dx * dx + dz * dz < 70 * 70;
+    if (!o.visible) continue;
+    o.position.set(x, q.z, z);
+    const u = o.userData;
+    u.inner.rotation.y = t * (q.kind === 'gun' ? 1.1 : 0.8) + u.seed;
+    u.inner.position.y = 0.08 + Math.sin(t * 2.2 + u.seed) * 0.05;
+    u.ring.material.opacity = 0.5 + 0.25 * Math.sin(t * 3 + u.seed);
+  }
+  for (const [id, o] of floorMeshes) if (!live.has(id)) { scene.remove(o); o.traverse((c) => { if (c.isMesh && !c.userData.shared) { c.geometry.dispose?.(); } }); floorMeshes.delete(id); }
+}
+/** the gun at your feet, if any: shown as a key prompt (a TAKE button on a phone) */
+function showPrompt() {
+  let g = null;
+  if (me && me.alive && match.phase === 'live') {
+    let bd = PICK.gunRadius;
+    for (const q of match.pickups?.list || []) { if (q.kind !== 'gun') continue; const d = Math.hypot(q.x - me.x, q.y - me.y); if (d < bd && Math.abs(q.z - me.z) < 1.4) { g = q; bd = d; } }
+  }
+  if (!g) { ui.prompt(null); return; }
+  const w = WEAPONS[g.weapon]?.name ?? g.weapon;
+  ui.prompt(`pick up ${w}`, `swaps with your ${WEAPONS[me.primary ?? me.weapon]?.name ?? 'gun'}`);
+}
 // ---- soldiers ----
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
 function syncUnits(dt, t) {
@@ -578,6 +635,7 @@ function drawMinimap() {
   g.clearRect(0, 0, W, H); g.drawImage(mapBg, 0, 0);
   const now = performance.now();
   if (match.objective === 'zone' && m.zone) { g.strokeStyle = '#' + zoneColor().toString(16).padStart(6, '0'); g.lineWidth = 4; g.beginPath(); g.arc(m.zone.x * sx, m.zone.y * sy, m.zone.r * sx, 0, 7); g.stroke(); }
+  for (const q of match.pickups?.list || []) { g.fillStyle = q.kind === 'med' ? '#5cff7a' : q.kind === 'ammo' ? '#ffc23c' : '#ffffff'; g.fillRect(q.x * sx - 3, q.y * sy - 3, 6, 6); }
   const drone = me && match.uav[me.team] > 0;
   for (const p of match.players.values()) {
     if (!p.alive || p === me) continue;
@@ -593,14 +651,14 @@ function drawMinimap() {
 // ---- a hosted match: what the player is doing goes to the server, only when it changes (and every tenth of a second so nothing sticks) ----
 function sendInput(now, idle = false) {
   if (!me || !netInfo) return;
-  if (idle || !me.alive) me.input = { dx: 0, dy: 0, aim: look.yaw, pitch: -look.pitch, fire: false, nade: false, reload: false, jump: false, melee: false, swap: false, sprint: false, ads: false };
+  if (idle || !me.alive) me.input = { dx: 0, dy: 0, aim: look.yaw, pitch: -look.pitch, fire: false, nade: false, reload: false, jump: false, melee: false, swap: false, use: false, sprint: false, ads: false };
   else readInput();
   const inp = me.input, ed = netInfo.edge;
   // a throw, a stab or a swap is a moment, not a state: keep it up for a little over a server step so a busy frame cannot lose it
-  for (const k of ['nade', 'melee', 'swap']) { if (inp[k]) ed[k] = now + 120; inp[k] = now < ed[k]; }
-  nadeQueued = false; meleeQueued = false; swapQueued = false; ui.swapTouch = false;
+  for (const k of ['nade', 'melee', 'swap', 'use']) { if (inp[k]) ed[k] = now + 120; inp[k] = now < ed[k]; }
+  nadeQueued = false; meleeQueued = false; swapQueued = false; useQueued = false; ui.swapTouch = false; ui.useTouch = false;
   me.sprinting = !!inp.sprint && Math.hypot(inp.dx, inp.dy) > 0.3;
-  const key = [inp.dx.toFixed(2), inp.dy.toFixed(2), inp.aim.toFixed(2), inp.pitch.toFixed(2), +inp.fire, +inp.nade, +inp.reload, +inp.jump, +inp.melee, +inp.swap, +inp.sprint, +!!inp.ads].join();
+  const key = [inp.dx.toFixed(2), inp.dy.toFixed(2), inp.aim.toFixed(2), inp.pitch.toFixed(2), +inp.fire, +inp.nade, +inp.reload, +inp.jump, +inp.melee, +inp.swap, +inp.use, +inp.sprint, +!!inp.ads].join();
   if (key !== netInfo.key || now - netInfo.sent > 100) { netInfo.key = key; netInfo.sent = now; netH.send(inp); }
 }
 let lobbyUp = false;
@@ -656,7 +714,7 @@ function frame(now, manual) {
     if (netH) { assist(dt); sendInput(now); }
     else {
       acc += dt; assist(dt);
-      for (let n = 0; acc >= SIM_STEP && n < 6; n++, acc -= SIM_STEP) { readInput(); match.step(SIM_STEP); nadeQueued = false; meleeQueued = false; swapQueued = false; ui.swapTouch = false; onEvents(match.events); }
+      for (let n = 0; acc >= SIM_STEP && n < 6; n++, acc -= SIM_STEP) { readInput(); match.step(SIM_STEP); nadeQueued = false; meleeQueued = false; swapQueued = false; useQueued = false; ui.swapTouch = false; ui.useTouch = false; onEvents(match.events); }
       if (acc > SIM_STEP * 6) acc = 0;
     }
   } else if (netH) sendInput(now, true);
@@ -664,7 +722,7 @@ function frame(now, manual) {
   const alive = !!(me && me.alive);
   if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
   wasAlive = alive;
-  watchFps(raw); syncUnits(dt, t); syncNades(dt, t);
+  watchFps(raw); syncUnits(dt, t); syncNades(dt, t); syncPickups(dt, t);
   if (playing && me) sfx.setListener(camera.position.x, camera.position.z, alive ? look.yaw : (spectate ? (match.players.get(spectate)?.aim ?? 0) : 0));
 
   // camera
@@ -744,7 +802,8 @@ function frame(now, manual) {
       if (me && me.alive) { const w = WEAPONS[me.weapon] || WEAPONS.pistol, mv = Math.min(1, Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) * (me.sprinting ? 1.32 : 1)); const sp = spreadFor(me.weapon, w.spread, { ads: me.ads ?? 0, move: mv, air: !!me.air, bloom: me.rc?.bloom ?? 0 }) * (w.pellets > 1 ? 1 : 1); ui.cross(Math.tan(sp) * (host.clientHeight / 2) / Math.tan(camera.fov * Math.PI / 360), me.ads ?? 0); }
       ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       ui.setZone(match.objective === 'zone' && !!match.map.zone, match.zoneP[0], match.zoneP[1], match.zoneIn[0], match.zoneIn[1], TEAM_COLORS);
-      if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0);
+      if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0, me.reserve ?? 0);
+      showPrompt();
     }
     const w = host.clientWidth, h = host.clientHeight;
     for (const p of match.players.values()) {
