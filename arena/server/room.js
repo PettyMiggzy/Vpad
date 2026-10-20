@@ -9,6 +9,7 @@ import { XP } from './progress.js';
 import { History, rewindMs } from './lag.js';
 import { slimSnap } from './snap.js';
 import { plan, readVoice, VOICE } from './voice.js';
+import { settleMatch, chainFromEnv } from './settle.js';
 
 export { MAP_IDS };
 export const MAX_ROOMS = Math.max(1, Number(process.env.MAX_ROOMS) || 12);
@@ -26,6 +27,7 @@ const seated = new Map(); // profile id -> session id, so one id cannot sit in t
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** turn whatever the client asked for into the only options a match will accept */
+let settleChain; // the chain the settler sends to, made from the environment on the first token match
 export function roomOptions(options = {}) {
   const names = Array.isArray(options.names) ? options.names.slice(0, 2).map(cleanName) : [];
   let perSide = Number(options.perSide);
@@ -44,7 +46,10 @@ export function roomOptions(options = {}) {
     { name: names[0] || 'BLUE', color: Number.isInteger(colors[0]) ? cleanColor(colors[0]) : 0x2f7bff },
     { name: names[1] || 'RED', color: Number.isInteger(colors[1]) ? cleanColor(colors[1]) : 0xff3b30 },
   ];
-  return { teams, map, perSide, mode, difficulty, objective, minutes, bots: true, spar: objective === 'train' && options.spar === true };
+  // a challenge between two pad tokens names them (the team names are short and plain, so the tokens travel apart): a finished match between them settles on chain by itself
+  const isToken = (t) => typeof t === 'string' && /^0x[0-9a-fA-F]{40}$/.test(t);
+  const tokens = mode === 'challenge' && Array.isArray(options.tokens) && options.tokens.length === 2 && options.tokens.every(isToken) && options.tokens[0].toLowerCase() !== options.tokens[1].toLowerCase() ? options.tokens.map((t) => t.toLowerCase()) : null;
+  return { teams, map, perSide, mode, difficulty, objective, minutes, bots: true, spar: objective === 'train' && options.spar === true, tokens };
 }
 
 function wrapAim(a) {
@@ -116,6 +121,8 @@ export class MatchRoom extends Room {
     const opt = roomOptions(options);
     this.maxClients = opt.perSide * 2;
     this.match = new Match(opt);
+    this.tokens = opt.tokens;
+    this.createdAt = Date.now();
     this.pids = new Map();
     this.lockedLoadout = new Map(); // the gear a profile brought in; buying during the match cannot change it
     this.tick = 0;
@@ -320,9 +327,17 @@ export class MatchRoom extends Room {
     }
   }
 
-  /** the one place a result leaves the server: logged until a rules engine is connected. Practice never calls this. */
+  /** the one place a result leaves the server: logged, and when the two teams are pad tokens, settled on chain by itself (settle.js, which checks the match first). Practice never calls this. */
   reportResult() {
     const m = this.match;
     console.log('MATCH RESULT', JSON.stringify({ winner: m.teams[m.winner]?.name, score: m.score, rounds: m.round }));
+    if (!this.tokens) return;
+    const humans = [[], []];
+    for (const [sid, pid] of this.pids) {
+      const team = m.players.get(sid)?.team;
+      if (team === 0 || team === 1) humans[team].push(pid);
+    }
+    settleChain ??= chainFromEnv();
+    settleMatch({ id: `${this.roomId}|${this.createdAt ?? ''}`, tokens: this.tokens, winner: m.winner, score: m.score, humans }, settleChain).catch(() => {});
   }
 }
