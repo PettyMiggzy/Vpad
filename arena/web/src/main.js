@@ -106,7 +106,12 @@ function applyWorld() {
     sun.castShadow = level >= 2;
   } else if (sun) sun.castShadow = false;
   for (const lt of worldH?.lights ?? []) lt.visible = level >= 2;
-  if (gradePass && worldH?.theme?.grade) applyGrade(gradePass, worldH.theme.grade, level < 3);
+  if (gradePass && worldH?.theme?.grade) {
+    const g = worldH.theme.grade;
+    applyGrade(gradePass, scopeSharp ? { ...g, vig: Math.min(g.vig ?? 0.32, 0.08) } : g, scopeSharp || level < 3);
+  }
+  if (bloomPass) bloomPass.strength = scopeSharp ? 0 : 0.36;
+  if (gtaoPass) gtaoPass.enabled = !scopeSharp;
 }
 /** one level of detail: resolution, shadows, glow, extra lights */
 function applyLevel(l) {
@@ -654,7 +659,7 @@ function startVoice() {
   if (!netH || !voiceWanted() || typeof RTCPeerConnection === 'undefined') return;
   voice = new Voice({
     send: (msg) => netH?.sendVoice(msg),
-    pos: (id) => { const p = match.players.get(id); return p ? { x: p.x / PX_PER_M, y: p.z + R.EYE, z: p.y / PX_PER_M } : null; },
+    pos: (id) => { const p = match.players.get(id); return p ? { x: p.x / PX_PER_M, y: p.z + eyeHeight(p), z: p.y / PX_PER_M } : null; },
     onChange: () => drawVoice(),
   });
   netH.onVoice((msg) => voice?.handle(msg));
@@ -924,7 +929,7 @@ function frame(now, manual) {
     } else if (deathCam && deathCam.t < 2.2 && match.phase !== 'matchover') {
       // the death cam: you drop to the floor where you fell and turn to look at who got you
       deathCam.t += dt;
-      const fall = Math.min(1, deathCam.t / 0.45), ey = me.z + R.EYE - (R.EYE - 0.32) * (1 - (1 - fall) ** 2);
+      const fall = Math.min(1, deathCam.t / 0.45), stand = eyeHeight(me), ey = me.z + stand - (stand - 0.32) * (1 - (1 - fall) ** 2);
       let ty = deathCam.yaw, tp = 0.25;
       if (killer && killer.id !== me.id) { ty = Math.atan2(killer.y - me.y, killer.x - me.x); tp = Math.atan2(-(killer.z + 1.3 - ey), Math.hypot(killer.x - me.x, killer.y - me.y) / PX_PER_M); }
       deathCam.yaw += wrapA(ty - deathCam.yaw) * (1 - Math.exp(-5 * dt)); deathCam.pitch += (tp - deathCam.pitch) * (1 - Math.exp(-5 * dt));

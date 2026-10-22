@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match, R, MAPS, floorAt, pushOut, tryMove, raySolids, rayCircle, clearLine, navPath, statsOf, updateStance, STANCE, eyeHeight, slideHeading, slideDir } from './game.js';
-import { readInput } from './room.js';
 import { STEP, LEGACY } from './maps.js';
 import { GRENADE, WEAPONS } from './items.js';
 
@@ -393,7 +392,7 @@ test('a crouch hides the body from a level shot, and a slide is a short burst wi
   p.a.input = { dx: 0, dy: 0, aim: 0, pitch: Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50), fire: true, ads: true };
   m.step(1 / 60);
   assert.ok(p.b.hp < hp, 'the same gun hits a standing soldier');
-  const [s, q] = setup(LEGACY.cargo, [['a', 0, 200, 150]]);
+  const [s, q] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 900, 900]]);
   q.a.input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: false, sprint: true, crouch: false, jump: false };
   s.step(1 / 60);
   assert.equal(q.a.sprinting, true);
@@ -413,7 +412,4 @@ test('a crouch hides the body from a level shot, and a slide is a short burst wi
   assert.ok(back && Math.abs(back[0] + 1) < 0.02 && Math.abs(back[1]) < 0.02, 'a slide straight back still has a heading');
   assert.equal(slideHeading({ slideT: 0, slideX: -1, slideY: 0 }), 0);
   assert.equal(slideDir(0), null);
-  assert.equal(readInput({ crouch: true }).crouch, true);
-  assert.equal(readInput({ dx: 0 }).crouch, false);
-  assert.equal(readInput({ prone: true }), null);
 });

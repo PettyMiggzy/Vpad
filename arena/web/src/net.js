@@ -2,7 +2,7 @@
 // second behind the snapshots, so a late packet has something to blend with. The local soldier is stepped with the same movement
 // the server uses (tryMove, floorAt) and eased back when a snapshot disagrees.
 import { Client } from '@colyseus/sdk';
-import { tryMove, floorAt, MAPS, R, updateStance, stanceSpeed, slideHeading, slideDir } from '../../server/game.js';
+import { tryMove, floorAt, MAPS, R, updateStance, stanceSpeed, slideHeading, slideDir, STANCE } from '../../server/game.js';
 import { WEAPONS } from '../../server/items.js';
 import { feelOf } from '../../server/gunfeel.js';
 import { mergeSnap } from '../../server/snap.js';
@@ -170,7 +170,8 @@ export async function connect(url, opts = {}) {
       boost: row[16] === 1, alive: row[6] === 1, speedMul, map, vz: pred?.vz || 0, air: !!pred?.air,
       crouch: (row[20] ?? Math.round((pred?.crouch || 0) * 100)) / 100,
       slideT: (row[21] ?? Math.round((pred?.slideT || 0) * 100)) / 100,
-      slideCd: pred?.slideCd || 0, crouchHeld: !!(pred?.crouchHeld || (row[20] || 0) > 0),
+      slideCd: (pred?.slideCd || 0) > 0 ? pred.slideCd : ((row[21] || 0) > 0 ? STANCE.SLIDE_CD : 0),
+      crouchHeld: (row[20] || 0) > 0,
       sprinting: !!pred?.sprinting, slideX, slideY,
     };
   };

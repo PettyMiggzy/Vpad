@@ -645,12 +645,13 @@ export class Match {
     if (b.goZone === undefined) b.goZone = Math.random() < 0.7;
     if (!target) return;
     const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
-    const see = clearLine(this.map, p.x, p.y, p.z + R.EYE, target.x, target.y, target.z + 1.3);
-    // aim at the chest with a little error that grows with distance, so they hit but not always
+    const chest = target.z + 1.3 * (bodyHeight(target) / R.BODY);
+    const see = clearLine(this.map, p.x, p.y, p.z + eyeHeight(p), target.x, target.y, chest);
+    // aim at the chest with a little error that grows with distance, so they hit but not always. A crouch lowers that chest.
     const DF = [{ aim: 1.9, fire: 0.3, think: 1.6 }, { aim: 1, fire: 0.5, think: 1 }, { aim: 0.5, fire: 0.8, think: 0.6 }][this.difficulty];
     const err = (0.012 + d / 60000) * DF.aim;
     inp.aim = ang + rnd(-err, err) * 4;
-    inp.pitch = Math.atan2(target.z + 1.3 - (p.z + R.EYE), d / M) + rnd(-err, err) * 3;
+    inp.pitch = Math.atan2(chest - (p.z + eyeHeight(p)), d / M) + rnd(-err, err) * 3;
     // short of rounds or health with nobody in sight: go and fetch a box or a kit
     const dryHands = p.ammo + p.reserve < p.magSize * 0.5, drySide = p.stash + p.stashRes < 10;       // both guns nearly empty
     const need = dryHands && drySide ? 'ammo' : p.hp < p.hpMax * 0.45 ? 'med' : null;

@@ -183,6 +183,7 @@ test('the snapshot carries your spare rounds and, with a full snapshot, what lie
 
 test('the room accepts the use key and nothing else new', () => {
   assert.equal(readInput({ use: true }).use, true); assert.equal(readInput({ use: 'yes' }), null); assert.equal(readInput({ dx: 0 }).use, false);
+  assert.equal(readInput({ crouch: true }).crouch, true); assert.equal(readInput({ dx: 0 }).crouch, false); assert.equal(readInput({ prone: true }), null);
   assert.equal(readInput({ grab: true }), null);
 });
 
