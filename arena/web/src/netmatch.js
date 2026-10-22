@@ -1,11 +1,11 @@
 // A match played on the server, shaped like the local Match so the page draws it the same way. The server runs the rules; this holds the
 // latest snapshot as soldiers (the same objects frame after frame, so the page can keep its own references), the roster that names them,
 // and the events that arrived since the page last looked. step() does nothing: nobody simulates here.
-import { MAPS } from '../../server/game.js';
+import { MAPS, slideDir } from '../../server/game.js';
 import { WEAPONS } from '../../server/items.js';
 import { Recoil, feelOf } from '../../server/gunfeel.js';
 
-const blank = () => ({ dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false });
+const blank = () => ({ dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false, crouch: false });
 
 /** a thing on the floor, from the short form that goes over the wire */
 const floorItem = (w) => ({ id: w.id, kind: w.k, x: w.x, y: w.y, z: w.z, weapon: w.w, crate: !!w.c });
@@ -63,7 +63,7 @@ export class NetMatch {
   tick(dt) {
     const me = this.players.get(this.meId);
     if (!me || !me.rc) return;
-    const ft = feelOf(me.weapon), want = !!me.input?.ads && !me.sprinting && !(me.rl > 0) && me.alive;
+    const ft = feelOf(me.weapon), want = !!me.input?.ads && !me.sprinting && !(me.slideT > 0) && !(me.rl > 0) && me.alive;
     me.ads = Math.max(0, Math.min(1, me.ads + (want ? 1 : -1) * dt / ft.ads.t));
     me.rc.step(dt, me.weapon);
   }
@@ -86,6 +86,8 @@ export class NetMatch {
       const wasAlive = p.alive;
       p.team = row[1]; p.x = row[2]; p.y = row[3]; p.aim = row[4]; p.hp = row[5]; p.alive = row[6] === 1; if (p.alive && wasAlive === false) { p.rc = new Recoil(); p.ads = 0; } p.kills = row[7]; p.bot = row[8] === 1;
       p.z = row[9]; p.pitch = row[10]; p.grenades = row[11]; p.ammo = row[12]; p.deaths = row[14]; p.boost = row[16] === 1; p.reserve = row[17] ?? 0; p.endless = row[18] === 1; if (row[19]) p.hpMax = row[19];
+      if (row.length > 20) p.crouch = (row[20] || 0) / 100;
+      if (row.length > 21) { p.slideT = (row[21] || 0) / 100; const dir = slideDir(row[22]); if (dir) { p.slideX = dir[0]; p.slideY = dir[1]; } }
       if (row[15] !== p.weapon) {
         p.weapon = row[15] || 'pistol';
         const w = WEAPONS[p.weapon] || WEAPONS.pistol;

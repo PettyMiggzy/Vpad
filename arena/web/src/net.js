@@ -2,7 +2,7 @@
 // second behind the snapshots, so a late packet has something to blend with. The local soldier is stepped with the same movement
 // the server uses (tryMove, floorAt) and eased back when a snapshot disagrees.
 import { Client } from '@colyseus/sdk';
-import { tryMove, floorAt, MAPS, R } from '../../server/game.js';
+import { tryMove, floorAt, MAPS, R, updateStance, stanceSpeed, slideHeading, slideDir } from '../../server/game.js';
 import { WEAPONS } from '../../server/items.js';
 import { feelOf } from '../../server/gunfeel.js';
 import { mergeSnap } from '../../server/snap.js';
@@ -31,7 +31,11 @@ export function stepLocal(s, inp, dt, live) {
   const len = Math.hypot(dx, dy);
   if (len > 1) { dx /= len; dy /= len; }
   const w = WEAPONS[s.weapon] || WEAPONS.pistol;
-  const sp = R.SPEED * (s.speedMul || 1) * (w.move ?? 1) * ((inp.sprint && len > 0.3) ? 1.32 : 1) * (s.boost ? 1.22 : 1) * (inp.ads && !inp.sprint ? feelOf(s.weapon).ads.move : 1);
+  updateStance(s, inp, dt, len);
+  const sprinting = !!inp.sprint && len > 0.3 && !(s.slideT > 0) && (s.crouch || 0) < 0.2;
+  s.sprinting = sprinting;
+  if (s.slideT > 0) { dx = s.slideX; dy = s.slideY; }
+  const sp = R.SPEED * (s.speedMul || 1) * (w.move ?? 1) * stanceSpeed(s, sprinting) * (s.boost ? 1.22 : 1) * (inp.ads && !sprinting && !(s.slideT > 0) ? feelOf(s.weapon).ads.move : 1);
   const [nx, ny] = tryMove(s.map, s.x, s.y, s.z, s.x + dx * sp * dt, s.y + dy * sp * dt);
   const f = floorAt(s.map, nx, ny);
   let z = s.z, vz = s.vz || 0, air = !!s.air;
@@ -75,6 +79,7 @@ export function sampleTrack(history, t) {
   return {
     x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, z: a.z + (b.z - a.z) * u,
     aim: lerpAngle(a.aim, b.aim, u), pitch: a.pitch + (b.pitch - a.pitch) * u,
+    crouch: (a.crouch || 0) + ((b.crouch || 0) - (a.crouch || 0)) * u,
   };
 }
 
@@ -96,7 +101,7 @@ export function decayOffset(offset, dt) {
 }
 
 function blankInput() {
-  return { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false };
+  return { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false, crouch: false };
 }
 
 function cleanInput(m) {
@@ -110,7 +115,7 @@ function cleanInput(m) {
   return {
     dx: clamp(n('dx'), -1, 1), dy: clamp(n('dy'), -1, 1), aim, pitch: clamp(n('pitch'), -PITCH, PITCH),
     fire: src.fire === true, nade: src.nade === true, reload: src.reload === true, sprint: src.sprint === true,
-    jump: src.jump === true, melee: src.melee === true, swap: src.swap === true, use: src.use === true, ads: src.ads === true,
+    jump: src.jump === true, melee: src.melee === true, swap: src.swap === true, use: src.use === true, ads: src.ads === true, crouch: src.crouch === true,
   };
 }
 
@@ -156,10 +161,19 @@ export async function connect(url, opts = {}) {
     return cur;
   };
 
-  const fromRow = (row, map) => ({
-    x: row[2], y: row[3], z: row[9], aim: row[4], pitch: row[10], weapon: row[15] || 'pistol',
-    boost: row[16] === 1, alive: row[6] === 1, speedMul, map, vz: pred?.vz || 0, air: !!pred?.air,
-  });
+  const fromRow = (row, map) => {
+    let slideX = pred?.slideX || 1, slideY = pred?.slideY || 0;
+    const dir = slideDir(row[22]);
+    if (dir) { slideX = dir[0]; slideY = dir[1]; }
+    return {
+      x: row[2], y: row[3], z: row[9], aim: row[4], pitch: row[10], weapon: row[15] || 'pistol',
+      boost: row[16] === 1, alive: row[6] === 1, speedMul, map, vz: pred?.vz || 0, air: !!pred?.air,
+      crouch: (row[20] ?? Math.round((pred?.crouch || 0) * 100)) / 100,
+      slideT: (row[21] ?? Math.round((pred?.slideT || 0) * 100)) / 100,
+      slideCd: pred?.slideCd || 0, crouchHeld: !!(pred?.crouchHeld || (row[20] || 0) > 0),
+      sprinting: !!pred?.sprinting, slideX, slideY,
+    };
+  };
 
   const replay = (base, from, to, live) => {
     let s = base;
@@ -179,7 +193,7 @@ export async function connect(url, opts = {}) {
 
   const remember = (row, at) => {
     const list = tracks.get(row[0]) || [];
-    list.push({ t: at, x: row[2], y: row[3], z: row[9], aim: row[4], pitch: row[10] });
+    list.push({ t: at, x: row[2], y: row[3], z: row[9], aim: row[4], pitch: row[10], crouch: (row[20] || 0) / 100 });
     const cut = at - 400;
     while (list.length > 2 && list[0].t < cut) list.shift();
     tracks.set(row[0], list);
@@ -196,12 +210,16 @@ export async function connect(url, opts = {}) {
         out[9] = +((pred.z + offset.z).toFixed(2));
         out[4] = +lastInput.aim.toFixed(2);
         out[10] = +lastInput.pitch.toFixed(2);
+        out[20] = Math.round((pred.crouch || 0) * 100);
+        out[21] = Math.round((pred.slideT || 0) * 100);
+        out[22] = slideHeading(pred);
         return out;
       }
       const s = sampleTrack(tracks.get(row[0]) || [], when);
       if (!s) return out;
       out[2] = Math.round(s.x); out[3] = Math.round(s.y); out[9] = +s.z.toFixed(2);
       out[4] = +s.aim.toFixed(2); out[10] = +s.pitch.toFixed(2);
+      if (s.crouch != null) out[20] = Math.round(s.crouch * 100);
       return out;
     });
     return { ...latest, p, ev: [] };

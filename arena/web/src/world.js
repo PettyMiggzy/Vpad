@@ -184,6 +184,7 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
   });
 
   // ---- props ----
+  const lods = [];
   const prop = (name, w, h, d, cx, y, cz, uniform = false) => {
     const g = A.props[name]; if (!g) return null;
     let o = fitModel(g, w, h, d, uniform);
@@ -193,7 +194,8 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
       const lo = fitModel(far, w, h, d, uniform);
       let mat = null; g.scene.traverse((x) => { if (x.isMesh && !mat) mat = x.material; });
       lo.traverse((x) => { if (x.isMesh) { x.material = mat; x.castShadow = x.receiveShadow = true; } });
-      const lod = new THREE.LOD(); lod.addLevel(o, 0); lod.addLevel(lo, quality === 'low' ? 55 : 85); o = lod;
+      const farAt = quality === 'low' ? 55 : 85;
+      const lod = new THREE.LOD(); lod.addLevel(o, 0); lod.addLevel(lo, farAt); lods.push([lod, farAt]); o = lod;
     }
     o.position.set(cx, y, cz); group.add(o); return o;
   };
@@ -356,5 +358,9 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
     for (const l of lights) l.dispose?.();
     envTex.dispose();
   };
-  return { sun, lights, dispose, theme: th, group, tick, follow };
+  const setZoom = (z) => {
+    const m = Math.max(1, Math.min(6, z || 1));
+    for (const [lod, base] of lods) if (lod.levels[1]) lod.levels[1].distance = base * m;
+  };
+  return { sun, lights, dispose, theme: th, group, tick, follow, setZoom };
 }

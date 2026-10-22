@@ -24,4 +24,6 @@ test('what a sample says (alive, gun, name) comes from the earlier one', () => {
   const a = [{ ...s(0, 0), alive: true, weapon: 'smg' }, { ...s(1, 10), alive: false, weapon: 'rifle' }];
   const m = sampleHist(a, 0.5);
   assert.equal(m.alive, true); assert.equal(m.weapon, 'smg');
+  const low = [{ ...s(0, 0), crouch: 0 }, { ...s(1, 10), crouch: 1 }];
+  assert.ok(Math.abs(sampleHist(low, 0.5).crouch - 0.5) < 1e-6);
 });
