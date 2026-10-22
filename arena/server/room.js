@@ -18,7 +18,7 @@ export const SIM_HZ = 30;
 const STEP = 1 / SIM_HZ;
 const PITCH = 1.4;
 const NUM_KEYS = ['dx', 'dy', 'aim', 'pitch'];
-const BOOL_KEYS = ['fire', 'nade', 'reload', 'sprint', 'jump', 'melee', 'swap', 'use', 'ads'];
+const BOOL_KEYS = ['fire', 'nade', 'reload', 'sprint', 'jump', 'melee', 'swap', 'use', 'ads', 'crouch'];
 const INPUT_KEYS = [...NUM_KEYS, ...BOOL_KEYS];
 
 export const liveRooms = new Set();
@@ -81,7 +81,7 @@ export function readInput(m) {
     aim: aim === null ? null : wrapAim(aim),
     pitch: pitch === null ? null : clamp(pitch, -PITCH, PITCH),
     fire: m.fire === true, nade: m.nade === true, reload: m.reload === true, sprint: m.sprint === true,
-    jump: m.jump === true, melee: m.melee === true, swap: m.swap === true, use: m.use === true, ads: m.ads === true,
+    jump: m.jump === true, melee: m.melee === true, swap: m.swap === true, use: m.use === true, ads: m.ads === true, crouch: m.crouch === true,
   };
 }
 
@@ -99,7 +99,7 @@ function allowInput(client, now) {
 function zeroInput(p) {
   const i = p.input;
   i.dx = 0; i.dy = 0; i.fire = false; i.nade = false; i.reload = false;
-  i.sprint = false; i.jump = false; i.melee = false; i.swap = false; i.use = false; i.ads = false;
+  i.sprint = false; i.jump = false; i.melee = false; i.swap = false; i.use = false; i.ads = false; i.crouch = false;
 }
 
 export function openSeats(match) {
@@ -166,7 +166,7 @@ export class MatchRoom extends Room {
       dx: inp.dx, dy: inp.dy,
       aim: inp.aim === null ? p.input.aim : inp.aim,
       pitch: inp.pitch === null ? p.input.pitch : inp.pitch,
-      fire: inp.fire, nade: inp.nade, reload: inp.reload, sprint: inp.sprint, jump: inp.jump, melee: inp.melee, swap: inp.swap, use: inp.use, ads: inp.ads,
+      fire: inp.fire, nade: inp.nade, reload: inp.reload, sprint: inp.sprint, jump: inp.jump, melee: inp.melee, swap: inp.swap, use: inp.use, ads: inp.ads, crouch: inp.crouch,
     };
   }
 

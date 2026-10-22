@@ -13,6 +13,61 @@ const M = 50;
 const MORTAR = { fuse: 2.6 };
 const JUGGERNAUT_HP = 75;
 export const R = { RADIUS: 15, SPEED: 200, HP: 100, ROUND_SECONDS: 120, WIN_ROUNDS: 2, EYE: 1.6, BODY: 1.85, HEAD: 1.68, LEGS: 0.8, DROP: 1.3, FALL: 12, GRAV: 15, JUMP: 5.48, REGEN_AFTER: 5, REGEN_RATE: 14, ZONE_SECONDS: 25, UAV_SECONDS: 12, BOOST_SECONDS: 8, RESPAWN: 4, PROTECT: 2.5 };
+// crouch drops the eyes and the hit box behind cover; a slide is a short burst out of a sprint, then you stay low
+export const STANCE = { CROUCH_SPEED: 0.55, CROUCH_EYE: 1.0, CROUCH_BODY: 1.2, CROUCH_HEAD: 1.02, CROUCH_LEGS: 0.42, SLIDE_TIME: 0.7, SLIDE_SPEED: 1.85, SLIDE_CD: 0.85, BLEND: 12 };
+
+const stanceBlend = (p) => { const c = p && p.crouch || 0; return c; };
+export const eyeHeight = (p) => R.EYE + (STANCE.CROUCH_EYE - R.EYE) * stanceBlend(p);
+export const bodyHeight = (p) => R.BODY + (STANCE.CROUCH_BODY - R.BODY) * stanceBlend(p);
+export const headHeight = (p) => R.HEAD + (STANCE.CROUCH_HEAD - R.HEAD) * stanceBlend(p);
+export const legHeight = (p) => R.LEGS + (STANCE.CROUCH_LEGS - R.LEGS) * stanceBlend(p);
+
+/** crouch, or a slide when crouch is pressed while sprinting. Mutates the soldier. `len` is how hard the stick is pushed (0 to 1). */
+export function updateStance(p, inp, dt, len) {
+  if (p.crouch == null) p.crouch = 0;
+  if (p.slideT == null) p.slideT = 0;
+  if (p.slideCd == null) p.slideCd = 0;
+  p.slideCd = Math.max(0, p.slideCd - dt);
+  const pressed = !!inp.crouch && !p.crouchHeld;
+  p.crouchHeld = !!inp.crouch;
+  const sprintHeld = !!inp.sprint && len > 0.3 && !p.air;
+  if (p.slideT <= 0 && pressed && sprintHeld && (p.crouch || 0) < 0.25 && p.slideCd <= 0) {
+    const dx = Number(inp.dx) || 0, dy = Number(inp.dy) || 0, L = Math.hypot(dx, dy) || 1;
+    p.slideX = dx / L; p.slideY = dy / L;
+    p.slideT = STANCE.SLIDE_TIME;
+    p.slideCd = STANCE.SLIDE_CD;
+  }
+  if (inp.jump && !p.air && p.slideT > 0) p.slideT = 0;
+  if (p.slideT > 0) {
+    p.slideT = Math.max(0, p.slideT - dt);
+    p.crouch += (1 - p.crouch) * Math.min(1, dt * 16);
+  } else {
+    const target = p.air || !inp.crouch ? 0 : 1;
+    p.crouch += (target - p.crouch) * Math.min(1, dt * STANCE.BLEND);
+    if (Math.abs(p.crouch - target) < 0.02) p.crouch = target;
+  }
+}
+
+/** speed multiplier for a sprint, a crouch, or a slide (the slide eases off as it ends) */
+export function stanceSpeed(p, sprinting) {
+  if (p.slideT > 0) return STANCE.SLIDE_SPEED * (0.62 + 0.38 * (p.slideT / STANCE.SLIDE_TIME));
+  if (sprinting) return 1.32;
+  if ((p.crouch || 0) > 0) return 1 + (STANCE.CROUCH_SPEED - 1) * p.crouch;
+  return 1;
+}
+
+/** wire code for a slide's heading. 0 means not sliding. A real heading is stored as one more than the angle, so a slide straight backwards (angle 0) still comes through. */
+export function slideHeading(p) {
+  if (!(p && p.slideT > 0)) return 0;
+  return Math.round((Math.atan2(p.slideY || 0, p.slideX || 1) + Math.PI) * 100) + 1;
+}
+
+/** the heading back as [x, y], or null when the code says there is no slide */
+export function slideDir(code) {
+  if (!code) return null;
+  const a = (code - 1) / 100 - Math.PI;
+  return [Math.cos(a), Math.sin(a)];
+}
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -255,7 +310,7 @@ export class Match {
     const st = statsOf(loadout);
     const p = { id, team, name, ...st, bot, x: 0, y: 0, z: 0, aim: team === 0 ? 0 : Math.PI, pitch: 0, hp: st.hpMax, hpBase: st.hpMax, alive: false, kills: 0, deaths: 0, cd: 0, grenades: st.nadeCount, nadeCd: 0, ammo: st.magSize, rl: 0,
       primary: st.weapon, slot: 0, stash: 0, swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, endless: false, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, moveMul: st.speedMul, rc: new Recoil(), ads: 0, moveFrac: 0, prot: 0, respawn: 0,
-      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false }, brain: { retarget: 0, strafe: 1, flip: 0 } };
+      input: { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: false, melee: false, swap: false, use: false, ads: false, crouch: false }, crouch: 0, slideT: 0, slideCd: 0, crouchHeld: false, slideX: 1, slideY: 0, brain: { retarget: 0, strafe: 1, flip: 0 } };
     p.stash = magFor(p, 'pistol');
     p.reserve = startReserve(magFor(p, p.primary), false); p.stashRes = startReserve(magFor(p, 'pistol'), true);
     return p;
@@ -274,7 +329,7 @@ export class Match {
     [x, y] = pushOut(this.map, x, y, 0);
     p.hpMax = p.hpBase ?? p.hpMax;      // a juggernaut's extra armour ends when they go down
     Object.assign(p, { x, y, z: floorAt(this.map, x, y), hp: p.hpMax, alive: true, cd: 0, nadeCd: 0, grenades: p.nadeCount, rl: 0, aim: p.team === 0 ? 0 : Math.PI, pitch: 0,
-      weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, endless: false, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, rc: new Recoil(), ads: 0, moveFrac: 0 });
+      weapon: p.primary, slot: 0, magSize: magFor(p, p.primary), reloadTime: reloadFor(p, p.primary), swapT: 0, vz: 0, air: false, hurtT: 99, streak: 0, endless: false, boostT: 0, burstLeft: 0, meleeCd: 0, sprinting: false, rc: new Recoil(), ads: 0, moveFrac: 0, crouch: 0, slideT: 0, slideCd: 0, crouchHeld: false });
     p.ammo = p.magSize; p.stash = magFor(p, 'pistol'); p.reserve = startReserve(p.magSize, false); p.stashRes = startReserve(magFor(p, 'pistol'), true);
     p.respawn = 0; p.prot = (this.objective === 'dm' || this.train) && this.phase === 'live' ? R.PROTECT : 0;
   }
@@ -397,15 +452,17 @@ export class Match {
       p.cd = Math.max(0, p.cd - dt); p.nadeCd = Math.max(0, p.nadeCd - dt); p.swapT = Math.max(0, p.swapT - dt); p.meleeCd = Math.max(0, p.meleeCd - dt);
       p.hurtT += dt; p.boostT = Math.max(0, p.boostT - dt); p.prot = Math.max(0, p.prot - dt);
       let w = WEAPONS[p.weapon];
-      // sprinting: faster, but only movement counts and you cannot fire or throw while doing it
-      p.sprinting = !!inp.sprint && len > 0.3;
-      // the sights: raised over the weapon's own time while you are not sprinting, reloading or swapping; they slow you and tighten the spread
+      updateStance(p, inp, dt, len);
+      // sprinting: faster, but only movement counts and you cannot fire or throw while doing it. A crouch or a slide gives it up.
+      p.sprinting = !!inp.sprint && len > 0.3 && !(p.slideT > 0) && (p.crouch || 0) < 0.2;
+      // the sights: raised over the weapon's own time while you are not sprinting, sliding, reloading or swapping; they slow you and tighten the spread
       const ft = feelOf(p.weapon);
-      const wantAds = !!inp.ads && !p.sprinting && p.rl === 0 && p.swapT === 0;
+      const wantAds = !!inp.ads && !p.sprinting && !(p.slideT > 0) && p.rl === 0 && p.swapT === 0;
       p.ads = clamp(p.ads + (wantAds ? 1 : -1) * dt / ft.ads.t, 0, 1);
       p.rc.step(dt, p.weapon);
-      const sp = R.SPEED * p.speedMul * (w.move ?? 1) * (p.sprinting ? 1.32 : 1) * (p.boostT > 0 ? 1.22 : 1) * (1 + (ft.ads.move - 1) * p.ads);
-      p.moveFrac = len > 0.05 ? Math.min(1, (len * (p.sprinting ? 1.32 : 1))) : 0;
+      if (p.slideT > 0) { dx = p.slideX; dy = p.slideY; }
+      const sp = R.SPEED * p.speedMul * (w.move ?? 1) * stanceSpeed(p, p.sprinting) * (p.boostT > 0 ? 1.22 : 1) * (1 + (ft.ads.move - 1) * p.ads);
+      p.moveFrac = p.slideT > 0 ? 1 : (len > 0.05 ? Math.min(1, (len * (p.sprinting ? 1.32 : 1))) : 0);
       const [nx, ny] = tryMove(this.map, p.x, p.y, p.z, p.x + dx * sp * dt, p.y + dy * sp * dt);
       p.x = nx; p.y = ny;
       const f = floorAt(this.map, nx, ny);       // the true floor here (a blocked move reports your own height, which is not it)
@@ -481,7 +538,7 @@ export class Match {
   /** a shot lands the instant it is fired: each pellet is a ray that stops at the first solid, the ground or an enemy (head, body) */
   shoot(p, w) {
     p.prot = 0;
-    const range = (w.range ?? w.speed * w.life) * p.rangeMul, eye = p.z + R.EYE, f = feelOf(p.weapon);
+    const range = (w.range ?? w.speed * w.life) * p.rangeMul, eye = p.z + eyeHeight(p), f = feelOf(p.weapon);
     // the shot goes where the sights point plus what the recoil has done to them; computer players hold the weapon steady, and aim down the sights
     const rcMul = p.bot ? 0.25 : 1, ads = p.bot ? 1 : p.ads;
     const kick = rcMul * p.recoilMul;
@@ -498,8 +555,8 @@ export class Match {
         const d = rayCircle(p.x, p.y, dx, dy, q.x, q.y, R.RADIUS + 3);
         if (!(d < hitD)) continue;
         const hz = eye + slope * d;
-        if (hz < q.z || hz > q.z + R.BODY) continue;
-        hitD = d; hit = q; head = hz >= q.z + R.HEAD; zone = head ? 'head' : hz < q.z + R.LEGS ? 'legs' : 'body';
+        if (hz < q.z || hz > q.z + bodyHeight(q)) continue;
+        hitD = d; hit = q; head = hz >= q.z + headHeight(q); zone = head ? 'head' : hz < q.z + legHeight(q) ? 'legs' : 'body';
       }
       const ex = p.x + dx * hitD, ey = p.y + dy * hitD, ez = eye + slope * hitD;
       this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0, ...(p.quiet ? { q: 1 } : {}) });
@@ -517,7 +574,7 @@ export class Match {
   throwNade(p) {
     p.prot = 0;
     const v = GRENADE.speed * M, pt = clamp(p.pitch + 0.22, -1.2, 1.2), c = Math.cos(pt);
-    const n = { x: p.x + Math.cos(p.aim) * 20, y: p.y + Math.sin(p.aim) * 20, z: p.z + R.EYE - 0.2, vx: Math.cos(p.aim) * v * c, vy: Math.sin(p.aim) * v * c, vz: Math.sin(pt) * GRENADE.speed, fuse: GRENADE.fuse, owner: p.id, team: p.team, id: this.nextId++, radius: GRENADE.radius * p.nadeRadius, dmg: GRENADE.dmg * p.nadeDmg };
+    const n = { x: p.x + Math.cos(p.aim) * 20, y: p.y + Math.sin(p.aim) * 20, z: p.z + eyeHeight(p) - 0.2, vx: Math.cos(p.aim) * v * c, vy: Math.sin(p.aim) * v * c, vz: Math.sin(pt) * GRENADE.speed, fuse: GRENADE.fuse, owner: p.id, team: p.team, id: this.nextId++, radius: GRENADE.radius * p.nadeRadius, dmg: GRENADE.dmg * p.nadeDmg };
     this.nades.push(n);
     this.events.push({ type: 'nade', by: p.id, id: n.id, x: n.x, y: n.y, z: n.z });
   }
@@ -588,12 +645,13 @@ export class Match {
     if (b.goZone === undefined) b.goZone = Math.random() < 0.7;
     if (!target) return;
     const dx = target.x - p.x, dy = target.y - p.y, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx);
-    const see = clearLine(this.map, p.x, p.y, p.z + R.EYE, target.x, target.y, target.z + 1.3);
-    // aim at the chest with a little error that grows with distance, so they hit but not always
+    const chest = target.z + 1.3 * (bodyHeight(target) / R.BODY);
+    const see = clearLine(this.map, p.x, p.y, p.z + eyeHeight(p), target.x, target.y, chest);
+    // aim at the chest with a little error that grows with distance, so they hit but not always. A crouch lowers that chest.
     const DF = [{ aim: 1.9, fire: 0.3, think: 1.6 }, { aim: 1, fire: 0.5, think: 1 }, { aim: 0.5, fire: 0.8, think: 0.6 }][this.difficulty];
     const err = (0.012 + d / 60000) * DF.aim;
     inp.aim = ang + rnd(-err, err) * 4;
-    inp.pitch = Math.atan2(target.z + 1.3 - (p.z + R.EYE), d / M) + rnd(-err, err) * 3;
+    inp.pitch = Math.atan2(chest - (p.z + eyeHeight(p)), d / M) + rnd(-err, err) * 3;
     // short of rounds or health with nobody in sight: go and fetch a box or a kit
     const dryHands = p.ammo + p.reserve < p.magSize * 0.5, drySide = p.stash + p.stashRes < 10;       // both guns nearly empty
     const need = dryHands && drySide ? 'ammo' : p.hp < p.hpMax * 0.45 ? 'med' : null;
@@ -679,7 +737,7 @@ export class Match {
     return {
       mode: this.mode, obj: this.objective, uv: this.uav.map((t) => Math.ceil(t)), zn: this.objective === 'zone' && this.map.zone ? [this.map.zone.x, this.map.zone.y, this.map.zone.r, this.map.zone.z ?? 0, +this.zoneP[0].toFixed(3), +this.zoneP[1].toFixed(3), this.zoneIn[0], this.zoneIn[1]] : null, ph: this.phase, ot: this.overtime ? 1 : 0, mn: this.minutes, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
       al: [this.aliveCount(0), this.aliveCount(1)], n: [this.count(0), this.count(1)],
-      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0, p.reserve, p.endless ? 1 : 0, p.hpMax]),
+      p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0, p.reserve, p.endless ? 1 : 0, p.hpMax, Math.round((p.crouch || 0) * 100), Math.round((p.slideT || 0) * 100), slideHeading(p)]),
       g: this.nades.map((n) => [n.id, Math.round(n.x), Math.round(n.y), +n.z.toFixed(2)]),
       pk: this.pickups.list.map((q) => this.pickups.wire(q)),
       ev: this.events,

@@ -7,7 +7,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { makeGradePass, applyGrade } from './post.js';
-import { Match, MAPS, R, floorAt, clearLine } from '../../server/game.js';
+import { Match, MAPS, R, floorAt, clearLine, eyeHeight } from '../../server/game.js';
 import { REWARD, WEAPONS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
 import { coneLimit, frictionFor, zoomScale, onBody, flinchAmount } from './aimcore.js';
@@ -94,7 +94,7 @@ function makeComposer(samples, ultra) {
 }
 function resize() {
   const w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, DPR[level]));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, scopeSharp ? (level >= 2 ? 2 : 1.25) : DPR[level]));
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
   if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
 }
@@ -106,7 +106,12 @@ function applyWorld() {
     sun.castShadow = level >= 2;
   } else if (sun) sun.castShadow = false;
   for (const lt of worldH?.lights ?? []) lt.visible = level >= 2;
-  if (gradePass && worldH?.theme?.grade) applyGrade(gradePass, worldH.theme.grade, level < 3);
+  if (gradePass && worldH?.theme?.grade) {
+    const g = worldH.theme.grade;
+    applyGrade(gradePass, scopeSharp ? { ...g, vig: Math.min(g.vig ?? 0.32, 0.08) } : g, scopeSharp || level < 3);
+  }
+  if (bloomPass) bloomPass.strength = scopeSharp ? 0 : 0.36;
+  if (gtaoPass) gtaoPass.enabled = !scopeSharp;
 }
 /** one level of detail: resolution, shadows, glow, extra lights */
 function applyLevel(l) {
@@ -115,9 +120,23 @@ function applyLevel(l) {
   if (level >= 2) { if (composer) composer.dispose?.(); composer = makeComposer(level >= 3 ? 4 : 0, level >= 4); } else if (composer) { composer.dispose?.(); composer = null; }
   applyWorld();
   resize();
+  if (scopeSharp) { scopeSharp = false; setScopeSharp(true); }
 }
 // the frame-rate watch: a poor average over a few seconds steps one level down, then waits before judging again
-let fpsAcc = 0, fpsN = 0, fpsHold = 2.5;
+let fpsAcc = 0, fpsN = 0, fpsHold = 2.5, scopeSharp = false;
+/** a full sniper scope is a magnified picture of the same frame: drop the glow, the grain and the occlusion, and spend the pixels on the scope */
+function setScopeSharp(on) {
+  if (on === scopeSharp) return;
+  scopeSharp = on;
+  fpsHold = Math.max(fpsHold, 1.2);
+  if (bloomPass) bloomPass.strength = on ? 0 : 0.36;
+  if (gtaoPass) gtaoPass.enabled = !on;
+  if (gradePass && worldH?.theme?.grade) {
+    const g = worldH.theme.grade;
+    applyGrade(gradePass, on ? { ...g, vig: Math.min(g.vig ?? 0.32, 0.08) } : g, on || level < 3);
+  }
+  resize();
+}
 function watchFps(dt) {
   if (gfxMode !== 'auto' || !playing || level <= 0) return;
   if (fpsHold > 0) { fpsHold -= dt; return; }
@@ -285,7 +304,7 @@ const turn = (dx, dy) => { const k = ui.prefs.look * zoomScale(fov, FOV) * turnF
 addEventListener('mousemove', (e) => { if (!playing) return; if (locked) turn(e.movementX, e.movementY); else if (lockFailed && (e.buttons & 1)) turn(e.movementX, e.movementY); });
 addEventListener('mousedown', (e) => { if (!playing || !(locked || lockFailed) || ui.menuOpen()) return; if (e.button === 0) { fire = true; if (me && !me.alive && !skipKillcam()) cycleSpec(1); } if (e.button === 2) { zoom = true; if (me && !me.alive) cycleSpec(-1); } });
 addEventListener('mouseup', (e) => { if (e.button === 0) fire = false; if (e.button === 2) zoom = false; });
-addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) { if (!skipKillcam()) cycleSpec(1); } if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if (e.code === 'KeyE' && playing && !e.repeat) useQueued = true; if (voice && playing && !e.repeat && !ui.menuOpen()) { if (e.code === 'KeyT') keyTalk = true; else if (e.code === 'KeyY') voice.toggleMode(); else if (e.code === 'KeyM') voice.setMuted(!voice.muted); } if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', (e) => { keys.add(e.code); if (playing && e.code === 'Tab') { e.preventDefault(); showScore = true; } if (playing && me && !me.alive && (e.code === 'Space' || e.code === 'ArrowRight')) { if (!skipKillcam()) cycleSpec(1); } if (playing && me && !me.alive && e.code === 'ArrowLeft') cycleSpec(-1); if (e.code === 'KeyG' && playing && !e.repeat) nadeQueued = true; if (e.code === 'KeyE' && playing && !e.repeat) useQueued = true; if (voice && playing && !e.repeat && !ui.menuOpen()) { if (e.code === 'KeyT') keyTalk = true; else if (e.code === 'KeyY') voice.toggleMode(); else if (e.code === 'KeyM') voice.setMuted(!voice.muted); } if ((e.code === 'KeyF' || e.code === 'KeyV') && playing && !e.repeat) meleeQueued = true; if (playing && !e.repeat && me && me.alive && (e.code === 'KeyQ' || (e.code === 'Digit1' && me.slot === 1) || (e.code === 'Digit2' && me.slot === 0))) swapQueued = true; if (e.code === 'KeyH' && playing && !ui.touch) { hintsOn = !hintsOn; ui.hints(hintsOn); } if (playing && ['Space', 'ArrowUp', 'ArrowDown', 'ControlLeft', 'ControlRight'].includes(e.code)) e.preventDefault(); });
 addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Tab') showScore = false; if (e.code === 'KeyT') keyTalk = false; });
 addEventListener('blur', () => { keys.clear(); fire = false; });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -297,14 +316,14 @@ function readInput() {
   let fwd = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) - ui.move.y;
   let str = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + ui.move.x;
   const len = Math.hypot(fwd, str); if (len > 1) { fwd /= len; str /= len; }
-  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw + sway.y, pitch: -look.pitch + sway.p, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, use: useQueued || ui.useTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch, ads: zoom || ui.zoomTouch };
+  me.input = { dx: fx * fwd + rx * str, dy: fz * fwd + rz * str, aim: look.yaw + sway.y, pitch: -look.pitch + sway.p, fire: fire || ui.fireTouch || autoFire, nade: nadeQueued || ui.nadeTouch, reload: keys.has('KeyR') || ui.reloadTouch, jump: keys.has('Space') || ui.jumpTouch, melee: meleeQueued || ui.knifeTouch, swap: swapQueued || ui.swapTouch, use: useQueued || ui.useTouch, sprint: keys.has('ShiftLeft') || keys.has('ShiftRight') || ui.sprintTouch, ads: zoom || ui.zoomTouch, crouch: keys.has('KeyC') || keys.has('ControlLeft') || keys.has('ControlRight') || ui.crouchTouch };
   ui.nadeTouch = false;
 }
 
 // ---- events from the rules engine ----
 const teamTag = (t) => `<b style="color:${TEAM_COLORS[t]}">${names[t]}</b>`;
 const firedNow = new Set();
-const eyeOf = () => (me && me.alive ? { x: me.x / PX_PER_M, y: me.z + R.EYE, z: me.y / PX_PER_M } : { x: mapDims.w / 2, y: 1.6, z: mapDims.h / 2 });
+const eyeOf = () => (me && me.alive ? { x: me.x / PX_PER_M, y: me.z + eyeHeight(me), z: me.y / PX_PER_M } : { x: mapDims.w / 2, y: 1.6, z: mapDims.h / 2 });
 const surfaceAt = (x, z, zz) => {
   const th = curMapId;
   if (zz > 0.3) return th === 'dust' || th === 'testsite' ? 'concrete' : 'metal';
@@ -640,7 +659,7 @@ function startVoice() {
   if (!netH || !voiceWanted() || typeof RTCPeerConnection === 'undefined') return;
   voice = new Voice({
     send: (msg) => netH?.sendVoice(msg),
-    pos: (id) => { const p = match.players.get(id); return p ? { x: p.x / PX_PER_M, y: p.z + R.EYE, z: p.y / PX_PER_M } : null; },
+    pos: (id) => { const p = match.players.get(id); return p ? { x: p.x / PX_PER_M, y: p.z + eyeHeight(p), z: p.y / PX_PER_M } : null; },
     onChange: () => drawVoice(),
   });
   netH.onVoice((msg) => voice?.handle(msg));
@@ -661,7 +680,7 @@ function recordHist(now) {
   histT = now;
   for (const p of match.players.values()) {
     let a = hist.get(p.id); if (!a) { a = []; hist.set(p.id, a); }
-    a.push({ t: now, x: p.x, y: p.y, z: p.z, aim: p.aim, pitch: p.pitch ?? 0, alive: p.alive, weapon: p.weapon, team: p.team, name: p.name });
+    a.push({ t: now, x: p.x, y: p.y, z: p.z, aim: p.aim, pitch: p.pitch ?? 0, alive: p.alive, weapon: p.weapon, team: p.team, name: p.name, crouch: p.crouch || 0 });
     while (a.length > 2 && now - a[0].t > 6) a.shift();
   }
   for (const id of [...hist.keys()]) if (!match.players.has(id)) hist.delete(id);
@@ -684,19 +703,22 @@ function skipKillcam() { if (!killcam) return false; killcam = null; if (deathCa
 // ---- soldiers ----
 const vdir = new THREE.Vector3();
 const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
-function syncUnits(dt, t, players = match.players) {
+function syncUnits(dt, t, players = match.players, sharp = false) {
   camera.updateMatrixWorld(); pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(pv);
   const live = new Set();
   for (const p of players.values()) {
     live.add(p.id);
-    const key = `${p.team}|${p.weapon}`;
+    const dist0 = Math.hypot(p.x / PX_PER_M - camera.position.x, p.y / PX_PER_M - camera.position.z);
+    const full = sharp && dist0 < 80;
+    const key = `${p.team}|${p.weapon}|${full ? 1 : 0}`;
     let u = units.get(p.id);
     if (u && u.key !== key) { u.dispose(); units.delete(p.id); u = undefined; }
-    if (!u) { u = new Unit(A, p.team, p.weapon, TEAM_COLORS[p.team], idSeed(p.id)); u.key = key; u.lx = p.x / PX_PER_M; u.lz = p.y / PX_PER_M; u.px = u.lx; u.pz = u.lz; scene.add(u.root); units.set(p.id, u); }
+    if (!u) { u = new Unit(A, p.team, p.weapon, TEAM_COLORS[p.team], idSeed(p.id), full); u.key = key; u.lx = p.x / PX_PER_M; u.lz = p.y / PX_PER_M; u.px = u.lx; u.pz = u.lz; scene.add(u.root); units.set(p.id, u); }
     const gx = p.x / PX_PER_M, gz = p.y / PX_PER_M;
     const speed = Math.hypot(gx - u.lx, gz - u.lz) / Math.max(dt, 1e-3);
     u.lx = gx; u.lz = gz;
     u.root.position.set(gx, p.z, gz); u.root.rotation.y = Math.PI / 2 - p.aim;
+    u.root.scale.set(1, 1 - 0.36 * (p.crouch || 0), 1);
     const dist = Math.hypot(gx - camera.position.x, gz - camera.position.z);
     // footsteps near you, whether or not the soldier is in view: one every couple of metres walked, on the surface underfoot
     if (p.alive && speed > 0.6 && speed < 9 && (p === me || dist < 28)) {
@@ -744,7 +766,7 @@ let foe = null;                                    // { p, a, d, lim }: the enem
 function acquire() {
   foe = null; turnFriction = 1;
   if (!me || !me.alive || match.phase !== 'live' || paused || !playing) return;
-  const w = WEAPONS[me.weapon], eyeZ = me.z + R.EYE, rc = me.rc || NO_RC;
+  const w = WEAPONS[me.weapon], eyeZ = me.z + eyeHeight(me), rc = me.rc || NO_RC;
   let bestA = 9;
   for (const p of match.players.values()) {
     if (!p.alive || p.team === me.team) continue;
@@ -762,7 +784,7 @@ function assist(dt) {
   autoFire = false;
   acquire();
   if (!ui.touch || !ui.easy || !foe) return;
-  const best = foe, eyeZ = me.z + R.EYE, held = fire || ui.fireTouch;
+  const best = foe, eyeZ = me.z + eyeHeight(me), held = fire || ui.fireTouch;
   const pull = Math.min(1, dt * (held ? 8 : 3.5));
   look.yaw += best.a * pull;
   look.pitch += ((-Math.atan2(best.p.z + 1.35 - eyeZ, best.d / PX_PER_M) + (me.rc || NO_RC).p) - look.pitch) * pull;
@@ -797,14 +819,14 @@ function drawMinimap() {
 // ---- a hosted match: what the player is doing goes to the server, only when it changes (and every tenth of a second so nothing sticks) ----
 function sendInput(now, idle = false) {
   if (!me || !netInfo) return;
-  if (idle || !me.alive) me.input = { dx: 0, dy: 0, aim: look.yaw, pitch: -look.pitch, fire: false, nade: false, reload: false, jump: false, melee: false, swap: false, use: false, sprint: false, ads: false };
+  if (idle || !me.alive) me.input = { dx: 0, dy: 0, aim: look.yaw, pitch: -look.pitch, fire: false, nade: false, reload: false, jump: false, melee: false, swap: false, use: false, sprint: false, ads: false, crouch: false };
   else readInput();
   const inp = me.input, ed = netInfo.edge;
   // a throw, a stab or a swap is a moment, not a state: keep it up for a little over a server step so a busy frame cannot lose it
   for (const k of ['nade', 'melee', 'swap', 'use']) { if (inp[k]) ed[k] = now + 120; inp[k] = now < ed[k]; }
   nadeQueued = false; meleeQueued = false; swapQueued = false; useQueued = false; ui.swapTouch = false; ui.useTouch = false;
-  me.sprinting = !!inp.sprint && Math.hypot(inp.dx, inp.dy) > 0.3;
-  const key = [inp.dx.toFixed(2), inp.dy.toFixed(2), inp.aim.toFixed(2), inp.pitch.toFixed(2), +inp.fire, +inp.nade, +inp.reload, +inp.jump, +inp.melee, +inp.swap, +inp.use, +inp.sprint, +!!inp.ads].join();
+  me.sprinting = !!inp.sprint && Math.hypot(inp.dx, inp.dy) > 0.3 && !(me.slideT > 0) && (me.crouch || 0) < 0.2;
+  const key = [inp.dx.toFixed(2), inp.dy.toFixed(2), inp.aim.toFixed(2), inp.pitch.toFixed(2), +inp.fire, +inp.nade, +inp.reload, +inp.jump, +inp.melee, +inp.swap, +inp.use, +inp.sprint, +!!inp.ads, +!!inp.crouch].join();
   if (key !== netInfo.key || now - netInfo.sent > 100) { netInfo.key = key; netInfo.sent = now; netH.send(inp); }
 }
 let lobbyUp = false;
@@ -837,7 +859,7 @@ function draw() {
   if (composer) composer.render(); else renderer.render(scene, camera);
   renderer.autoClear = false; renderer.clearDepth(); renderer.render(vm.scene, vm.cam); renderer.autoClear = true;
 }
-let acc = 0, last = performance.now(), fov = FOV;
+let acc = 0, last = performance.now(), fov = FOV, lodZoom = 1;
 const NO_RC = { p: 0, y: 0, bloom: 0 };
 window.__arena = { get voice() { return voice; }, get aim() { return { fov, zoom: [zoom, ui.zoomTouch], foe: foe && { a: foe.a, d: foe.d, lim: foe.lim }, friction: turnFriction, flinch: { ...flinch } }; }, turnBy: (dx, dy) => turn(dx, dy), hap, advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
@@ -854,6 +876,8 @@ function frame(now, manual) {
   const wantFov = zoomNow && playing && me ? feelOf(me.weapon).ads.zoom * (me.zoomMul ?? 1) : FOV + (me && me.alive && me.sprinting ? 7 : 0);
   fov += (wantFov - fov) * Math.min(1, dt * 14);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  const zoomMul = Math.max(1, Math.min(6, FOV / Math.max(fov, 12)));
+  if (worldH && Math.abs(zoomMul - lodZoom) > 0.05) { lodZoom = zoomMul; worldH.setZoom?.(zoomMul); }
   if (ui.touch && (ui.lookDelta.x || ui.lookDelta.y)) { turn(ui.lookDelta.x * LOOK_TOUCH, ui.lookDelta.y * LOOK_TOUCH); ui.lookDelta.x = 0; ui.lookDelta.y = 0; }
   if ((playing && !paused && (ui.touch || locked || lockFailed)) || !playing) {
     if (netH) { assist(dt); sendInput(now); }
@@ -865,7 +889,7 @@ function frame(now, manual) {
   } else if (netH) sendInput(now, true);
   if (netH) { match.tick(dt); onEvents(match.takeEvents()); lobbyBanner(); }
   const alive = !!(me && me.alive);
-  if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + R.EYE; ui.spec(null); }
+  if (alive && !wasAlive) { look.yaw = me.aim; look.pitch = 0; spectate = null; deathCam = null; eyeY = me.z + eyeHeight(me); ui.spec(null); }
   wasAlive = alive;
   clockT = t;
   if (voice) {
@@ -878,7 +902,7 @@ function frame(now, manual) {
   let ghosts = null;
   if (killcam) { killcam.cur += dt; if (!playing || alive || killcam.cur >= killcam.to) { killcam = null; if (deathCam) deathCam.t = 2.2; } else ghosts = ghostsAt(killcam.cur); }
   if (playing && me && alive) { pendingKill = null; recordHist(t); }
-  watchFps(raw); syncUnits(dt, t, ghosts || match.players); syncNades(dt, t); syncPickups(dt, t); stepCrates(dt);
+  watchFps(raw); syncUnits(dt, t, ghosts || match.players, scoped); syncNades(dt, t); syncPickups(dt, t); stepCrates(dt);
   if (playing && me) sfx.setListener(camera.position.x, camera.position.z, alive ? look.yaw : (spectate ? (match.players.get(spectate)?.aim ?? 0) : 0));
 
   // camera
@@ -886,26 +910,26 @@ function frame(now, manual) {
   const place = (x, y, z, yaw, pitch) => { camera.position.set(x, y, z); camera.rotation.set(-pitch, -yaw - Math.PI / 2, 0); };
   if (playing && alive) {
     const moving = Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1;
-    walkPhase += moving ? dt * (me.sprinting ? 13 : 9) : 0;
-    eyeY += (me.z + R.EYE - eyeY) * Math.min(1, dt * 22);
+    walkPhase += moving ? dt * (me.slideT > 0 ? 16 : me.sprinting ? 13 : (me.crouch || 0) > 0.5 ? 7 : 9) : 0;
+    eyeY += (me.z + eyeHeight(me) - eyeY) * Math.min(1, dt * 22);
     const rc = me.rc || NO_RC;
     place(me.x / PX_PER_M, eyeY + (moving ? Math.sin(walkPhase) * 0.03 * (1 - 0.7 * (me.ads ?? 0)) : 0), me.y / PX_PER_M, look.yaw + rc.y + sway.y, look.pitch - rc.p - sway.p);
     vm.ads = me.ads ?? 0;
     if (vm.set(me.weapon, me.team, TEAM_COLORS[me.team])) sfx.equip();
-    vm.reloading = me.rl > 0 ? 1 - me.rl / me.reloadTime : -1; vm.sprinting = !!me.sprinting;
+    vm.reloading = me.rl > 0 ? 1 - me.rl / me.reloadTime : -1; vm.sprinting = !!me.sprinting; vm.crouch = me.crouch || 0;
     if (me.hp / me.hpMax < 0.3 && match.phase === 'live') { beatT -= dt; if (beatT <= 0) { sfx.heartbeat(); beatT = 0.5 + (me.hp / me.hpMax) * 2; } } else beatT = 0;
   } else if (playing && me) {
     const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const killer = deathCam ? match.players.get(deathCam.killer) : null;
     const kg = ghosts && ghosts.get(killcam.killer);
     if (kg) {
-      place(kg.x / PX_PER_M, kg.z + R.EYE, kg.y / PX_PER_M, kg.aim, -kg.pitch);
+      place(kg.x / PX_PER_M, kg.z + eyeHeight(kg), kg.y / PX_PER_M, kg.aim, -kg.pitch);
       const ku = units.get(kg.id); if (ku) ku.root.visible = false;
       ui.spec(`KILLCAM &middot; ${kg.name}`, ui.touch ? '' : 'click or Space to skip');
     } else if (deathCam && deathCam.t < 2.2 && match.phase !== 'matchover') {
       // the death cam: you drop to the floor where you fell and turn to look at who got you
       deathCam.t += dt;
-      const fall = Math.min(1, deathCam.t / 0.45), ey = me.z + R.EYE - (R.EYE - 0.32) * (1 - (1 - fall) ** 2);
+      const fall = Math.min(1, deathCam.t / 0.45), stand = eyeHeight(me), ey = me.z + stand - (stand - 0.32) * (1 - (1 - fall) ** 2);
       let ty = deathCam.yaw, tp = 0.25;
       if (killer && killer.id !== me.id) { ty = Math.atan2(killer.y - me.y, killer.x - me.x); tp = Math.atan2(-(killer.z + 1.3 - ey), Math.hypot(killer.x - me.x, killer.y - me.y) / PX_PER_M); }
       deathCam.yaw += wrapA(ty - deathCam.yaw) * (1 - Math.exp(-5 * dt)); deathCam.pitch += (tp - deathCam.pitch) * (1 - Math.exp(-5 * dt));
@@ -917,7 +941,7 @@ function frame(now, manual) {
       if (!tgt || !tgt.alive) { spectate = null; cycleSpec(1); tgt = spectate ? match.players.get(spectate) : null; }
       if (tgt) {
         specYaw += wrapA(tgt.aim - specYaw) * (1 - Math.exp(-9 * dt)); specPitch += ((tgt.pitch ?? 0) - specPitch) * (1 - Math.exp(-9 * dt));
-        place(tgt.x / PX_PER_M, tgt.z + R.EYE, tgt.y / PX_PER_M, specYaw, -specPitch);
+        place(tgt.x / PX_PER_M, tgt.z + eyeHeight(tgt), tgt.y / PX_PER_M, specYaw, -specPitch);
         ui.spec(`Spectating ${tgt.name}`, ui.touch ? '' : 'click or Space: next &middot; right click: previous');
       } else { place(mapDims.w / 2, 16, mapDims.h / 2, 0, 1.2); ui.spec(null); }
     }
@@ -929,6 +953,7 @@ function frame(now, manual) {
   if (flinch.t > 0.01) { camera.rotation.z += flinch.roll * flinch.t; camera.rotation.x += flinch.pitch * flinch.t; flinch.t *= Math.pow(0.0004, dt); }
   if (shake > 0.002) { camera.rotation.x += (Math.random() - 0.5) * 0.05 * shake; camera.rotation.z += (Math.random() - 0.5) * 0.05 * shake; shake *= Math.pow(0.002, dt); }
   vm.update(dt, alive && Math.hypot(me.input?.dx ?? 0, me.input?.dy ?? 0) > 0.1, walkPhase, camera.aspect, !(playing && alive) || scoped);
+  setScopeSharp(playing && alive && scoped && fov < 40);
   ui.scope(playing && alive && scoped, breath, winded);
   for (const u of units.values()) u.mark.lookAt(camera.position);
 

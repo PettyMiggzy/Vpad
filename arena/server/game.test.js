@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Match, R, MAPS, floorAt, pushOut, tryMove, raySolids, rayCircle, clearLine, navPath, statsOf } from './game.js';
+import { Match, R, MAPS, floorAt, pushOut, tryMove, raySolids, rayCircle, clearLine, navPath, statsOf, updateStance, STANCE, eyeHeight, slideHeading, slideDir } from './game.js';
 import { STEP, LEGACY } from './maps.js';
 import { GRENADE, WEAPONS } from './items.js';
 
@@ -372,4 +372,44 @@ test('a full match searches only a couple of routes each step', () => {
   let fresh = 0;
   for (const p of m.players.values()) if (p.bot && (p.brain.pathAt > 0.2 || p.brain.lootAt > 0.2)) fresh++;
   assert.ok(fresh >= 1 && fresh <= 2, `routes searched ${fresh}`);
+});
+
+test('a crouch hides the body from a level shot, and a slide is a short burst with a cooldown', () => {
+  assert.equal(eyeHeight({ crouch: 0 }), R.EYE);
+  assert.equal(eyeHeight({ crouch: 1 }), STANCE.CROUCH_EYE);
+  const [m, p] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 500, 150]]);
+  p.b.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false, crouch: true, sprint: false, jump: false };
+  for (let i = 0; i < 40; i++) m.step(1 / 60);
+  assert.equal(p.b.crouch, 1);
+  assert.equal(m.snapshot().p.find((q) => q[0] === 'b')[20], 100);
+  p.a.weapon = 'sniper'; p.a.ads = 1; p.a.cd = 0; p.a.rc.p = 0; p.a.rc.y = 0;
+  p.a.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: true, ads: true };
+  const hp = p.b.hp;
+  m.step(1 / 60);
+  assert.equal(p.b.hp, hp, 'a level shot goes over a crouched soldier');
+  p.b.crouch = 0; p.b.input = { dx: 0, dy: 0, aim: 0, pitch: 0, fire: false };
+  p.a.cd = 0; p.a.rc.p = 0; p.a.rc.y = 0;
+  p.a.input = { dx: 0, dy: 0, aim: 0, pitch: Math.atan2(R.HEAD + 0.12 - R.EYE, 300 / 50), fire: true, ads: true };
+  m.step(1 / 60);
+  assert.ok(p.b.hp < hp, 'the same gun hits a standing soldier');
+  const [s, q] = setup(LEGACY.cargo, [['a', 0, 200, 150], ['b', 1, 900, 900]]);
+  q.a.input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: false, sprint: true, crouch: false, jump: false };
+  s.step(1 / 60);
+  assert.equal(q.a.sprinting, true);
+  const x0 = q.a.x;
+  q.a.input = { ...q.a.input, crouch: true };
+  s.step(1 / 60);
+  assert.ok(q.a.slideT > 0, 'crouch on a sprint starts a slide');
+  assert.ok(slideHeading(q.a) > 0);
+  for (let i = 0; i < 50; i++) s.step(1 / 60);
+  assert.ok(q.a.x - x0 > 150, `slid ${q.a.x - x0}`);
+  assert.equal(q.a.slideT, 0);
+  assert.equal(q.a.crouch, 1);
+  const cooled = { crouch: 0, slideT: 0, slideCd: 0.4, crouchHeld: false, air: false, slideX: 1, slideY: 0 };
+  updateStance(cooled, { crouch: true, sprint: true, dx: 1, dy: 0, jump: false }, 1 / 60, 1);
+  assert.equal(cooled.slideT, 0, 'a slide does not restart during its cooldown');
+  const back = slideDir(slideHeading({ slideT: 0.2, slideX: -1, slideY: 0 }));
+  assert.ok(back && Math.abs(back[0] + 1) < 0.02 && Math.abs(back[1]) < 0.02, 'a slide straight back still has a heading');
+  assert.equal(slideHeading({ slideT: 0, slideX: -1, slideY: 0 }), 0);
+  assert.equal(slideDir(0), null);
 });

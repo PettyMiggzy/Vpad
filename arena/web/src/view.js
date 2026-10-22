@@ -116,7 +116,8 @@ export class ViewModel {
     this.spr = (this.spr ?? 0) + ((this.sprinting ? 1 : 0) - (this.spr ?? 0)) * Math.min(1, dt * 9); const spr = this.spr;
     const eq = this.equipT > 0 ? (this.equipT / 0.5) ** 2 : 0;
     const kick = this.recoil * this.recoil;
-    rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
+    const tuck = (this.crouch || 0) * (1 - A) * 0.045;
+    rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06 - tuck, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
     rg.rotation.set(-tip - spr * 0.45 + kick * (0.05 + (this.weapon === 'sniper' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + spr * 0.35 + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
     rg.updateMatrixWorld(true); this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1), 1 - 0.85 * (this.adsS ?? 0)); rg.updateMatrixWorld(true);
     if (!acting && !window.__noHold) { this.unit.holdGun(!this.oneHand); rg.updateMatrixWorld(true); }
@@ -139,7 +140,7 @@ export class ViewModel {
   }
 }
 // the see-through window when aimed, per gun with a glass sight: [centre x, centre y, radius] in screen units (the screen is 2 high), the radius measured in heights
-const SIGHT_WINDOW = { rifle: [0, 0, 0.1], smg: [0, 0, 0.07], burst: [0, 0, 0.08], dmr: [0, 0, 0.1], pistol: [0, 0, 0.06] };
+const SIGHT_WINDOW = { rifle: [0, 0, 0.1], smg: [0, 0, 0.07], burst: [0, 0, 0.08], dmr: [0, 0, 0.1], pistol: [0, 0, 0.06], sniper: [0, 0, 0.05] };
 const _h = new THREE.Vector3();
 if (typeof window !== 'undefined') window.__viewTune = () => ({ ADS_POSE, GUN_K });
 // where the rig sits when the sights are up: placed so the top of each gun's sight (measured in the view's own space) is in the middle of the screen

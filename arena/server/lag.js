@@ -16,7 +16,7 @@ export class History {
   note(p, t) {
     let list = this.tracks.get(p.id);
     if (!list) this.tracks.set(p.id, list = []);
-    const row = { t, x: p.x, y: p.y, z: p.z, alive: p.alive ? 1 : 0 };
+    const row = { t, x: p.x, y: p.y, z: p.z, alive: p.alive ? 1 : 0, crouch: p.crouch || 0 };
     const last = list[list.length - 1];
     if (last && last.t === t) list[list.length - 1] = row;
     else list.push(row);
@@ -45,6 +45,7 @@ export class History {
     return {
       t, alive: 1,
       x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, z: a.z + (b.z - a.z) * u,
+      crouch: (a.crouch || 0) + ((b.crouch || 0) - (a.crouch || 0)) * u,
     };
   }
 
@@ -55,10 +56,10 @@ export class History {
       if (q === shooter || !q.alive || q.team === shooter.team) continue;
       const s = this.sample(q.id, t);
       if (!s || !s.alive) continue;
-      saved.push([q, q.x, q.y, q.z]);
-      q.x = s.x; q.y = s.y; q.z = s.z;
+      saved.push([q, q.x, q.y, q.z, q.crouch || 0]);
+      q.x = s.x; q.y = s.y; q.z = s.z; q.crouch = s.crouch || 0;
     }
     try { return orig(shooter, w); }
-    finally { for (const [q, x, y, z] of saved) { q.x = x; q.y = y; q.z = z; } }
+    finally { for (const [q, x, y, z, crouch] of saved) { q.x = x; q.y = y; q.z = z; q.crouch = crouch; } }
   }
 }
