@@ -360,3 +360,16 @@ for (const id of Object.keys(MAPS)) {
     assert.ok(!bad); assert.ok(ends >= 3, `rounds ended: ${ends}`); assert.ok(peak > 0.25, `the bots held the zone long enough to matter (peak ${peak.toFixed(2)})`);
   });
 }
+
+test('a full match searches only a couple of routes each step', () => {
+  const m = new Match({ teams: T, perSide: 12, bots: true, map: 'cargo' });
+  m.fillBots();
+  m.startRound();
+  let guard = 0;
+  while (m.phase !== 'live' && guard++ < 400) m.step(1 / 30);
+  for (const p of m.players.values()) if (p.bot) { p.brain.path = [[p.x, p.y]]; p.brain.pathAt = 0; p.brain.lootPath = [[p.x, p.y]]; p.brain.lootAt = 0; }
+  m.step(1 / 30);
+  let fresh = 0;
+  for (const p of m.players.values()) if (p.bot && (p.brain.pathAt > 0.2 || p.brain.lootAt > 0.2)) fresh++;
+  assert.ok(fresh >= 1 && fresh <= 2, `routes searched ${fresh}`);
+});

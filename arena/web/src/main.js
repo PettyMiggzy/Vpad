@@ -31,11 +31,11 @@ import { serverUrl, reachable, playerId, pullProfile, mirrorShop, diagnose, askL
 
 const qs = new URLSearchParams(location.search);
 const dbg = qs.get('dbg') || '';
-// graphics level: 3 high, 2 mid, 1 low, 0 minimum. 'auto' starts high (mid on phones) and steps down by itself when the frame rate is poor.
+// graphics level: 3 high, 2 mid, 1 low, 0 minimum. 'auto' starts high on a computer and low on a phone, and steps down by itself when the frame rate is poor.
 const LEVELS = { ultra: 4, high: 3, mid: 2, low: 1, min: 0 };
 let gfxMode = qs.get('q') || (() => { try { return localStorage.getItem('vyre.arena.gfx') || 'auto'; } catch { return 'auto'; } })();
 if (gfxMode !== 'auto' && !(gfxMode in LEVELS)) gfxMode = 'auto';
-let level = gfxMode === 'auto' ? (matchMedia('(pointer: coarse)').matches ? 2 : 3) : LEVELS[gfxMode];
+let level = gfxMode === 'auto' ? (matchMedia('(pointer: coarse)').matches ? 1 : 3) : LEVELS[gfxMode];
 const quality = level >= 3 ? 'high' : level === 2 ? 'mid' : 'low';
 const names = teamNames(location.search, DEFAULT_TEAM_NAMES);
 const hex = (h) => parseInt(h.slice(1), 16);
@@ -117,14 +117,16 @@ function applyLevel(l) {
   resize();
 }
 // the frame-rate watch: a poor average over a few seconds steps one level down, then waits before judging again
-let fpsAcc = 0, fpsN = 0, fpsHold = 4;
+let fpsAcc = 0, fpsN = 0, fpsHold = 2.5;
 function watchFps(dt) {
   if (gfxMode !== 'auto' || !playing || level <= 0) return;
   if (fpsHold > 0) { fpsHold -= dt; return; }
+  // one very late frame, or a short run under about 45 fps, drops a level at once instead of staying frozen on the heavy picture
+  if (dt > 0.12) { applyLevel(level - 1); fpsHold = 1.5; fpsAcc = 0; fpsN = 0; return; }
   fpsAcc += dt; fpsN++;
-  if (fpsN >= 90) {
+  if (fpsN >= 40) {
     const avg = fpsAcc / fpsN; fpsAcc = 0; fpsN = 0;
-    if (avg > 1 / 38) { applyLevel(level - 1); fpsHold = 4; }
+    if (avg > 1 / 45) { applyLevel(level - 1); fpsHold = 1.5; }
   }
 }
 addEventListener('resize', resize); applyLevel(level);
@@ -325,16 +327,19 @@ function killedBy(e, a) {
   return bits.join(' · ');
 }
 function onEvents(evs) {
+  let shotFx = 0;
   for (const e of evs) {
     if (e.type === 'shot') {
       const sh = match.players.get(e.by), own = !!(me && e.by === me.id), eye = eyeOf();
-      sfx.shot(sh?.weapon ?? 'pistol', e.x / PX_PER_M, e.y / PX_PER_M, own, !own && !!e.q);
-      if (own || !e.q) tracer(e, sh);      // a suppressed shot leaves no tracer for the other side to follow
+      const far = !own && Math.hypot(e.x / PX_PER_M - eye.x, e.y / PX_PER_M - eye.z) > 70;
+      if (!far) sfx.shot(sh?.weapon ?? 'pistol', e.x / PX_PER_M, e.y / PX_PER_M, own, !own && !!e.q);
+      // a suppressed shot leaves no tracer for the other side to follow; distant and extra shots in a busy frame do not build a new mesh
+      if ((own || !e.q) && (own || (!far && shotFx < 8))) { shotFx++; tracer(e, sh); }
       firedNow.add(e.by); lastShot.set(e.by, performance.now());
       if (own) { vm.fire(); const w = WEAPONS[sh?.weapon] ?? WEAPONS.pistol; hap.fire('shot', w.dmg * (w.pellets > 1 ? w.pellets * 0.5 : 1)); }
       // a bullet that flew past your head, or hit the wall beside you
       if (me && me.alive && !own && sh && sh.team !== me.team && !e.hit && distToSeg(eye.x, eye.y, eye.z, e.x / PX_PER_M, e.z, e.y / PX_PER_M, e.ex / PX_PER_M, e.ez, e.ey / PX_PER_M) < 2.2) sfx.whiz();
-      if (!e.hit) {
+      if (!e.hit && !far) {
         const ix = e.ex / PX_PER_M, iz = e.ey / PX_PER_M;
         sfx.impact(e.ez < 0.15 ? (curMapId === 'dust' ? 'dirt' : 'concrete') : curMapId === 'dust' ? 'concrete' : (e.x + e.y) % 3 < 1.6 ? 'metal' : 'concrete', ix, iz);
       }
@@ -405,7 +410,14 @@ function onEvents(evs) {
 }
 const tracerMat = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(3), toneMapped: false, transparent: true }));
 const tracerGeo = new THREE.BoxGeometry(0.03, 0.03, 1);
+const tracerFree = [];
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
+function takeTracer(team) {
+  let mesh = tracerFree.pop();
+  if (!mesh) { mesh = new THREE.Mesh(tracerGeo, tracerMat[team]); scene.add(mesh); }
+  mesh.material = tracerMat[team]; mesh.visible = true;
+  return mesh;
+}
 function tracer(e, sh) {
   _a.set(e.x / PX_PER_M, e.z - 0.3, e.y / PX_PER_M); _b.set(e.ex / PX_PER_M, e.ez, e.ey / PX_PER_M);
   const len = _a.distanceTo(_b);
@@ -415,10 +427,11 @@ function tracer(e, sh) {
   // a shot that ends at your own head would draw its glowing end face right in front of the camera as a huge square: stop it short of the camera
   { const dc = _b.distanceTo(camera.position); if (dc < 2.5) _b.addScaledVector(_c.subVectors(_b, _a).normalize(), -(2.5 - dc)); }
   const L = _a.distanceTo(_b); if (L < 0.3) return;
-  const mesh = new THREE.Mesh(tracerGeo, tracerMat[sh ? sh.team : 0]);
+  if (tracers.length >= 24) { const old = tracers.shift(); old.mesh.visible = false; tracerFree.push(old.mesh); }
+  const mesh = takeTracer(sh ? sh.team : 0);
   mesh.scale.z = L; mesh.position.copy(_a).lerp(_b, 0.5); mesh.lookAt(_b);
-  scene.add(mesh); tracers.push({ mesh, life: 0.07 });
-  if (!e.hit) burst(_b.x, _b.y, _b.z, 0xffc060, 5);
+  tracers.push({ mesh, life: 0.07 });
+  if (!e.hit) burst(_b.x, _b.y, _b.z, 0xffc060, 4);
 }
 // ---- blood: a short spray where a hit lands, drops that stain the floor and fade, and a pool where someone falls. Kept clean: no gore, nothing lasting.
 // The menu switch turns it off (sparks instead). ----
@@ -473,10 +486,15 @@ function updateBlood(dt) {
 }
 function clearBlood() { for (const d of drops) scene.remove(d.m); drops.length = 0; for (const s of stains) scene.remove(s.mesh); stains.length = 0; }
 const bitGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+const bitMats = new Map(), bitFree = [];
+const bitMaterial = (color) => { let m = bitMats.get(color); if (!m) { m = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(2), toneMapped: false }); bitMats.set(color, m); } return m; };
 function burst(x, y, z, color, n, speed = 3) {
+  const mat = bitMaterial(color);
   for (let i = 0; i < n; i++) {
-    const mesh = new THREE.Mesh(bitGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(2), toneMapped: false }));
-    mesh.position.set(x, y, z); scene.add(mesh);
+    if (bits.length >= 64) { const old = bits.shift(); old.mesh.visible = false; bitFree.push(old.mesh); }
+    let mesh = bitFree.pop();
+    if (!mesh) { mesh = new THREE.Mesh(bitGeo, mat); scene.add(mesh); }
+    mesh.material = mat; mesh.visible = true; mesh.position.set(x, y, z);
     bits.push({ mesh, vx: (Math.random() - 0.5) * speed, vy: Math.random() * speed + 0.5, vz: (Math.random() - 0.5) * speed, life: 0.45 + Math.random() * 0.3 });
   }
 }
@@ -679,21 +697,21 @@ function syncUnits(dt, t, players = match.players) {
     const speed = Math.hypot(gx - u.lx, gz - u.lz) / Math.max(dt, 1e-3);
     u.lx = gx; u.lz = gz;
     u.root.position.set(gx, p.z, gz); u.root.rotation.y = Math.PI / 2 - p.aim;
-    // footsteps are heard whether or not the soldier is in view: one every couple of metres walked, on the surface underfoot
-    if (p.alive && speed > 0.6 && speed < 9) {
+    const dist = Math.hypot(gx - camera.position.x, gz - camera.position.z);
+    // footsteps near you, whether or not the soldier is in view: one every couple of metres walked, on the surface underfoot
+    if (p.alive && speed > 0.6 && speed < 9 && (p === me || dist < 28)) {
       u.stepD = (u.stepD ?? 0) + speed * dt;
       if (u.stepD > (speed > 4 ? 2.1 : 1.5)) { u.stepD = 0; sfx.step(surfaceAt(gx, gz, p.z), gx, gz, p === me); }
     }
     // soldiers out of view are not drawn or animated; far ones are animated at half rate
     sph.center.set(gx, p.z + 1, gz);
-    const dist = Math.hypot(gx - camera.position.x, gz - camera.position.z);
     u.root.visible = (p !== me || !p.alive) && p.id !== spectate && (frustum.intersectsSphere(sph) || dist < 3);
     u.skip = !u.skip;
     if (!u.root.visible || (dist > 40 && u.skip)) { u.pend = (u.pend ?? 0) + dt; continue; }
     const udt = dt + (u.pend ?? 0); u.pend = 0;
     const vx = (gx - u.px) / Math.max(udt, 1e-3), vz = (gz - u.pz) / Math.max(udt, 1e-3);
     u.px = gx; u.pz = gz;
-    u.update(udt, Math.min(speed, 7), firedNow.has(p.id), p.alive, t, (vx * Math.cos(p.aim) + vz * Math.sin(p.aim)) < -0.5);
+    u.update(udt, Math.min(speed, 7), firedNow.has(p.id), p.alive, t, (vx * Math.cos(p.aim) + vz * Math.sin(p.aim)) < -0.5, dist > 22);
   }
   firedNow.clear();
   for (const [id, u] of units) if (!live.has(id)) { u.dispose(); units.delete(id); ui.dropTag(id); }
@@ -914,11 +932,11 @@ function frame(now, manual) {
   ui.scope(playing && alive && scoped, breath, winded);
   for (const u of units.values()) u.mark.lookAt(camera.position);
 
-  for (let i = tracers.length - 1; i >= 0; i--) { tracers[i].life -= dt; if (tracers[i].life <= 0) { scene.remove(tracers[i].mesh); tracers.splice(i, 1); } }
+  for (let i = tracers.length - 1; i >= 0; i--) { tracers[i].life -= dt; if (tracers[i].life <= 0) { tracers[i].mesh.visible = false; tracerFree.push(tracers[i].mesh); tracers.splice(i, 1); } }
   const fl = (x, z) => floorAt(match.map, x * PX_PER_M, z * PX_PER_M) + 0.02;
   for (let i = bits.length - 1; i >= 0; i--) {
     const b = bits[i]; b.life -= dt; b.vy -= 9 * dt; b.mesh.position.x += b.vx * dt; b.mesh.position.y = Math.max(fl(b.mesh.position.x, b.mesh.position.z), b.mesh.position.y + b.vy * dt); b.mesh.position.z += b.vz * dt;
-    if (b.life <= 0) { scene.remove(b.mesh); b.mesh.material.dispose(); bits.splice(i, 1); }
+    if (b.life <= 0) { b.mesh.visible = false; bitFree.push(b.mesh); bits.splice(i, 1); }
   }
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i]; f.t += dt; const k = f.t / f.life;

@@ -329,23 +329,24 @@ export async function buildWorld(scene, renderer, map, A, colors, quality, onPro
   });
 
   // ---- the skyline round the outside: seen over the perimeter wall from the high decks ----
-  const out = (name, hgt, x, z, rot) => tall(name, hgt, x, z, rot);
+  const noShadow = (o) => { if (o) o.traverse((x) => { if (x.isMesh) x.castShadow = false; }); return o; };
+  const out = (name, hgt, x, z, rot) => noShadow(tall(name, hgt, x, z, rot));
   const ring = (n, fn) => { for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + R() * 0.3, rx = W / 2 + 12 + R() * 20, rz = H / 2 + 8 + R() * 18; fn(i, W / 2 + Math.cos(a) * (rx + 18), H / 2 + Math.sin(a) * (rz + 14), a); } };
   if (map.theme === 'cargo') {
-    ring(34, (i, x, z, a) => { const stack = 1 + Math.floor(R() * 3); for (let k = 0; k < stack; k++) { const nm = containerNames[(i + k) % 4]; const o = prop(nm, 6.1, 2.7, 2.5, x, k * 2.7, z); if (o) o.rotation.y = a + Math.PI / 2; } });
+    ring(34, (i, x, z, a) => { const stack = 1 + Math.floor(R() * 3); for (let k = 0; k < stack; k++) { const nm = containerNames[(i + k) % 4]; const o = noShadow(prop(nm, 6.1, 2.7, 2.5, x, k * 2.7, z)); if (o) o.rotation.y = a + Math.PI / 2; } });
     out('water_tower', 18, W + 24, -14, 0); out('water_tower', 14, -22, H + 16, 0.5); out('watchtower', 12, -12, -10, 0.4); out('watchtower', 12, W + 12, H + 10, 3.4);
     for (let i = 0; i < 6; i++) out(i % 2 ? 'truck_cargo' : 'forklift', i % 2 ? 3.4 : 2.4, -6 + i * 14, -9 - R() * 4, R() * 6);
   } else if (map.theme === 'dust') {
-    ring(26, (i, x, z, a) => { const nm = i % 3 === 0 ? 'adobe_house_a' : 'adobe_house_b'; const o = tall(nm, 4 + R() * 3.5, x, z, a + Math.PI); if (o) o.rotation.y = a + Math.PI / 2; });
+    ring(26, (i, x, z, a) => { const nm = i % 3 === 0 ? 'adobe_house_a' : 'adobe_house_b'; const o = noShadow(tall(nm, 4 + R() * 3.5, x, z, a + Math.PI)); if (o) o.rotation.y = a + Math.PI / 2; });
     for (let i = 0; i < 9; i++) out('rock_large', 3 + R() * 5, -20 + R() * (W + 40), (i % 2 ? -24 : H + 24) + R() * 8, R() * 6);
     for (let i = 0; i < 7; i++) out('tree_dead', 5 + R() * 3, -16 + R() * (W + 32), (i % 2 ? -14 : H + 14) + R() * 6, R() * 6);
     out('water_tower', 16, W + 28, H / 2 + 6, 0);
   } else if (map.theme === 'testsite') {
-    ring(22, (i, x, z, a) => { const o = tall(i % 2 ? 'adobe_house_a' : 'adobe_house_b', 4 + R() * 2.5, x, z, a + Math.PI); if (o) o.rotation.y = a + Math.PI / 2; });
+    ring(22, (i, x, z, a) => { const o = noShadow(tall(i % 2 ? 'adobe_house_a' : 'adobe_house_b', 4 + R() * 2.5, x, z, a + Math.PI)); if (o) o.rotation.y = a + Math.PI / 2; });
     for (let i = 0; i < 9; i++) out('tree_green', 5 + R() * 3, -14 + R() * (W + 28), (i % 2 ? -10 : H + 10) + R() * 5, R() * 6);
     out('water_tower', 17, W + 22, H / 2 - 4, 0); out('watchtower', 12, -14, H + 8, 0.4);
   } else {
-    ring(16, (i, x, z, a) => { out(i % 3 === 0 ? 'tank_horizontal' : 'tank_vertical', 10 + R() * 8, x, z, a); });
+    ring(16, (i, x, z, a) => { noShadow(out(i % 3 === 0 ? 'tank_horizontal' : 'tank_vertical', 10 + R() * 8, x, z, a)); });
     out('water_tower', 20, -26, 4, 0); out('water_tower', 18, W + 26, H - 4, 0); out('watchtower', 13, -10, -12, 0.3); out('watchtower', 13, W + 10, H + 12, 3.3);
     for (let i = 0; i < 5; i++) out('pipe_rack', 4.5, -10 + i * 16, -14, 0);
   }

@@ -96,6 +96,7 @@ export function clearLine(map, x1, y1, z1, x2, y2, z2) {
 
 // ---- navigation: a coarse grid with the floor height of each cell; bots walk a breadth-first path that never steps up or off more than a step ----
 const CELL = 40;
+const NAV_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 function nav(map) {
   if (map._nav) return map._nav;
   const GW = Math.ceil(map.w / CELL), GH = Math.ceil(map.h / CELL);
@@ -129,7 +130,8 @@ export function navPath(map, x1, y1, z1, x2, y2, z2) {
   if (n.run === 0) { n.stamp.fill(0); n.run = 1; }
   const { stamp, g, prev, run } = n;
   const h = (i) => Math.max(Math.abs((i % GW) - tx), Math.abs(((i / GW) | 0) - ty));
-  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]].sort(() => Math.random() - 0.5);
+  // neighbours are rotated each search so bots do not all file along the same corridor
+  const spin = n.spin = ((n.spin || 0) + 3) & 7;
   stamp[start] = run; g[start] = 0; prev[start] = start;
   const buckets = []; buckets[h(start)] = [start];
   let found = start === goal;
@@ -140,7 +142,8 @@ export function navPath(map, x1, y1, z1, x2, y2, z2) {
       if (g[c] + h(c) !== f) continue; // an older, longer way to a cell that has been reached a better way since
       if (c === goal) { found = true; break; }
       const cx = c % GW, cy = (c / GW) | 0, ng = g[c] + 1;
-      for (const [dx, dy] of dirs) {
+      for (let k = 0; k < 8; k++) {
+        const [dx, dy] = NAV_DIRS[(k + spin) & 7];
         const nx = cx + dx, ny = cy + dy;
         if (nx < 0 || ny < 0 || nx >= GW || ny >= GH) continue;
         const ni = ny * GW + nx;
@@ -381,6 +384,8 @@ export class Match {
   }
 
   think(dt, live) {
+    // a search across a 200 m map is the slow part of a step; two a step is enough for a full room and cannot stall the server
+    this._routes = 2;
     for (const p of this.players.values()) {
       if (!p.alive) continue;
       if (p.bot) this.botBrain(p, dt);
@@ -597,7 +602,8 @@ export class Match {
       if (Math.hypot(crate.x - p.x, crate.y - p.y) < 55) inp.use = true;
       else {
         b.lootAt = (b.lootAt ?? 0) - dt;
-        if (!b.lootPath || b.lootPath.length === 0 || b.lootAt <= 0 || b.lootFor !== crate.id) { b.lootPath = navPath(this.map, p.x, p.y, p.z, crate.x, crate.y, crate.z); b.lootAt = rnd(0.8, 1.4); b.lootFor = crate.id; }
+        if (!b.lootPath || b.lootPath.length === 0 || b.lootAt <= 0 || b.lootFor !== crate.id) { if (this._routes > 0) { this._routes--; b.lootPath = navPath(this.map, p.x, p.y, p.z, crate.x, crate.y, crate.z); b.lootAt = rnd(0.8, 1.4); b.lootFor = crate.id; } }
+        b.lootPath = b.lootPath || [];
         while (b.lootPath.length > 1 && Math.hypot(b.lootPath[0][0] - p.x, b.lootPath[0][1] - p.y) < 26) b.lootPath.shift();
         const wp = b.lootPath[0] || [crate.x, crate.y], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
         inp.dx = Math.cos(wa); inp.dy = Math.sin(wa); inp.aim = wa; inp.pitch = 0; inp.sprint = true;
@@ -608,7 +614,8 @@ export class Match {
       const k = nearestFor(this, p, need, 2400);
       if (k) {
         b.lootAt = (b.lootAt ?? 0) - dt;
-        if (!b.lootPath || b.lootPath.length === 0 || b.lootAt <= 0 || b.lootFor !== k.id) { b.lootPath = navPath(this.map, p.x, p.y, p.z, k.x, k.y, k.z); b.lootAt = rnd(0.8, 1.4); b.lootFor = k.id; }
+        if (!b.lootPath || b.lootPath.length === 0 || b.lootAt <= 0 || b.lootFor !== k.id) { if (this._routes > 0) { this._routes--; b.lootPath = navPath(this.map, p.x, p.y, p.z, k.x, k.y, k.z); b.lootAt = rnd(0.8, 1.4); b.lootFor = k.id; } }
+        b.lootPath = b.lootPath || [];
         while (b.lootPath.length > 1 && Math.hypot(b.lootPath[0][0] - p.x, b.lootPath[0][1] - p.y) < 26) b.lootPath.shift();
         const wp = b.lootPath[0] || [k.x, k.y], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
         inp.dx = Math.cos(wa); inp.dy = Math.sin(wa); inp.aim = wa; inp.pitch = 0; inp.sprint = true;
@@ -623,7 +630,8 @@ export class Match {
         b.perch = dk ? [dk.x + dk.w / 2, dk.y + dk.h / 2, dk.top] : [p.x, p.y, p.z];
       }
       if (Math.hypot(b.perch[0] - p.x, b.perch[1] - p.y) > 90) {
-        if (!b.path || b.path.length === 0 || b.pathAt <= 0) { b.path = navPath(this.map, p.x, p.y, p.z, b.perch[0], b.perch[1], b.perch[2]); b.pathAt = rnd(0.8, 1.4); }
+        if (!b.path || b.path.length === 0 || b.pathAt <= 0) { if (this._routes > 0) { this._routes--; b.path = navPath(this.map, p.x, p.y, p.z, b.perch[0], b.perch[1], b.perch[2]); b.pathAt = rnd(0.8, 1.4); } }
+        b.path = b.path || [];
         while (b.path.length > 1 && Math.hypot(b.path[0][0] - p.x, b.path[0][1] - p.y) < 26) b.path.shift();
         const wp = b.path[0] || [b.perch[0], b.perch[1]], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
         inp.dx = Math.cos(wa) * 0.9; inp.dy = Math.sin(wa) * 0.9; inp.aim = wa; inp.pitch = 0;
@@ -636,7 +644,8 @@ export class Match {
     if (this.objective === 'zone' && this.map.zone && b.goZone && !see) {
       const zn = this.map.zone, dzn = Math.hypot(zn.x - p.x, zn.y - p.y);
       if (dzn > zn.r * 0.55) {
-        if (!b.path || b.path.length === 0 || b.pathAt <= 0) { b.path = navPath(this.map, p.x, p.y, p.z, zn.x, zn.y, zn.z ?? 0); b.pathAt = rnd(0.8, 1.4); }
+        if (!b.path || b.path.length === 0 || b.pathAt <= 0) { if (this._routes > 0) { this._routes--; b.path = navPath(this.map, p.x, p.y, p.z, zn.x, zn.y, zn.z ?? 0); b.pathAt = rnd(0.8, 1.4); } }
+        b.path = b.path || [];
         while (b.path.length > 1 && Math.hypot(b.path[0][0] - p.x, b.path[0][1] - p.y) < 26) b.path.shift();
         const wp = b.path[0] || [zn.x, zn.y], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
         inp.dx = Math.cos(wa); inp.dy = Math.sin(wa); inp.aim = wa; inp.pitch = 0; inp.sprint = true;
@@ -646,7 +655,8 @@ export class Match {
     const stand = Math.min(reach * 0.45, 900);
     if (d > stand || !see) {
       // walk the path round the walls (re-found every so often, or when the old one is used up)
-      if (!b.path || b.path.length === 0 || b.pathAt <= 0) { b.path = navPath(this.map, p.x, p.y, p.z, target.x, target.y, target.z); b.pathAt = rnd(0.5, 1.0); }
+      if (!b.path || b.path.length === 0 || b.pathAt <= 0) { if (this._routes > 0) { this._routes--; b.path = navPath(this.map, p.x, p.y, p.z, target.x, target.y, target.z); b.pathAt = rnd(0.5, 1.0); } }
+      b.path = b.path || [];
       while (b.path.length > 1 && Math.hypot(b.path[0][0] - p.x, b.path[0][1] - p.y) < 26) b.path.shift();
       const wp = b.path[0] || [target.x, target.y], wa = Math.atan2(wp[1] - p.y, wp[0] - p.x);
       inp.dx = Math.cos(wa); inp.dy = Math.sin(wa);
