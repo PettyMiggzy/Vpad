@@ -133,8 +133,8 @@ export class Unit {
     if (this.cur) this.acts[this.cur].crossFadeTo(next, fade, false);
     this.cur = name;
   }
-  /** speed in metres a second, back true when moving away from where it faces */
-  update(dt, speed, firing, alive, t, back = false) {
+  /** speed in metres a second, back true when moving away from where it faces. rough skips the bone walk on soldiers far from the camera */
+  update(dt, speed, firing, alive, t, back = false, rough = false) {
     if (!alive) {
       if (!this.dead) { this.dead = true; this.dieT = 0; this.cur = null; for (const a of Object.values(this.acts)) a.stop(); this.play(this.acts[this.dieClip] ? this.dieClip : 'Shot_and_Fall_Backward', 0.05); }
       this.dieT += dt; this.mixer.update(dt);
@@ -146,7 +146,8 @@ export class Unit {
     if (this.ovr) this.play(this.ovr.clip);
     else this.play(speed < 0.35 ? 'Idle' : back ? 'Walk_Backward_While_Shooting' : speed < 3.2 ? 'Walk_Forward_While_Shooting' : 'Run_and_Shoot');
     this.mixer.update(dt);
-    this.syncGun();
+    this.roughN = ((this.roughN ?? 0) + 1) & 3;
+    if (!rough || this.roughN === 0) this.syncGun();
     this.mark.position.y = UNIT_H + 0.45 + Math.sin(t * 3 + this.root.id) * 0.05; this.mark.rotation.y = t * 2;
   }
   /** a short action over the walking: 'reload' or 'throw' */
@@ -183,7 +184,8 @@ export class Unit {
     const gp = GUN_OFFSET.pos, k = GUN_OFFSET.k * kMul;
     _e.set(GUN_OFFSET.rot[0], GUN_OFFSET.rot[1] * yawMul - Math.PI / 2, GUN_OFFSET.rot[2]);
     _q.setFromEuler(_e);
-    _o.compose(new THREE.Vector3(_p.x + gp[0], _p.y + gp[1], _p.z + gp[2]), _q, new THREE.Vector3(k, k, k));
+    _p.set(_p.x + gp[0], _p.y + gp[1], _p.z + gp[2]); _s.set(k, k, k);
+    _o.compose(_p, _q, _s);
     this.gun.matrix.copy(_o);
     this.gun.matrixWorldNeedsUpdate = true;
   }
