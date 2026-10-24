@@ -7,7 +7,7 @@ import path from 'node:path';
 
 process.env.ARENA_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'arena-hostile-'));
 const { listen, close, MatchRoom } = await import('./index.js');
-const { buy, grantXp } = await import('./profiles.js');
+const { buy, equip, grantXp } = await import('./profiles.js');
 const { xpForLevel } = await import('./progress.js');
 
 const port = await listen(0);
@@ -103,8 +103,6 @@ test('jump, sprint, melee and swap reach the rules', async () => {
   h.stop();
 
   const pid = 'aabbccddeeff00112233445566778899';
-  grantXp(pid, xpForLevel(3));
-  assert.ok(!buy(pid, 'rifle').error);
   const h2 = await harness({ perSide: 1, bots: false });
   const gun = await h2.join({ name: 'Gun', team: 0, pid });
   await h2.join({ name: 'Other', team: 1 });
@@ -255,11 +253,11 @@ test('rejoining does not pick up a loadout bought during the match', async () =>
   grantXp(pid, xpForLevel(3));
   const h = await harness({ perSide: 1, bots: false });
   const a = await h.join({ pid, name: 'Ann', team: 0 });
-  assert.equal(h.room.match.players.get(a.sessionId).weapon, 'pistol');
-  assert.ok(!buy(pid, 'rifle').error);
+  assert.equal(h.room.match.players.get(a.sessionId).weapon, 'rifle');
+  assert.ok(!equip(pid, 'sniper').error);
   h.room.onLeave(a);
   const b = await h.join({ pid, name: 'Ann', team: 0 });
-  assert.equal(h.room.match.players.get(b.sessionId).weapon, 'pistol');
+  assert.equal(h.room.match.players.get(b.sessionId).weapon, 'rifle');
   h.stop();
 });
 

@@ -9,24 +9,28 @@ const { statsOf, Match } = await import('./game.js');
 const { START_COINS, WEAPONS, ARMOR } = await import('./items.js');
 const pid = (n) => `abcdef0123456789abcdef01234567${String(n).padStart(2, '0')}`;
 
-test('a new profile has the free items and the starting coins; bad ids get nothing', () => {
+test('a new profile owns every gun, starts with the assault rifle and the starting coins; bad ids get nothing', () => {
   const p = getProfile(pid(1));
-  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'pistol', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' });
+  for (const id of Object.keys(WEAPONS)) assert.ok(p.owned.includes(id), `owns the ${id}`);
+  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'rifle', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' });
   assert.equal(getProfile('../etc/passwd'), null); assert.equal(validPid('x'), false);
 });
-test('buying costs coins once, cannot overspend, and equips what you buy', async () => {
+test('buying an upgrade costs coins once, cannot overspend, and equips what you buy; guns are never for sale', async () => {
   const { grantXp: gx, } = await import('./profiles.js'); const { xpForLevel: xl } = await import('./progress.js'); gx(pid(2), xl(2));
-  assert.equal(buy(pid(2), 'smg').coins, START_COINS - WEAPONS.smg.cost);
-  assert.equal(getProfile(pid(2)).loadout.weapon, 'smg');
-  assert.ok(buy(pid(2), 'smg').error, 'no second purchase');
-  const p = getProfile(pid(3)); p.coins = 100;
-  assert.ok(buy(pid(3), 'sniper').error, 'not enough coins'); assert.equal(p.coins, 100); assert.ok(!p.owned.includes('sniper'));
+  const { AMMO } = await import('./items.js');
+  assert.equal(buy(pid(2), 'extmag').coins, START_COINS - AMMO.extmag.cost);
+  assert.equal(getProfile(pid(2)).loadout.ammo, 'extmag');
+  assert.ok(buy(pid(2), 'extmag').error, 'no second purchase');
+  assert.match(buy(pid(2), 'smg').error, /already own/, 'a gun is owned from the start');
+  const p = getProfile(pid(3)); p.coins = 100; gx(pid(3), xl(2));
+  assert.ok(buy(pid(3), 'extmag').error, 'not enough coins'); assert.equal(p.coins, 100); assert.ok(!p.owned.includes('extmag'));
   assert.ok(buy(pid(3), 'nonsense').error);
 });
-test('equip only what is owned; a match only gets owned gear', () => {
-  assert.ok(equip(pid(4), 'sniper').error);
-  getProfile(pid(5)).loadout.weapon = 'sniper';      // a tampered profile naming gear it does not own
-  assert.equal(loadoutFor(pid(5)).weapon, 'pistol');
+test('any gun can be equipped at once; other gear only when owned, and a match only gets owned gear', () => {
+  assert.ok(!equip(pid(4), 'sniper').error); assert.equal(getProfile(pid(4)).loadout.weapon, 'sniper');
+  assert.ok(equip(pid(4), 'extmag').error, 'an attachment that is not owned');
+  getProfile(pid(5)).loadout.ammo = 'extmag';        // a tampered profile naming gear it does not own
+  assert.equal(loadoutFor(pid(5)).ammo, 'stdammo');
   assert.equal(loadoutFor('bad id').weapon, 'pistol');
 });
 test('coins can be awarded and never negative or fractional', () => {
@@ -54,12 +58,12 @@ const { classOp, grantXp } = await import('./profiles.js');
 test('levels climb with experience and gate the shop; a locked item cannot be bought or equipped', () => {
   assert.equal(levelOf(0), 1); assert.equal(levelOf(xpForLevel(5)), 5); assert.equal(levelOf(xpForLevel(5) - 1), 4); assert.equal(levelOf(1e9), 30);
   const p = getProfile(pid(10)); p.coins = 5000;
-  assert.match(buy(pid(10), 'dmr').error, /level 12/, 'the marksman rifle waits for level 12');
-  assert.match(buy(pid(10), 'smg').error, /level 2/);
-  grantXp(pid(10), xpForLevel(12));
-  assert.ok(!buy(pid(10), 'dmr').error, 'bought once unlocked'); assert.equal(getProfile(pid(10)).loadout.weapon, 'dmr');
-  const q = getProfile(pid(11)); q.owned.push('lmg'); q.loadout.weapon = 'lmg';       // a tampered profile naming gear above its level
-  assert.equal(loadoutFor(pid(11)).weapon, 'pistol', 'a match gets the free weapon');
+  assert.match(buy(pid(10), 'suppressor').error, /level 9/, 'the suppressor waits for level 9');
+  assert.match(buy(pid(10), 'extmag').error, /level 2/);
+  grantXp(pid(10), xpForLevel(9));
+  assert.ok(!buy(pid(10), 'suppressor').error, 'bought once unlocked'); assert.equal(getProfile(pid(10)).loadout.muzzle, 'suppressor');
+  const q = getProfile(pid(11)); q.owned.push('suppressor'); q.loadout.muzzle = 'suppressor';       // a tampered profile naming gear above its level
+  assert.equal(loadoutFor(pid(11)).muzzle, 'nomuzzle', 'a match gets the free muzzle');
   grantXp(pid(12), xpForLevel(2));
   assert.equal(buy(pid(12), 'light').coins, START_COINS - ARMOR.light.cost, 'the light vest is armour (it once clashed with the light boots)');
 });
@@ -73,7 +77,8 @@ test('earned items: gold needs a mastered weapon, obsidian needs level 20', () =
 test('five classes: save the loadout, switch between them, rename; what is no longer allowed falls back to free gear', () => {
   const p = getProfile(pid(14)); p.coins = 5000;
   assert.equal(p.classes.length, 5);
-  grantXp(pid(14), xpForLevel(5)); buy(pid(14), 'smg'); buy(pid(14), 'extmag'); buy(pid(14), 'light');
+  assert.deepEqual(p.classes.map((c) => c.loadout.weapon), ['rifle', 'smg', 'shotgun', 'sniper', 'lmg'], 'each class starts with a different gun');
+  grantXp(pid(14), xpForLevel(5)); equip(pid(14), 'smg'); buy(pid(14), 'extmag'); buy(pid(14), 'light');
   assert.ok(!classOp(pid(14), 'save', 0).error); assert.equal(p.classes[0].loadout.weapon, 'smg');
   equip(pid(14), 'pistol'); equip(pid(14), 'stdammo');
   assert.ok(!classOp(pid(14), 'save', 1).error);
@@ -81,6 +86,6 @@ test('five classes: save the loadout, switch between them, rename; what is no lo
   classOp(pid(14), 'select', 1); assert.equal(p.loadout.weapon, 'pistol');
   assert.equal(classOp(pid(14), 'rename', 2, 'Sniper <b>').classes[2].name, 'Sniper b');
   assert.ok(classOp(pid(14), 'select', 9).error); assert.ok(classOp(pid(14), 'rename', 0, '   ').error);
-  p.classes[3].loadout.weapon = 'dmr';                // a class naming a weapon that is not owned
+  p.classes[3].loadout.weapon = 'nuke';               // a class naming a weapon that does not exist
   classOp(pid(14), 'select', 3); assert.equal(p.loadout.weapon, 'pistol');
 });

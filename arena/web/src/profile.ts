@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The player's coins, what they own and what they carry. In this build it lives in the browser (play money, nothing touches a wallet);
 // the rules are the match server's own, so moving it to the server later changes where it is kept and nothing else.
-import { CATALOG, FREE, START_COINS } from '../../server/items.js';
+import { CATALOG, FREE, START_COINS, STARTER_OWNED, STARTER_LOADOUT } from '../../server/items.js';
 import { lockedReason, usable, freshClasses, sanitizeClasses, saveClass, selectClass, renameClass, addXp, addWeaponKill, levelOf, levelFrac } from '../../server/progress.js';
 
 export type Loadout = Record<string, string>;
@@ -9,7 +9,7 @@ export interface ClassSlot { name: string; loadout: Loadout }
 export interface Profile { coins: number; owned: string[]; loadout: Loadout; xp: number; weaponKills: Record<string, number>; classes: ClassSlot[]; activeClass: number }
 
 export function freshProfile(): Profile {
-  return { coins: START_COINS, owned: Object.values(FREE) as string[], loadout: { ...FREE } as Loadout, xp: 0, weaponKills: {}, classes: freshClasses() as ClassSlot[], activeClass: 0 };
+  return { coins: START_COINS, owned: [...STARTER_OWNED] as string[], loadout: { ...STARTER_LOADOUT } as Loadout, xp: 0, weaponKills: {}, classes: freshClasses() as ClassSlot[], activeClass: 0 };
 }
 
 /** a profile read back from storage: anything unknown is dropped, the free items are always owned and always the fallback */

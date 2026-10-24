@@ -81,6 +81,11 @@ export const CAMO = {
 export const CATALOG = { ...WEAPONS, ...OPTICS, ...MUZZLES, ...GRIPS, ...AMMO, ...ARMOR, ...HELMETS, ...BOOTS, ...KITS, ...CAMO };
 export const SLOTS = ['weapon', 'optic', 'muzzle', 'grip', 'ammo', 'armor', 'helmet', 'boots', 'grenade', 'camo'];
 export const FREE = { weapon: 'pistol', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' };
+/** every gun is owned from the start (owner 2026-10-24: starting with only a pistol is no fun): upgrading means attachments, gear, camo and mastery */
+export const STARTER_OWNED = [...Object.values(FREE), ...Object.keys(WEAPONS)];
+/** the loadout a new profile starts with, and the gun each of its five saved classes starts with */
+export const STARTER_LOADOUT = { ...FREE, weapon: 'rifle' };
+export const STARTER_CLASS_GUNS = ['rifle', 'smg', 'shotgun', 'sniper', 'lmg'];
 export const START_COINS = 600;
 export const REWARD = { kill: 25, round: 100, match: 250 };
 export const itemSlot = (id) => CATALOG[id]?.slot;

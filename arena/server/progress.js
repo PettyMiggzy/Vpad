@@ -1,5 +1,5 @@
 // Levels, weapon mastery and saved classes: pure rules shared by the page (browser profile) and the server (hosted profile).
-import { CATALOG, SLOTS, FREE, OLD_MOD_SLOT } from './items.js';
+import { CATALOG, SLOTS, FREE, OLD_MOD_SLOT, STARTER_CLASS_GUNS } from './items.js';
 
 export const MAX_LEVEL = 30;
 export const XP = { kill: 50, head: 25, melee: 25, nade: 10, round: 100, match: 250, play: 50 };
@@ -10,9 +10,8 @@ export function levelOf(xp) { let L = 1; while (L < MAX_LEVEL && xp >= xpForLeve
 /** progress inside the current level, 0 to 1 */
 export function levelFrac(xp) { const L = levelOf(xp); if (L >= MAX_LEVEL) return 1; const a = xpForLevel(L), b = xpForLevel(L + 1); return (xp - a) / (b - a); }
 
-/** the level at which each thing can be bought (anything not listed is open from level 1) */
+/** the level at which each thing can be bought (anything not listed is open from level 1). Guns are not listed: all of them are owned from the start */
 export const UNLOCK = {
-  smg: 2, shotgun: 4, revolver: 4, rifle: 3, burst: 6, sniper: 7, lmg: 8, autosg: 10, dmr: 12,
   extmag: 2, quickmag: 3, grip: 4, barrel: 5, scope: 6, steady: 7, hollow: 8, bolt: 9,
   reddot: 3, comp: 4, fore: 5, suppressor: 9, ap: 10,
   light: 2, heavy: 5, elite: 9, helmet1: 3, helmet2: 6, swift: 2, runner: 4,
@@ -37,7 +36,7 @@ export function addWeaponKill(p, weapon) { p.weaponKills ??= {}; p.weaponKills[w
 
 // ---- classes: five saved loadouts ----
 export const CLASS_COUNT = 5;
-export const freshClasses = () => Array.from({ length: CLASS_COUNT }, (_, i) => ({ name: `Class ${i + 1}`, loadout: { ...FREE } }));
+export const freshClasses = () => Array.from({ length: CLASS_COUNT }, (_, i) => ({ name: `Class ${i + 1}`, loadout: { ...FREE, weapon: STARTER_CLASS_GUNS[i % STARTER_CLASS_GUNS.length] } }));
 export const cleanClassName = (v) => String(v ?? '').replace(/[^A-Za-z0-9 ]/g, '').replace(/ +/g, ' ').trim().slice(0, 14);
 
 /** a loadout cut down to what the profile owns and may use (anything else falls back to the free item of that slot) */

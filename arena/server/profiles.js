@@ -2,7 +2,7 @@
 // anything) in a JSON file, keyed by a random id the page makes once and keeps. A real version would key these to a wallet or an account.
 import fs from 'node:fs';
 import path from 'node:path';
-import { CATALOG, FREE, START_COINS } from './items.js';
+import { CATALOG, FREE, START_COINS, STARTER_OWNED, STARTER_LOADOUT } from './items.js';
 import { levelOf, levelFrac, lockedReason, usable, freshClasses, sanitizeClasses, saveClass, selectClass, renameClass, addXp, addWeaponKill } from './progress.js';
 
 const FILE = path.join(process.env.ARENA_DATA || path.join(import.meta.dirname, 'data'), 'profiles.json');
@@ -23,13 +23,14 @@ const save = () => {
 export function getProfile(pid) {
   if (!validPid(pid)) return null;
   let p = profiles.get(pid);
-  if (!p) { p = { coins: START_COINS, owned: Object.values(FREE), loadout: { ...FREE }, xp: 0, weaponKills: {}, classes: freshClasses(), activeClass: 0 }; profiles.set(pid, p); save(); }
+  if (!p) { p = { coins: START_COINS, owned: [...STARTER_OWNED], loadout: { ...STARTER_LOADOUT }, xp: 0, weaponKills: {}, classes: freshClasses(), activeClass: 0 }; profiles.set(pid, p); save(); }
   // a profile saved before the mod slot became four attachment slots: the free attachments are owned, the old mod moves to its slot
   if (p.loadout.mod !== undefined || p.loadout.optic === undefined) {
     for (const id of Object.values(FREE)) if (!p.owned.includes(id)) p.owned.push(id);
     p.owned = p.owned.filter((id) => CATALOG[id]);
     p.loadout = usable(p, p.loadout); p.classes = sanitizeClasses(p, p.classes); save();
   }
+  for (const id of STARTER_OWNED) if (!p.owned.includes(id)) { p.owned.push(id); save(); }      // every gun is owned (a profile saved before that)
   if (p.xp === undefined) { p.xp = 0; p.weaponKills = {}; p.classes = sanitizeClasses(p, null); p.activeClass = 0; }     // a profile saved before levels existed
   return p;
 }
