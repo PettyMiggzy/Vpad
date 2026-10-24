@@ -21,8 +21,8 @@ const GAIN: Record<string, number> = { pistol_a: 0.7, pistol_b: 0.7, smg_a: 0.6,
   step_concrete_a: 0.12, step_concrete_b: 0.3, step_sand_a: 0.3, step_sand_b: 0.15, step_metal_a: 0.15, step_metal_b: 0.2, hurt_a: 0.6, hurt_b: 0.6, death: 0.7,
   revolver_a: 0.9, revolver_b: 0.9, lmg_a: 0.8, lmg_b: 0.8, dmr_a: 0.9, dmr_b: 0.9, reload_revolver: 0.5, reload_lmg: 0.55, knife_swing: 0.5, knife_hit: 0.6, uav_ping: 0.5, streak: 0.5, crate_fall: 0.8, crate_land: 0.9, pickup_ammo: 0.7, pickup_med: 0.7, pickup_gun: 0.7, jump_land: 0.35 };
 // which recorded set each weapon uses (the new ones share with the nearest kind where there is no file of their own)
-const SHOT: Record<string, string> = { burst: 'smg', autosg: 'shotgun' };
-const RELOAD: Record<string, string> = { burst: 'smg', dmr: 'rifle', autosg: 'shotgun' };
+const SHOT: Record<string, string> = { burst: 'smg', autosg: 'shotgun', mp: 'smg', pdw: 'smg', br: 'dmr', amr: 'sniper' };
+const RELOAD: Record<string, string> = { burst: 'smg', dmr: 'rifle', autosg: 'shotgun', mp: 'pistol', pdw: 'smg', br: 'rifle', amr: 'sniper' };
 
 export function unlock(): void {
   try {

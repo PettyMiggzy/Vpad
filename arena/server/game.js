@@ -623,7 +623,7 @@ export class Match {
       }
     }
     // snipers head for a high deck on their own half and hold it; everyone else closes to a sensible range
-    if (p.weapon === 'sniper' && !see) {
+    if ((p.weapon === 'sniper' || p.weapon === 'amr') && !see) {
       if (!b.perch) {
         const decks = this.map.solids.filter((s) => s.walk && s.top >= 4 && (p.team === 0 ? s.x + s.w / 2 < this.map.w / 2 : s.x + s.w / 2 >= this.map.w / 2));
         const dk = decks[Math.floor(Math.random() * decks.length)];

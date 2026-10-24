@@ -10,6 +10,10 @@ export const WEAPONS = {
   burst:   { slot: 'weapon', name: 'Burst carbine',  cost: 700, dmg: 15, gap: 0.065, burst: 3, burstGap: 0.4, speed: 800, life: 0.8, range: 4200, spread: 0.018, pellets: 1, mag: 30, reload: 2.0, blurb: 'Three-round bursts, accurate' },
   lmg:     { slot: 'weapon', name: 'Light machine gun', cost: 1000, dmg: 12, gap: 0.1, speed: 700, life: 0.8, range: 4500, spread: 0.06, pellets: 1, mag: 75, reload: 4.2, move: 0.92, blurb: 'A huge magazine, heavy to carry' },
   autosg:  { slot: 'weapon', name: 'Auto shotgun',   cost: 1100, dmg: 9, gap: 0.28, speed: 600, life: 0.32, range: 700, spread: 0.13, pellets: 6, mag: 8, reload: 3.0, blurb: 'A shotgun that keeps firing' },
+  mp:      { slot: 'weapon', name: 'Machine pistol', cost: 250, dmg: 9, gap: 0.055, speed: 600, life: 0.45, range: 1500, spread: 0.085, pellets: 1, mag: 20, reload: 1.5, blurb: 'A pistol that sprays, only good up close' },
+  pdw:     { slot: 'weapon', name: 'Compact PDW',    cost: 650, dmg: 11, gap: 0.075, speed: 680, life: 0.7, range: 2800, spread: 0.045, pellets: 1, mag: 40, reload: 2.1, blurb: 'A long magazine and steady aim at medium range' },
+  br:      { slot: 'weapon', name: 'Battle rifle',   cost: 1200, dmg: 30, gap: 0.26, speed: 900, life: 0.95, range: 6000, spread: 0.012, pellets: 1, mag: 20, reload: 2.6, blurb: 'Four body shots, one trigger pull each' },
+  amr:     { slot: 'weapon', name: 'Anti-materiel rifle', cost: 2000, dmg: 110, gap: 1.6, speed: 1300, life: 1.2, range: 14000, spread: 0.001, pellets: 1, mag: 5, reload: 3.4, move: 0.88, blurb: 'Kills an unarmoured soldier in one shot, very slow' },
   dmr:     { slot: 'weapon', name: 'Marksman rifle', cost: 1300, dmg: 34, gap: 0.38, speed: 1000, life: 1.0, range: 7500, spread: 0.004, pellets: 1, mag: 10, reload: 2.6, blurb: 'Fast, hard-hitting, long range' },
 };
 // close range: the knife (key F). From behind it kills outright.

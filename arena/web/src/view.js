@@ -4,7 +4,7 @@ import { Unit } from './units.js';
 
 // how much bigger than life each weapon is drawn in the hands, so it fills the view like a real shooter's
 
-const GUN_K = { pistol: 1.0, smg: 0.85, rifle: 0.85, shotgun: 0.85, sniper: 0.75, revolver: 1.0, burst: 0.85, lmg: 0.8, autosg: 0.85, dmr: 0.8 };
+const GUN_K = { pistol: 1.0, smg: 0.85, rifle: 0.85, shotgun: 0.85, sniper: 0.75, revolver: 1.0, burst: 0.85, lmg: 0.8, autosg: 0.85, dmr: 0.8, mp: 1.0, pdw: 0.85, br: 0.8, amr: 0.72 };
 
 export class ViewModel {
   constructor(A) {
@@ -41,7 +41,7 @@ export class ViewModel {
     this.muzzle = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, color: new THREE.Color(1.6, 1.4, 1.1) }));
     this.muzzle.visible = false; this.scene.add(this.muzzle);
     this.weapon = weapon;
-    this.oneHand = weapon === 'pistol' || weapon === 'revolver';
+    this.oneHand = weapon === 'pistol' || weapon === 'revolver' || weapon === 'mp';
     return true;
   }
   /** aimed, the glass of a red-dot or scope is see-through: cut a small round window out of the gun (all of it along the line of sight) so the target shows through the sight */
@@ -63,7 +63,7 @@ export class ViewModel {
       o.material = Array.isArray(o.material) ? o.material.map(wrap) : wrap(o.material);
     });
   }
-  fire() { this.recoil = 1; this.flash = 0.05; this.kick = (Math.random() - 0.5) * 2; if (this.weapon !== 'revolver' && this.weapon !== 'sniper') this.eject = true; }
+  fire() { this.recoil = 1; this.flash = 0.05; this.kick = (Math.random() - 0.5) * 2; if (this.weapon !== 'revolver' && this.weapon !== 'sniper' && this.weapon !== 'amr') this.eject = true; }
   startReload(d) { this.rl = { t: 0, d: Math.max(0.6, d) }; }
   throwNade() { this.nd = { t: 0 }; }
   /** the knife: the arms play a slash */
@@ -116,8 +116,8 @@ export class ViewModel {
     this.spr = (this.spr ?? 0) + ((this.sprinting ? 1 : 0) - (this.spr ?? 0)) * Math.min(1, dt * 9); const spr = this.spr;
     const eq = this.equipT > 0 ? (this.equipT / 0.5) ** 2 : 0;
     const kick = this.recoil * this.recoil;
-    rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' ? 1.8 : 1) + eq * 0.05);
-    rg.rotation.set(-tip - spr * 0.45 + kick * (0.05 + (this.weapon === 'sniper' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + spr * 0.35 + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
+    rg.position.set(bobX + (this.swayX ?? 0) * 0.6, bobY + (this.swayY ?? 0) * 0.6 - eq * 0.32 - kick * 0.012 - tip * 0.06 - spr * 0.06, kick * 0.07 * (this.weapon === 'shotgun' || this.weapon === 'sniper' || this.weapon === 'amr' ? 1.8 : 1) + eq * 0.05);
+    rg.rotation.set(-tip - spr * 0.45 + kick * (0.05 + (this.weapon === 'sniper' || this.weapon === 'amr' ? 0.06 : 0)) + eq * -0.7 + (this.swayY ?? 0), (this.swayX ?? 0) + spr * 0.35 + (this.kick ?? 0) * kick * 0.01, (this.swayX ?? 0) * 0.8 + (this.kick ?? 0) * kick * 0.015);
     rg.updateMatrixWorld(true); this.unit.syncGun(t.gunK * (GUN_K[this.weapon] ?? 1), 1 - 0.85 * (this.adsS ?? 0)); rg.updateMatrixWorld(true);
     if (!acting && !window.__noHold) { this.unit.holdGun(!this.oneHand); rg.updateMatrixWorld(true); }
     if (this.eject) {
@@ -133,14 +133,14 @@ export class ViewModel {
     if (this.muzzle) {
       this.muzzle.visible = this.flash > 0 && !hidden;
       (this.unit.muzzleObj ?? this.unit.gun).getWorldPosition(this.muzzle.position);
-      this.muzzle.scale.setScalar((this.weapon === 'sniper' ? 0.2 : 0.14) * (0.8 + Math.random() * 0.6));
+      this.muzzle.scale.setScalar((this.weapon === 'sniper' || this.weapon === 'amr' ? 0.2 : 0.14) * (0.8 + Math.random() * 0.6));
       this.flashLight.intensity = this.flash > 0 ? 3 : 0; this.flashLight.position.copy(this.muzzle.position);
     }
   }
 }
 // the see-through window when aimed, per gun with a glass sight: [centre x, centre y, radius] in screen units (the screen is 2 high), the radius measured in heights
-const SIGHT_WINDOW = { rifle: [0, 0, 0.1], smg: [0, 0, 0.07], burst: [0, 0, 0.08], dmr: [0, 0, 0.1], pistol: [0, 0, 0.06] };
+const SIGHT_WINDOW = { rifle: [0, 0, 0.1], smg: [0, 0, 0.07], burst: [0, 0, 0.08], dmr: [0, 0, 0.1], pistol: [0, 0, 0.06], mp: [0, 0, 0.06], pdw: [0, 0, 0.07] };
 const _h = new THREE.Vector3();
 if (typeof window !== 'undefined') window.__viewTune = () => ({ ADS_POSE, GUN_K });
 // where the rig sits when the sights are up: placed so the top of each gun's sight (measured in the view's own space) is in the middle of the screen
-const ADS_POSE = { pistol: { x: -0.139, y: -0.035, z: 0.03 }, smg: { x: -0.138, y: -0.041, z: 0.04 }, rifle: { x: -0.132, y: -0.076, z: 0.04 }, shotgun: { x: -0.13, y: -0.014, z: 0.04 }, sniper: { x: -0.133, y: -0.024, z: 0.04 }, revolver: { x: -0.136, y: -0.047, z: 0.03 }, burst: { x: -0.136, y: -0.043, z: 0.04 }, lmg: { x: -0.132, y: -0.05, z: 0.05 }, autosg: { x: -0.129, y: -0.025, z: 0.04 }, dmr: { x: -0.133, y: -0.054, z: 0.04 } };
+const ADS_POSE = { pistol: { x: -0.139, y: -0.035, z: 0.03 }, smg: { x: -0.138, y: -0.041, z: 0.04 }, rifle: { x: -0.132, y: -0.076, z: 0.04 }, shotgun: { x: -0.13, y: -0.014, z: 0.04 }, sniper: { x: -0.133, y: -0.024, z: 0.04 }, revolver: { x: -0.136, y: -0.047, z: 0.03 }, burst: { x: -0.136, y: -0.043, z: 0.04 }, lmg: { x: -0.132, y: -0.05, z: 0.05 }, autosg: { x: -0.129, y: -0.025, z: 0.04 }, dmr: { x: -0.133, y: -0.054, z: 0.04 }, mp: { x: -0.139, y: -0.049, z: 0.03 }, pdw: { x: -0.14, y: -0.041, z: 0.04 }, br: { x: -0.132, y: -0.031, z: 0.04 }, amr: { x: -0.143, y: -0.016, z: 0.04 } };

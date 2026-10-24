@@ -33,7 +33,7 @@ function shade(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = tru
 function shadeProp(root) { root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; for (const m of [].concat(o.material)) { if (m.map) m.map.anisotropy = 8; if (m.metalness > 0.5) m.metalness = 0.5; if (m.roughness < 0.6) m.roughness = 0.6; } } }); }
 
 export const EXTRA_HEROES = ['ape'];
-export const WEAPON_IDS = ['pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'revolver', 'burst', 'lmg', 'autosg', 'dmr'];
+export const WEAPON_IDS = ['pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'revolver', 'burst', 'lmg', 'autosg', 'dmr', 'mp', 'pdw', 'br', 'amr'];
 export const GUN_FILE = { pistol: 'a', smg: 'j', rifle: 'd', shotgun: 'l', sniper: 'e' };
 
 /** the first-person model of one weapon, loaded when it is first carried (ten of them at once would be hundreds of megabytes of pictures) */

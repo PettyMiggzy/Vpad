@@ -847,7 +847,7 @@ function frame(now, manual) {
   if (manualClock && !manual) return;
   const raw = (now - last) / 1000; last = now;
   const dt = Math.min(raw, 0.1), t = now / 1000;
-  const sniping = me && me.alive && me.weapon === 'sniper';
+  const sniping = me && me.alive && (me.weapon === 'sniper' || me.weapon === 'amr');
   const scoped = !!sniping && (me.ads ?? 0) > 0.85;
   updateSway(dt, now / 1000, scoped);
   const zoomNow = zoom || ui.zoomTouch;
