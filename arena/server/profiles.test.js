@@ -12,7 +12,7 @@ const pid = (n) => `abcdef0123456789abcdef01234567${String(n).padStart(2, '0')}`
 test('a new profile owns every gun, starts with the assault rifle and the starting coins; bad ids get nothing', () => {
   const p = getProfile(pid(1));
   for (const id of Object.keys(WEAPONS)) assert.ok(p.owned.includes(id), `owns the ${id}`);
-  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'rifle', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' });
+  assert.equal(p.coins, START_COINS); assert.deepEqual(p.loadout, { weapon: 'rifle', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', melee: 'knife', gadget: 'nogadget', camo: 'woodland' });
   assert.equal(getProfile('../etc/passwd'), null); assert.equal(validPid('x'), false);
 });
 test('buying an upgrade costs coins once, cannot overspend, and equips what you buy; guns are never for sale', async () => {

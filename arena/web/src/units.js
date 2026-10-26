@@ -15,6 +15,9 @@ const GUN_TURN = {};
 const TURN = Math.PI;
 // where each grip sits along the model, as a share of its length from the middle towards the stock: the hand holds the grip, not the middle
 const GUN_GRIP = { pistol: 0.26, smg: 0.19, rifle: 0.16, shotgun: 0.3, sniper: 0.19, revolver: 0.18, burst: 0.21, lmg: 0.17, autosg: 0.24, dmr: 0.16, mp: 0.26, pdw: 0.2, br: 0.16, amr: 0.19, thumper: 0.2, rocket: 0.14, minigun: 0.2, flame: 0.2, raygun: 0.18, crossbow: 0.18 };
+// where the jetpack sits on the spine bone, in metres in the bone's own axes (tuned by eye; live-editable from the console)
+export const PACK = { x: 0, y: 0.05, z: -0.2, rx: 0, ry: 0, rz: 0 };
+if (typeof window !== 'undefined') window.__packTune = PACK;
 export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
 /** the soldiers and weapons are painted with lime accents: swap those for the team's colour (blue 0.61 or red 0.0 on the hue wheel), leave browns and greys alone */
@@ -209,5 +212,27 @@ export class Unit {
   }
   /** give the arms back their clip pose (before the next frame's hold, so the weapon is anchored to the clip's hand, not to last frame's solved one) */
   unholdGun() { if (this._saved) { for (const [b, q, sc] of this._saved) { b.quaternion.copy(q); b.scale.copy(sc); } this._saved = null; } }
+  /** a jetpack on the back, with a flame while it burns. It is built the first time it is needed and rides the spine bone. */
+  setJet(has, burning, t) {
+    if (!has && !this.pack) return;
+    if (!this.pack) {
+      const bone = this.body.getObjectByName('Spine02') ?? this.body.getObjectByName('Spine');
+      if (!bone) return;
+      const g = new THREE.Group(), steel = new THREE.MeshStandardMaterial({ color: 0x2c3036, metalness: 0.8, roughness: 0.35 }), trim = new THREE.MeshStandardMaterial({ color: 0xb8ff3c, metalness: 0.3, roughness: 0.5, emissive: 0x294000 });
+      const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff8a20).multiplyScalar(3), toneMapped: false, transparent: true, opacity: 0.9 });
+      this.flames = [];
+      for (const sx of [-0.09, 0.09]) {
+        const can = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.46, 12), steel); can.position.set(sx, 0, 0); g.add(can);
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.088, 0.04, 12), trim); ring.position.set(sx, 0.12, 0); g.add(ring);
+        const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.07, 10), steel); nozzle.position.set(sx, -0.26, 0); g.add(nozzle);
+        const fl = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5, 10), flameMat); fl.rotation.x = Math.PI; fl.position.set(sx, -0.55, 0); fl.visible = false; g.add(fl); this.flames.push(fl);
+      }
+      const ws = bone.getWorldScale(new THREE.Vector3()); g.scale.setScalar(1 / Math.max(1e-4, ws.x));
+      g.position.set(PACK.x / Math.max(1e-4, ws.x), PACK.y / Math.max(1e-4, ws.x), PACK.z / Math.max(1e-4, ws.x)); g.rotation.set(PACK.rx, PACK.ry, PACK.rz);
+      bone.add(g); this.pack = g;
+    }
+    this.pack.visible = !!has;
+    for (const f of this.flames) { f.visible = !!burning; if (burning) f.scale.set(1, 0.7 + 0.5 * Math.abs(Math.sin(t * 40)), 1); }
+  }
   dispose() { this.root.removeFromParent(); this.root.traverse((o) => { if (o.isMesh && o.material.isMeshBasicMaterial) { o.geometry.dispose(); o.material.dispose(); } }); }
 }

@@ -8,7 +8,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { makeGradePass, applyGrade } from './post.js';
 import { Match, MAPS, R, floorAt, clearLine } from '../../server/game.js';
-import { REWARD, WEAPONS } from '../../server/items.js';
+import { REWARD, WEAPONS, GADGETS } from '../../server/items.js';
 import { PX_PER_M, FOV, SIM_STEP, LOOK_TOUCH, TEAM_COLORS, DEFAULT_TEAM_NAMES, STORE_KEY } from './config.js';
 import { coneLimit, frictionFor, zoomScale, onBody, flinchAmount } from './aimcore.js';
 import { Haptics } from './haptics.js';
@@ -320,7 +320,7 @@ const distToSeg = (px, py, pz, ax, ay, az, bx, by, bz) => {
 function killedBy(e, a) {
   if (match.objective === 'train') return a && a.id !== me?.id ? `by ${a.name} · back in a moment` : 'back in a moment';
   if (!a || a.id === me?.id) return match.objective === 'dm' ? `back in ${R.RESPAWN} s` : '';
-  const how = e.melee ? 'KNIFE' : e.nade ? 'GRENADE' : (WEAPONS[a.weapon]?.name ?? a.weapon ?? '').toUpperCase();
+  const how = e.melee ? (e.thrown ? 'THROWING KNIFE' : 'KNIFE') : e.fire ? 'FIRE BOMB' : e.nade ? 'GRENADE' : (WEAPONS[a.weapon]?.name ?? a.weapon ?? '').toUpperCase();
   const m = Math.round(Math.hypot(e.x - a.x, e.y - a.y) / PX_PER_M);
   const bits = [`by ${a.name}`, how, ...(e.melee || e.nade ? [] : [`${m} m`]), ...(e.head ? ['HEADSHOT'] : []), `${Math.max(1, Math.round(a.hp))} HP left`];
   if (match.objective === 'dm') bits.push(`back in ${R.RESPAWN} s`);
@@ -402,7 +402,9 @@ function onEvents(evs) {
     } else if (e.type === 'dry') {
       const p = match.players.get(e.by); if (p) sfx.dry(p.x / PX_PER_M, p.y / PX_PER_M, !!(me && e.by === me.id));
     } else if (e.type === 'boom') {
-      explosion(e.x / PX_PER_M, e.z, e.y / PX_PER_M);
+      if (e.fx === 'flash') flashPop(e.x / PX_PER_M, e.z, e.y / PX_PER_M); else explosion(e.x / PX_PER_M, e.z, e.y / PX_PER_M);
+    } else if (e.type === 'fire') {
+      fireZones.push({ x: e.x / PX_PER_M, y: e.z, z: e.y / PX_PER_M, r: e.r / PX_PER_M, t: e.t, acc: 0 }); sfx.play('boom_b', { x: e.x / PX_PER_M, z: e.y / PX_PER_M, vol: 0.45 });
     } else if (e.type === 'round') { ui.banner(match.objective === 'train' ? 'TRAINING YARD' : match.objective === 'dm' ? 'DEATHMATCH' : `ROUND ${e.n}`, match.objective === 'train' ? 'shoot the targets, run the course, clear the house: nothing is scored' : match.objective === 'dm' ? `${match.minutes} minutes: most kills wins, you come back after every kill` : 'get ready', 2400); sfx.chime(); }
     else if (e.type === 'roundEnd') { const w = e.winner; ui.banner(w === 0 || w === 1 ? `${teamTag(w)} TAKES THE ROUND` : 'DRAW', e.reason === 'zone' ? 'by holding the zone' : '', 3000); if (me && w === me.team && !netH) { award(profile, REWARD.round); gainXp(profile, XP.round); save(); } }
     else if (e.type === 'match') { recordMatch(e.winner); ui.banner(`${teamTag(e.winner)} WINS THE MATCH`, 'new match starting', 6000); if (me && !netH) { gainXp(profile, XP.play + (e.winner === me.team ? XP.match : 0)); if (e.winner === me.team) award(profile, REWARD.match); save(); } }
@@ -412,7 +414,7 @@ const tracerMat = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: ne
 const tracerGeo = new THREE.BoxGeometry(0.03, 0.03, 1);
 const tracerFree = [];
 // beams and flames have their own colour whatever the team (the ray gun's green beam, the flamethrower's fire)
-const fxMat = { beam: new THREE.MeshBasicMaterial({ color: new THREE.Color(0x58ff7a).multiplyScalar(4), toneMapped: false, transparent: true }), fire: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff7a20).multiplyScalar(3), toneMapped: false, transparent: true }) };
+const fxMat = { knife: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xdfe6ee).multiplyScalar(2.5), toneMapped: false, transparent: true }), beam: new THREE.MeshBasicMaterial({ color: new THREE.Color(0x58ff7a).multiplyScalar(4), toneMapped: false, transparent: true }), fire: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff7a20).multiplyScalar(3), toneMapped: false, transparent: true }) };
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 function takeTracer(team) {
   let mesh = tracerFree.pop();
@@ -508,6 +510,27 @@ const glowTex = (inner, outer) => {
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 };
 const fireTex = glowTex('rgba(255,245,200,1)', 'rgba(255,140,30,0.75)'), smokeTex = glowTex('rgba(90,86,80,0.8)', 'rgba(60,58,55,0.45)');
+// ---- fire bombs and flashbangs ----
+const fireZones = [];
+function flameSprite(x, y, z, size = 1) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, color: new THREE.Color(1.5, 0.8, 0.3) }));
+  sp.position.set(x, y + 0.15 + Math.random() * 0.3, z); scene.add(sp);
+  fx.push({ mesh: sp, t: 0, life: 0.5 + Math.random() * 0.35, kind: 'fire', r: (1.0 + Math.random() * 0.8) * size });
+}
+function tickFireZones(dt) {
+  for (let i = fireZones.length - 1; i >= 0; i--) {
+    const f = fireZones[i]; f.t -= dt; if (f.t <= 0) { fireZones.splice(i, 1); continue; }
+    f.acc += dt * 26;
+    while (f.acc >= 1 && fx.length < 90) { f.acc -= 1; const a = Math.random() * 6.283, d = Math.sqrt(Math.random()) * f.r; flameSprite(f.x + Math.cos(a) * d, f.y, f.z + Math.sin(a) * d); }
+    f.acc = Math.min(f.acc, 2);
+  }
+}
+function flashPop(x, y, z) {
+  sfx.play('boom_b', { x, z, vol: 0.35 });
+  boomT = 0.25; boomLight.position.set(x, y + 0.6, z);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, color: new THREE.Color(3, 3, 3.2) }));
+  sp.position.set(x, y + 0.4, z); scene.add(sp); fx.push({ mesh: sp, t: 0, life: 0.35, kind: 'fire', r: 4.5 });
+}
 function explosion(x, y, z) {
   const eye = eyeOf(), dist = Math.hypot(x - eye.x, y - eye.y, z - eye.z);
   sfx.boom(x, z);
@@ -527,6 +550,7 @@ function explosion(x, y, z) {
   burst(x, y + 0.3, z, 0xffb050, 26, 9); burst(x, y + 0.2, z, 0x6a5a48, 10, 6);
 }
 function syncNades(dt, t) {
+  tickFireZones(dt);
   const live = new Set();
   for (const n of match.nades) {
     live.add(n.id);
@@ -539,7 +563,7 @@ function syncNades(dt, t) {
         const tail = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff8a20).multiplyScalar(4), toneMapped: false })); tail.position.x = -0.3; tail.scale.set(2.2, 1, 1);
         o.add(body, nose, tail); o.userData.rocket = true; scene.add(o); nadeMeshes.set(n.id, o);
       } else {
-      const body = new THREE.Mesh(new THREE.SphereGeometry(n.kind === 1 ? 0.075 : 0.055, 14, 10), new THREE.MeshStandardMaterial({ color: 0x3a4630, roughness: 0.5, metalness: 0.5 })); body.scale.y = 1.2; body.castShadow = true;
+      const body = new THREE.Mesh(new THREE.SphereGeometry(n.kind === 1 ? 0.075 : 0.055, 14, 10), new THREE.MeshStandardMaterial({ color: n.kind === 3 ? 0x2a2a2a : n.kind === 4 ? 0x8a5a2a : n.kind === 5 ? 0xd8dce0 : 0x3a4630, roughness: 0.5, metalness: 0.5 })); body.scale.y = 1.2; body.castShadow = true;
       const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.05, 8), new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9, roughness: 0.3 })); cap.position.y = 0.07;
       const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2010).multiplyScalar(3), toneMapped: false })); lamp.position.set(0.05, 0.01, 0);
       o.add(body, cap, lamp); scene.add(o); nadeMeshes.set(n.id, o);
@@ -724,6 +748,7 @@ function syncUnits(dt, t, players = match.players) {
     const vx = (gx - u.px) / Math.max(udt, 1e-3), vz = (gz - u.pz) / Math.max(udt, 1e-3);
     u.px = gx; u.pz = gz;
     u.update(udt, Math.min(speed, 7), firedNow.has(p.id), p.alive, t, (vx * Math.cos(p.aim) + vz * Math.sin(p.aim)) < -0.5, dist > 22);
+    if (dist < 45) u.setJet(((p.fuel ?? 0) > 0 || p.jetting) && p.alive, !!p.jetting && p.alive, t);
   }
   firedNow.clear();
   for (const [id, u] of units) if (!live.has(id)) { u.dispose(); units.delete(id); ui.dropTag(id); }
@@ -851,7 +876,7 @@ function draw() {
 }
 let acc = 0, last = performance.now(), fov = FOV;
 const NO_RC = { p: 0, y: 0, bloom: 0 };
-window.__arena = { get voice() { return voice; }, get aim() { return { fov, zoom: [zoom, ui.zoomTouch], foe: foe && { a: foe.a, d: foe.d, lim: foe.lim }, friction: turnFriction, flinch: { ...flinch } }; }, turnBy: (dx, dy) => turn(dx, dy), hap, advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
+window.__arena = { get voice() { return voice; }, get aim() { return { fov, zoom: [zoom, ui.zoomTouch], foe: foe && { a: foe.a, d: foe.d, lim: foe.lim }, friction: turnFriction, flinch: { ...flinch } }; }, turnBy: (dx, dy) => turn(dx, dy), hap, advance: (dt) => { manualClock = true; frame(last + dt * 1000, true); }, bloodHit, stain, get net() { return netH; }, get netInfo() { return netInfo; }, sfx, snap: () => { draw(); return canvas.toDataURL('image/jpeg', 0.92); }, draw, vm, GUN_OFFSET, start, setMap, get match() { return match; }, get me() { return me; }, get profile() { return profile; }, get world() { return worldH; }, look, units, scene, camera, renderer, A, ui };
 const v3 = new THREE.Vector3();
 let manualClock = false;   // set by the film tools: frames are then only drawn when asked for, with a fixed step
 function frame(now, manual) {
@@ -977,6 +1002,7 @@ function frame(now, manual) {
       ui.lowHealth(me && me.alive ? me.hp / me.hpMax : 1); drawMinimap();
       ui.setZone(match.objective === 'zone' && !!match.map.zone, match.zoneP[0], match.zoneP[1], match.zoneIn[0], match.zoneIn[1], TEAM_COLORS);
       if (me) ui.setMe(me.alive ? me.hp : 0, me.hpMax, `${me.name} | ${me.kills} kills`, me.weapon, profile.coins, me.grenades ?? 0, me.ammo, me.magSize, me.rl > 0, me.reserve ?? 0, !!me.endless);
+      { const jf = GADGETS[profile.loadout.gadget]?.jet; ui.setFuel(jf && me && me.alive ? Math.min(1, (me.fuel ?? 0) / jf.fuel) : -1); ui.setBlind(me && me.alive ? Math.min(1, (me.blind ?? 0) / 1.4) : 0); }
       { const st = [[3, 'DRONE'], [4, 'BOTTOMLESS AMMO'], [5, 'ADRENALINE'], [6, 'RESUPPLY'], [7, 'SUPPLY CRATE'], [8, 'MORTAR STRIKE'], [10, 'JUGGERNAUT'], [12, 'BARRAGE']].find(([k]) => k > streak); ui.streak(me.alive ? streak : 0, st ? st[1] : '', st ? st[0] : 0); }
       showPrompt();
     }

@@ -5,8 +5,8 @@ import { buy, equip, level, levelProgress, classSave, classSelect, classRename }
 import { lockedReason, masteryOf, xpForLevel, MAX_LEVEL } from '../../server/progress.js';
 import { bars, compare, WEAPON_PICTURES } from './loadoutcore.js';
 
-const TAB_NAMES = { weapon: 'Guns', optic: 'Optics', muzzle: 'Muzzles', grip: 'Grips', ammo: 'Ammo', armor: 'Armour', helmet: 'Helmets', boots: 'Boots', grenade: 'Grenades', camo: 'Camo' };
-const SLOT_LABEL = { weapon: 'Gun', optic: 'Optic', muzzle: 'Muzzle', grip: 'Grip', ammo: 'Ammo', armor: 'Armour', helmet: 'Helmet', boots: 'Boots', grenade: 'Grenades', camo: 'Camo' };
+const TAB_NAMES = { weapon: 'Guns', optic: 'Optics', muzzle: 'Muzzles', grip: 'Grips', ammo: 'Ammo', armor: 'Armour', helmet: 'Helmets', boots: 'Boots', grenade: 'Throwables', melee: 'Knives', gadget: 'Gadgets', camo: 'Camo' };
+const SLOT_LABEL = { weapon: 'Gun', optic: 'Optic', muzzle: 'Muzzle', grip: 'Grip', ammo: 'Ammo', armor: 'Armour', helmet: 'Helmet', boots: 'Boots', grenade: 'Throwable', melee: 'Knife', gadget: 'Gadget', camo: 'Camo' };
 const STAR = '&#9733;', STAR0 = '&#9734;';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 

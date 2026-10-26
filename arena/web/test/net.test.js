@@ -55,3 +55,27 @@ test('a small server correction keeps the picture still, then eases over; a tele
   assert.equal(far.offset.x, 0);
   assert.equal(far.pred.x, 400);
 });
+
+test('a predicted soldier with a jetpack climbs, runs dry and refuels exactly as the match does', async () => {
+  const { GADGETS } = await import('../../server/items.js');
+  for (const gadget of ['jet', 'turbo']) {
+    const m = new Match({ teams: [{ name: 'A' }, { name: 'B' }], perSide: 1, bots: false, map: 'cargo' });
+    const a = m.addPlayer('a', { name: 'A', team: 0, loadout: { gadget } });
+    m.addPlayer('b', { name: 'B', team: 1 });
+    m.phase = 'live'; m.timer = 60;
+    a.x = 300; a.y = 600; a.z = 0; a.prot = 0;
+    const jet = GADGETS[gadget].jet;
+    let s = { x: a.x, y: a.y, z: a.z, vz: 0, air: false, aim: 0, pitch: 0, weapon: a.weapon, speedMul: a.speedMul, boost: false, map: m.map, jet, fuel: jet.fuel, jetting: false };
+    let top = 0;
+    for (let i = 0; i < 60 * 9; i++) {
+      const hold = i < 60 * 5;                                   // five seconds of holding jump, then let go and land
+      const input = { dx: 1, dy: 0, aim: 0, pitch: 0, fire: false, nade: false, reload: false, sprint: false, jump: hold, melee: false, swap: false };
+      a.input = { ...input };
+      m.step(1 / 60); s = stepLocal(s, input, 1 / 60, true); top = Math.max(top, s.z);
+      assert.ok(Math.abs(s.z - a.z) < 1e-4, `${gadget} z ${s.z} vs ${a.z} at ${i}`);
+      assert.ok(Math.abs(s.x - a.x) < 1e-3, `${gadget} x ${s.x} vs ${a.x} at ${i}`);
+      assert.ok(Math.abs(s.fuel - a.fuel) < 1e-6, `${gadget} fuel ${s.fuel} vs ${a.fuel} at ${i}`);
+    }
+    assert.ok(top > 3, `${gadget} climbed (${top})`);
+  }
+});

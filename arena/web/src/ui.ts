@@ -64,6 +64,10 @@ const CSS = `
 #vy-hitm.on { opacity: 1; transition: none; }
 #vy-hurt { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(255,40,20,0) 50%, rgba(255,40,20,.6) 100%); opacity: 0; transition: opacity .35s; }
 #vy-hurt.on { opacity: 1; transition: none; }
+#vy-blind { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+#vy-fuel { position: absolute; left: 50%; bottom: 18%; width: min(36vw, 260px); height: 8px; transform: translateX(-50%); background: rgba(0,0,0,.45); border: 1px solid rgba(180,255,60,.5); border-radius: 5px; overflow: hidden; display: none; }
+#vy-fuel i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff9a3c, #b8ff3c); }
+#vy-fuel.low i { background: #ff5a40; }
 #vy-me { position: absolute; left: calc(14px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); width: min(260px, 46vw); }
 #vy-me .hp { height: 14px; border-radius: 7px; background: rgba(0,0,0,.6); border: 1px solid var(--line); overflow: hidden; } #vy-me .hp i { display: block; height: 100%; width: 100%; background: var(--lime); transition: width .12s; }
 #vy-me b { font-size: 26px; text-shadow: 0 2px 8px #000; } #vy-me small { color: var(--muted); font-size: 11px; display: block; }
@@ -207,7 +211,7 @@ export class Ui {
     const [a, b] = o.teamNames, [ca, cb] = o.teamColors;
     root.innerHTML = `
 <div id="vy-hud" hidden>
-  <div id="vy-hurt"></div>
+  <div id="vy-hurt"></div><div id="vy-blind"></div><div id="vy-fuel"><i></i></div>
   <div class="bar"><div class="t" style="color:${ca}"><b data-n="0">0</b><span data-tn="0">${a}</span><div class="pips" data-pips="0"></div></div><div class="mid"><span data-round>ROUND 1</span><b data-time>0</b><span data-alive></span></div><div class="t" style="color:${cb}"><b data-n="1">0</b><span data-tn="1">${b}</span><div class="pips" data-pips="1"></div></div></div>
   <div id="vy-zone" hidden><i class="l"></i><i class="r"></i><span></span></div><div id="vy-feed"></div><div id="vy-banner"></div><div id="vy-hints"><kbd>WASD</kbd>move &nbsp;<kbd>Mouse</kbd>aim &nbsp;<kbd>Click</kbd>fire &nbsp;<kbd>Right click</kbd>zoom<br><kbd>R</kbd>reload &nbsp;<kbd>G</kbd>throw grenade &nbsp;<kbd>F</kbd>knife &nbsp;<kbd>Q</kbd>swap gun &nbsp;<kbd>E</kbd>pick up a gun<br><kbd>T</kbd>talk &nbsp;<kbd>Y</kbd>team or near voice &nbsp;<kbd>M</kbd>mute voices<br><kbd>Space</kbd>jump &nbsp;<kbd>Shift</kbd>sprint &nbsp;<kbd>Tab</kbd>scoreboard &nbsp;<kbd>Esc</kbd>pause<br><kbd>H</kbd>hide this</div><div id="vy-voice"></div><div id="vy-streak"></div><div id="vy-prompt"></div><div id="vy-low"></div><div id="vy-dir"></div><div id="vy-medal"></div><canvas id="vy-map" width="432" height="270"></canvas><div id="vy-menubtn">II</div><div id="vy-score"></div><div id="vy-spec"></div>
   <div id="vy-scopeov"><i><b></b></i></div><div id="vy-cross"></div><div id="vy-hitm"></div>
@@ -275,7 +279,7 @@ export class Ui {
   </div>
 </div>`;
     document.body.appendChild(root);
-    for (const id of ['vy-pid', 'vy-voicepref', 'vy-look', 'vy-lookv', 'vy-friction', 'vy-vibe', 'vy-vibenote', 'vy-minrow', 'vy-min', 'vy-sparrow', 'vy-spar', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-lo-card', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-voice', 'vy-mic', 'vy-chan', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
+    for (const id of ['vy-pid', 'vy-voicepref', 'vy-look', 'vy-lookv', 'vy-friction', 'vy-vibe', 'vy-vibenote', 'vy-minrow', 'vy-min', 'vy-sparrow', 'vy-spar', 'vy-scopeov', 'vy-blood', 'vy-cross', 'vy-go2', 'vy-pick', 'vy-install', 'vy-zone', 'vy-level', 'vy-lo-card', 'vy-obj', 'vy-jump', 'vy-knife', 'vy-swap', 'vy-use', 'vy-voice', 'vy-mic', 'vy-chan', 'vy-streak', 'vy-prompt', 'vy-hints', 'vy-scope', 'vy-tips', 'vy-tipsok', 'vy-easy', 'vy-pad', 'vy-low', 'vy-dir', 'vy-medal', 'vy-map', 'vy-diff', 'vy-menubtn', 'vy-resume', 'vy-leave', 'vy-ta', 'vy-tb', 'vy-lbbody', 'vy-lb', 'vy-score', 'vy-spec', 'vy-reload', 'vy-nade', 'vy-hud', 'vy-menu', 'vy-pause', 'vy-banner', 'vy-feed', 'vy-hitm', 'vy-hurt', 'vy-blind', 'vy-fuel', 'vy-tags', 'vy-touch', 'vy-fire', 'vy-name', 'vy-seats', 'vy-gfx', 'vy-err', 'vy-go']) this.el[id] = root.querySelector('#' + id) as HTMLElement;
     this.el.hud = this.el['vy-hud'];
     this.lo = new LoadoutScreen({ root, profile: o.profile, save: () => o.save(), onShop: (...a) => o.onShop?.(...a), base: import.meta.env.BASE_URL, onClose: () => this.renderShop() });
     const openLo = () => this.lo.open();
@@ -489,6 +493,13 @@ export class Ui {
     (this.q('#vy-me .hp i')).style.width = `${Math.max(0, Math.min(100, (hp / hpMax) * 100))}%`;
     this.q('[data-me]').textContent = text; this.q('[data-gun]').textContent = (items[gun]?.name ?? gun); this.el['vy-scope'].style.display = this.touch ? 'grid' : 'none'; this.q('[data-coins]').textContent = `${coins} coins`; this.q('[data-nades]').textContent = `G  grenades ${nades}`; this.q('[data-ammo]').textContent = reloading ? 'RELOADING' : (endless ? `${ammo} / \u221e` : reserve >= 0 ? `${ammo} / ${reserve}` : `${ammo} / ${mag}`); this.q('[data-ammo]').style.color = !reloading && ammo <= Math.max(2, mag * 0.2) ? '#ff6a50' : '';
   }
+  /** the jetpack's fuel bar (0 to 1; a negative number hides it) */
+  setFuel(frac: number): void {
+    const el = this.el['vy-fuel']; if (frac < 0) { el.style.display = 'none'; return; }
+    el.style.display = 'block'; (el.firstElementChild as HTMLElement).style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`; el.classList.toggle('low', frac < 0.2);
+  }
+  /** a flashbang's white-out: 0 is clear, 1 is blind */
+  setBlind(a: number): void { this.el['vy-blind'].style.opacity = String(Math.max(0, Math.min(1, a))); }
   /** the voice panel: the channel, whether the microphone is on, and who is talking (names are looked up by the caller) */
   voice(show: boolean, st?: { mode: string; talking: boolean; denied: boolean; muted: boolean }, talkers: string[] = []): void {
     const box = this.el['vy-voice'], mic = this.el['vy-mic'], chan = this.el['vy-chan'];

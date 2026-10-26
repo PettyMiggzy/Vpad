@@ -3,7 +3,7 @@
 // the server uses (tryMove, floorAt) and eased back when a snapshot disagrees.
 import { Client } from '@colyseus/sdk';
 import { tryMove, floorAt, MAPS, R } from '../../server/game.js';
-import { WEAPONS } from '../../server/items.js';
+import { WEAPONS, GADGETS } from '../../server/items.js';
 import { feelOf } from '../../server/gunfeel.js';
 import { mergeSnap } from '../../server/snap.js';
 
@@ -31,18 +31,25 @@ export function stepLocal(s, inp, dt, live) {
   const len = Math.hypot(dx, dy);
   if (len > 1) { dx /= len; dy /= len; }
   const w = WEAPONS[s.weapon] || WEAPONS.pistol;
-  const sp = R.SPEED * (s.speedMul || 1) * (w.move ?? 1) * ((inp.sprint && len > 0.3) ? 1.32 : 1) * (s.boost ? 1.22 : 1) * (inp.ads && !inp.sprint ? feelOf(s.weapon).ads.move : 1);
+  const jet = s.jet, jetting = !!(jet && s.jetting);
+  const sp = R.SPEED * (s.speedMul || 1) * (w.move ?? 1) * ((inp.sprint && len > 0.3) ? 1.32 : 1) * (s.boost ? 1.22 : 1) * (inp.ads && !inp.sprint ? feelOf(s.weapon).ads.move : 1) * (jetting ? jet.air : 1);
   const [nx, ny] = tryMove(s.map, s.x, s.y, s.z, s.x + dx * sp * dt, s.y + dy * sp * dt);
   const f = floorAt(s.map, nx, ny);
   let z = s.z, vz = s.vz || 0, air = !!s.air;
   if (live && inp.jump && !air && z <= f + 0.03) { air = true; vz = R.JUMP; }
+  // the jetpack (the same rules as the match): hold jump in the air to climb while there is fuel
+  let fuel = s.fuel || 0, jetNow = false;
+  if (jet) {
+    if (live && inp.jump && air && fuel > 0 && z < f + jet.cap) { jetNow = true; fuel = Math.max(0, fuel - jet.drain * dt); vz = Math.min(jet.vmax, vz + jet.thrust * dt); }
+    else if (!(air && inp.jump)) fuel = Math.min(jet.fuel, fuel + (air ? jet.regenAir : jet.regen) * dt);
+  }
   if (air) {
     vz -= R.GRAV * dt;
     z += vz * dt;
     if (vz <= 0 && z <= f) { z = f; vz = 0; air = false; }
   } else z = f >= z ? f : Math.max(f, z - R.FALL * dt);
   return {
-    ...s, x: nx, y: ny, z, vz, air,
+    ...s, x: nx, y: ny, z, vz, air, fuel, jetting: jetNow,
     aim: Number.isFinite(inp.aim) ? inp.aim : s.aim,
     pitch: Number.isFinite(inp.pitch) ? clamp(inp.pitch, -PITCH, PITCH) : s.pitch,
   };
@@ -131,7 +138,7 @@ export async function connect(url, opts = {}) {
   const room = opts.roomId ? await client.joinById(opts.roomId, options) : await client.joinOrCreate('match', options);
 
   let myId = null;
-  let speedMul = 1;
+  let speedMul = 1, gadget = 'nogadget';
   let latest = null;
   let pred = null;
   let offset = { x: 0, y: 0, z: 0 };
@@ -158,7 +165,7 @@ export async function connect(url, opts = {}) {
 
   const fromRow = (row, map) => ({
     x: row[2], y: row[3], z: row[9], aim: row[4], pitch: row[10], weapon: row[15] || 'pistol',
-    boost: row[16] === 1, alive: row[6] === 1, speedMul, map, vz: pred?.vz || 0, air: !!pred?.air,
+    boost: row[16] === 1, alive: row[6] === 1, speedMul, map, vz: pred?.vz || 0, air: !!pred?.air, jet: GADGETS[gadget]?.jet, fuel: row[20] ?? 0, jetting: row[21] === 1,
   });
 
   const replay = (base, from, to, live) => {
@@ -211,6 +218,7 @@ export async function connect(url, opts = {}) {
   room.onMessage('hello', (m) => {
     myId = m.id; helloMsg = m; if (helloCb) helloCb(m);
     if (Number.isFinite(m.spd)) speedMul = m.spd;
+    if (typeof m.gadget === 'string') gadget = m.gadget;
     if (m.roster && rosterCb) rosterCb(m.roster);
   });
   room.onMessage('roster', (list) => { if (rosterCb) rosterCb(list); });

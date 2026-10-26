@@ -24,6 +24,20 @@ export const WEAPONS = {
 };
 // close range: the knife (key F). From behind it kills outright.
 export const MELEE = { name: 'Combat knife', range: 100, arc: 0.45, dmg: 55, back: 140, gap: 0.8 };
+/** hand weapons (key F): the knife is free; the rest hit harder or reach farther and are slower. Behind the target they hit for `back`. */
+export const MELEES = {
+  knife:    { slot: 'melee', name: 'Combat knife', cost: 0, range: 100, arc: 0.45, dmg: 55, back: 140, gap: 0.8, blurb: 'Quick. From behind it kills outright' },
+  machete:  { slot: 'melee', name: 'Machete', cost: 300, range: 125, arc: 0.4, dmg: 65, back: 150, gap: 0.95, blurb: 'A longer reach and a harder cut' },
+  tomahawk: { slot: 'melee', name: 'Tomahawk', cost: 400, range: 100, arc: 0.45, dmg: 60, back: 160, gap: 0.7, blurb: 'Fast, and it bites deep from behind' },
+  katana:   { slot: 'melee', name: 'Katana', cost: 800, range: 140, arc: 0.35, dmg: 80, back: 200, gap: 1.0, blurb: 'Reach and power: two cuts, one from behind' },
+  blade:    { slot: 'melee', name: 'Energy blade', cost: 1200, range: 115, arc: 0.4, dmg: 100, back: 200, gap: 1.2, blurb: 'One clean hit takes down a bare soldier' },
+};
+/** what you wear on your back: nothing, or a jetpack (hold jump in the air to climb until the fuel runs out; it refills on the ground) */
+export const GADGETS = {
+  nogadget: { slot: 'gadget', name: 'No gadget', cost: 0, blurb: 'Light and quiet' },
+  jet:      { slot: 'gadget', name: 'Jetpack', cost: 800, jet: { fuel: 100, drain: 45, regen: 26, regenAir: 4, thrust: 24, vmax: 6.5, cap: 16, air: 1.12 }, blurb: 'Hold jump in the air to fly. Fuel refills on the ground' },
+  turbo:    { slot: 'gadget', name: 'Turbo jetpack', cost: 1500, jet: { fuel: 160, drain: 50, regen: 32, regenAir: 6, thrust: 28, vmax: 8, cap: 24, air: 1.2 }, blurb: 'More fuel, faster climb, a higher ceiling' },
+};
 export const GRENADE = { name: 'Frag grenade', count: 2, fuse: 2.2, radius: 300, dmg: 130, speed: 15 };
 export const ARMOR = {
   none:  { slot: 'armor', name: 'No armour',    cost: 0,   hp: 100, speed: 1.0,  blurb: '100 health' },
@@ -73,6 +87,10 @@ export const KITS = {
   frag3:  { slot: 'grenade', name: 'Three frags',      cost: 150, count: 3, radius: 1.0,  dmg: 1.0, blurb: 'One more grenade' },
   frag4:  { slot: 'grenade', name: 'Four frags',       cost: 300, count: 4, radius: 1.0,  dmg: 1.0, blurb: 'Two more grenades' },
   heavy3: { slot: 'grenade', name: 'Heavy frags x3',   cost: 450, count: 3, radius: 1.25, dmg: 1.2, blurb: 'Bigger blast, harder hit' },
+  sticky2:  { slot: 'grenade', name: 'Sticky bombs x2',  cost: 400, count: 2, radius: 1.0,  dmg: 1.25, type: 'sticky', blurb: 'Sticks to a soldier or a wall, then blows' },
+  molotov2: { slot: 'grenade', name: 'Fire bombs x2',    cost: 450, count: 2, radius: 1.0,  dmg: 1.0,  type: 'fire',   blurb: 'Burst into flames that burn for five seconds' },
+  flash3:   { slot: 'grenade', name: 'Flashbangs x3',    cost: 250, count: 3, radius: 1.0,  dmg: 0,    type: 'flash',  blurb: 'Blind everyone who sees it go off' },
+  knives6:  { slot: 'grenade', name: 'Throwing knives x6', cost: 500, count: 6, radius: 1.0, dmg: 1.0,  type: 'knife',  blurb: 'Silent and straight. A head shot is a kill' },
 };
 export const BOOTS = {
   standard: { slot: 'boots', name: 'Standard boots', cost: 0,   speed: 1.0,  blurb: 'Normal speed' },
@@ -88,11 +106,11 @@ export const CAMO = {
   gold:     { slot: 'camo', name: 'Gold',     cost: 0,   tint: 0xffd24a, blurb: 'Earned: master any weapon' },
   obsidian: { slot: 'camo', name: 'Obsidian', cost: 0,   tint: 0x5a4a78, blurb: 'Earned: reach level 20' },
 };
-export const CATALOG = { ...WEAPONS, ...OPTICS, ...MUZZLES, ...GRIPS, ...AMMO, ...ARMOR, ...HELMETS, ...BOOTS, ...KITS, ...CAMO };
-export const SLOTS = ['weapon', 'optic', 'muzzle', 'grip', 'ammo', 'armor', 'helmet', 'boots', 'grenade', 'camo'];
-export const FREE = { weapon: 'pistol', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', camo: 'woodland' };
+export const CATALOG = { ...WEAPONS, ...MELEES, ...GADGETS, ...OPTICS, ...MUZZLES, ...GRIPS, ...AMMO, ...ARMOR, ...HELMETS, ...BOOTS, ...KITS, ...CAMO };
+export const SLOTS = ['weapon', 'optic', 'muzzle', 'grip', 'ammo', 'armor', 'helmet', 'boots', 'grenade', 'melee', 'gadget', 'camo'];
+export const FREE = { weapon: 'pistol', optic: 'noptic', muzzle: 'nomuzzle', grip: 'nogrip', ammo: 'stdammo', armor: 'none', helmet: 'nohelm', boots: 'standard', grenade: 'frag2', melee: 'knife', gadget: 'nogadget', camo: 'woodland' };
 /** every gun is owned from the start (owner 2026-10-24: starting with only a pistol is no fun): upgrading means attachments, gear, camo and mastery */
-export const STARTER_OWNED = [...Object.values(FREE), ...Object.keys(WEAPONS)];
+export const STARTER_OWNED = [...Object.values(FREE), ...Object.keys(WEAPONS), ...Object.keys(MELEES), ...Object.keys(GADGETS), 'sticky2', 'molotov2', 'flash3', 'knives6'];
 /** the loadout a new profile starts with, and the gun each of its five saved classes starts with */
 export const STARTER_LOADOUT = { ...FREE, weapon: 'rifle' };
 export const STARTER_CLASS_GUNS = ['rifle', 'smg', 'shotgun', 'sniper', 'lmg'];

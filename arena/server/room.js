@@ -282,7 +282,7 @@ export class MatchRoom extends Room {
     this.lag.note(p, this.simTime);
     client.send('hello', {
       id: p.id, team: p.team, teams: this.match.teams, perSide: this.match.perSide, roster: this.match.roster(),
-      map: this.match.map.id, mode: this.match.mode, objective: this.match.objective, minutes: this.match.minutes, difficulty: this.match.difficulty, spd: p.speedMul,
+      map: this.match.map.id, mode: this.match.mode, objective: this.match.objective, minutes: this.match.minutes, difficulty: this.match.difficulty, spd: p.speedMul, gadget: p.gadget,
     });
     try { client.send('snap', this.picture()); } catch { /* the socket is not open */ }
     this.broadcast('roster', this.match.roster());
