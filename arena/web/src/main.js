@@ -411,6 +411,8 @@ function onEvents(evs) {
 const tracerMat = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(3), toneMapped: false, transparent: true }));
 const tracerGeo = new THREE.BoxGeometry(0.03, 0.03, 1);
 const tracerFree = [];
+// beams and flames have their own colour whatever the team (the ray gun's green beam, the flamethrower's fire)
+const fxMat = { beam: new THREE.MeshBasicMaterial({ color: new THREE.Color(0x58ff7a).multiplyScalar(4), toneMapped: false, transparent: true }), fire: new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff7a20).multiplyScalar(3), toneMapped: false, transparent: true }) };
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 function takeTracer(team) {
   let mesh = tracerFree.pop();
@@ -429,6 +431,7 @@ function tracer(e, sh) {
   const L = _a.distanceTo(_b); if (L < 0.3) return;
   if (tracers.length >= 24) { const old = tracers.shift(); old.mesh.visible = false; tracerFree.push(old.mesh); }
   const mesh = takeTracer(sh ? sh.team : 0);
+  if (e.fx) mesh.material = fxMat[e.fx] ?? mesh.material;
   mesh.scale.z = L; mesh.position.copy(_a).lerp(_b, 0.5); mesh.lookAt(_b);
   tracers.push({ mesh, life: 0.07 });
   if (!e.hit) burst(_b.x, _b.y, _b.z, 0xffc060, 4);
@@ -530,12 +533,21 @@ function syncNades(dt, t) {
     let o = nadeMeshes.get(n.id);
     if (!o) {
       o = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 10), new THREE.MeshStandardMaterial({ color: 0x3a4630, roughness: 0.5, metalness: 0.5 })); body.scale.y = 1.2; body.castShadow = true;
+      if (n.kind === 2) {          // a rocket: a slim body with a glowing tail, turned to the way it flies
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.5, 10), new THREE.MeshStandardMaterial({ color: 0x4a5a3a, roughness: 0.5, metalness: 0.5 })); body.rotation.z = Math.PI / 2;
+        const nose = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.14, 10), new THREE.MeshStandardMaterial({ color: 0xb0b0a0, metalness: 0.8, roughness: 0.3 })); nose.rotation.z = -Math.PI / 2; nose.position.x = 0.32;
+        const tail = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff8a20).multiplyScalar(4), toneMapped: false })); tail.position.x = -0.3; tail.scale.set(2.2, 1, 1);
+        o.add(body, nose, tail); o.userData.rocket = true; scene.add(o); nadeMeshes.set(n.id, o);
+      } else {
+      const body = new THREE.Mesh(new THREE.SphereGeometry(n.kind === 1 ? 0.075 : 0.055, 14, 10), new THREE.MeshStandardMaterial({ color: 0x3a4630, roughness: 0.5, metalness: 0.5 })); body.scale.y = 1.2; body.castShadow = true;
       const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.05, 8), new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.9, roughness: 0.3 })); cap.position.y = 0.07;
       const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2010).multiplyScalar(3), toneMapped: false })); lamp.position.set(0.05, 0.01, 0);
       o.add(body, cap, lamp); scene.add(o); nadeMeshes.set(n.id, o);
+      }
     }
-    o.position.set(n.x / PX_PER_M, n.z + 0.06, n.y / PX_PER_M); o.rotation.x += dt * 9; o.rotation.z += dt * 6;
+    const px = n.x / PX_PER_M, pz = n.y / PX_PER_M, py = n.z + 0.06;
+    if (o.userData.rocket) { const dx = px - o.position.x, dz = pz - o.position.z; if (dx * dx + dz * dz > 1e-6) o.rotation.y = Math.atan2(-dz, dx); o.position.set(px, py, pz); o.children[2].scale.x = 2.2 + Math.sin(t * 40) * 0.5; continue; }
+    o.position.set(px, py, pz); o.rotation.x += dt * 9; o.rotation.z += dt * 6;
     o.children[2].visible = Math.sin(t * 30) > -0.2;
   }
   for (const [id, o] of nadeMeshes) if (!live.has(id)) { scene.remove(o); o.traverse((c) => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } }); nadeMeshes.delete(id); }

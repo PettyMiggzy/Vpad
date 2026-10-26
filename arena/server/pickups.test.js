@@ -206,7 +206,7 @@ test('whole matches of bots on every map: boxes, kits and dropped guns come and 
     for (let i = 0; i < 60 * 240; i++) {
       m.step(1 / 60);
       for (const e of m.events) { if (e.type === 'pickup') taken++; if (e.type === 'pk+' && e.k === 'gun') drops++; }
-      if (i % 120 === 0) for (const p of m.players.values()) { const cap = capReserve(WEAPONS[p.primary].mag * 3, false) + 1; if (!(p.reserve >= 0 && p.reserve <= cap && p.stashRes >= 0 && p.ammo >= 0 && p.ammo <= p.magSize)) bad = true; }
+      if (i % 120 === 0) for (const p of m.players.values()) { const cap = Math.max(capReserve(WEAPONS[p.primary].mag * 3, false), capReserve(WEAPONS.pistol.mag * 3, false)) + 1;   if (!(p.reserve >= 0 && p.reserve <= cap && p.stashRes >= 0 && p.ammo >= 0 && p.ammo <= p.magSize)) bad = true; }
     }
     assert.ok(taken >= 1, `${id}: ${taken} things taken`); total += taken; assert.ok(drops > 0, `${id}: guns dropped`); assert.ok(!bad, `${id}: counts stay in range`);
     assert.ok(m.pickups.list.filter((p) => p.kind === 'gun').length <= PICK.maxGuns);

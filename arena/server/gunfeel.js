@@ -26,6 +26,12 @@ export const FEEL = {
   pdw:     { kick: 0.015, side: 0.7, max: 0.22, hold: 0.16, rec: 7, bloom: 0.09, bloomMax: 0.8, bloomRec: 2.3, move: 0.6, air: 1.5, hip: 1.1, ads: { t: 0.15, spread: 0.45, move: 0.88, recoil: 0.75, zoom: 54 }, fall: [450, 1500, 0.55], leg: 0.85 },
   br:      { kick: 0.05, side: 0.35, max: 0.2, hold: 0.3, rec: 6, bloom: 0.2, bloomMax: 0.7, bloomRec: 2, move: 1.4, air: 2.4, hip: 3, ads: { t: 0.2, spread: 1, move: 0.8, recoil: 0.75, zoom: 44 }, fall: [1500, 2800, 0.8], leg: 0.9 },
   amr:     { kick: 0.16, side: 0.15, max: 0.24, hold: 0.9, rec: 3, bloom: 0.6, bloomMax: 0.8, bloomRec: 1.2, move: 5, air: 7, hip: 16, ads: { t: 0.34, spread: 1, move: 0.62, recoil: 0.85, zoom: 20 }, fall: null, leg: 0.9 },
+  thumper: { kick: 0.1, side: 0.1, max: 0.2, hold: 0.6, rec: 5, bloom: 0, bloomMax: 0, bloomRec: 1, move: 0.8, air: 1.5, hip: 1, ads: { t: 0.2, spread: 0.7, move: 0.85, recoil: 0.8, zoom: 56 }, fall: null, leg: 1 },
+  rocket:  { kick: 0.14, side: 0.1, max: 0.25, hold: 0.8, rec: 4, bloom: 0, bloomMax: 0, bloomRec: 1, move: 0.9, air: 1.5, hip: 1, ads: { t: 0.26, spread: 0.7, move: 0.8, recoil: 0.8, zoom: 52 }, fall: null, leg: 1 },
+  minigun: { kick: 0.012, side: 1.0, max: 0.34, hold: 0.2, rec: 4, bloom: 0.06, bloomMax: 1.0, bloomRec: 1.6, move: 1.6, air: 2, hip: 1.2, ads: { t: 0.35, spread: 0.55, move: 0.6, recoil: 0.7, zoom: 58 }, fall: [600, 2400, 0.55], leg: 0.85 },
+  flame:   { kick: 0.004, side: 0.5, max: 0.1, hold: 0.1, rec: 8, bloom: 0, bloomMax: 0, bloomRec: 1, move: 0.3, air: 1, hip: 1, ads: { t: 0.2, spread: 0.8, move: 0.9, recoil: 0.9, zoom: 62 }, fall: [150, 550, 0.35], leg: 1 },
+  raygun:  { kick: 0.02, side: 0.1, max: 0.12, hold: 0.2, rec: 8, bloom: 0, bloomMax: 0, bloomRec: 1, move: 0.5, air: 1.2, hip: 2, ads: { t: 0.18, spread: 0.6, move: 0.85, recoil: 0.6, zoom: 50 }, fall: null, leg: 0.9 },
+  crossbow:{ kick: 0.05, side: 0.05, max: 0.1, hold: 0.5, rec: 5, bloom: 0, bloomMax: 0, bloomRec: 1, move: 2, air: 3, hip: 5, ads: { t: 0.2, spread: 1, move: 0.8, recoil: 0.7, zoom: 32 }, fall: null, leg: 0.9 },
   dmr:     { kick: 0.06, side: 0.4, max: 0.22, hold: 0.4, rec: 5, bloom: 0.25, bloomMax: 0.8, bloomRec: 1.8, move: 2, air: 3, hip: 5, ads: { t: 0.22, spread: 1, move: 0.78, recoil: 0.75, zoom: 38 }, fall: [1800, 3000, 0.85], leg: 0.9 },
 };
 export const feelOf = (weapon) => FEEL[weapon] || FEEL.pistol;

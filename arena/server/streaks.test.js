@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Match } from './game.js';
+import { CRATE_GUNS } from './pickups.js';
 
 const T = [{ name: 'A' }, { name: 'B' }];
 /** a live match on an empty floor: the player 'a' on team 0, and `foes` soldiers of team 1 spread far from each other and from 'a' */
@@ -103,7 +104,7 @@ test('the seventh kill calls a supply crate: a warning at once, a premium gun ly
   streakTo(m, a, f, 6); m.events.length = 0;
   streakTo(m, a, f, 1);
   const call = m.events.find((e) => e.type === 'crate');
-  assert.ok(call && ['lmg', 'dmr', 'sniper', 'autosg', 'burst'].includes(call.w) && call.in > 3, 'the warning names the spot and the time');
+  assert.ok(call && CRATE_GUNS.includes(call.w) && call.in > 3, 'the warning names the spot and the time');
   assert.ok(kinds(m).includes('crate'));
   assert.equal(m.pickups.list.filter((p) => p.crate).length, 0, 'nothing has landed yet');
   for (let i = 0; i < 60 * 2; i++) m.step(1 / 60); assert.equal(m.pickups.list.filter((p) => p.crate).length, 0, 'still falling');

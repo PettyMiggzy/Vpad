@@ -7,14 +7,14 @@ export const UNIT_H = 1.85;
 const POOL = [['frog'], ['bulldog']];
 /** the characters everyone else is drawn as: both teams use all of them (the team colour on the armour and the ring under the feet say whose side each one is) */
 const CROWD = ['frog', 'bulldog', 'ape'];
-const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25, revolver: 0.42, burst: 0.72, lmg: 1.15, autosg: 0.95, dmr: 1.1, mp: 0.4, pdw: 0.62, br: 1.0, amr: 1.4 };
+const GUN_LEN = { pistol: 0.32, smg: 0.62, rifle: 0.95, shotgun: 0.95, sniper: 1.25, revolver: 0.42, burst: 0.72, lmg: 1.15, autosg: 0.95, dmr: 1.1, mp: 0.4, pdw: 0.62, br: 1.0, amr: 1.4, thumper: 0.85, rocket: 1.2, minigun: 1.1, flame: 0.95, raygun: 0.95, crossbow: 0.9 };
 // where the weapon sits in the right hand (tuned by eye; live-editable from the console while testing)
 // the pistol model is drawn pointing the other way from the rest: turn it half a circle so every weapon's muzzle leads
 // the generated models have the muzzle at the model's -x end and the stock at +x, so every one is turned half a way round to point down the sights
 const GUN_TURN = {};
 const TURN = Math.PI;
 // where each grip sits along the model, as a share of its length from the middle towards the stock: the hand holds the grip, not the middle
-const GUN_GRIP = { pistol: 0.26, smg: 0.19, rifle: 0.16, shotgun: 0.3, sniper: 0.19, revolver: 0.18, burst: 0.21, lmg: 0.17, autosg: 0.24, dmr: 0.16, mp: 0.26, pdw: 0.2, br: 0.16, amr: 0.19 };
+const GUN_GRIP = { pistol: 0.26, smg: 0.19, rifle: 0.16, shotgun: 0.3, sniper: 0.19, revolver: 0.18, burst: 0.21, lmg: 0.17, autosg: 0.24, dmr: 0.16, mp: 0.26, pdw: 0.2, br: 0.16, amr: 0.19, thumper: 0.2, rocket: 0.14, minigun: 0.2, flame: 0.2, raygun: 0.18, crossbow: 0.18 };
 export const GUN_OFFSET = { pos: [0, 0.03, 0.2], rot: [0, 0.34, 0], k: 1 };
 
 /** the soldiers and weapons are painted with lime accents: swap those for the team's colour (blue 0.61 or red 0.0 on the hue wheel), leave browns and greys alone */
@@ -46,6 +46,7 @@ const GUN_HOLD = {
   shotgun: { rx: -0.01, ry: -0.035, lf: 0.6, ly: -0.04 }, autosg: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.05 }, sniper: { rx: -0.01, ry: -0.04, lf: 0.62, ly: -0.05 },
   lmg: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.07 }, dmr: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.05 },
   mp: { rx: 0.0, ry: -0.03, lf: 0.2, ly: -0.05 }, pdw: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.06 }, br: { rx: -0.01, ry: -0.04, lf: 0.6, ly: -0.045 }, amr: { rx: -0.01, ry: -0.04, lf: 0.62, ly: -0.05 },
+  thumper: { rx: -0.01, ry: -0.04, lf: 0.55, ly: -0.05 }, rocket: { rx: -0.01, ry: -0.05, lf: 0.45, ly: -0.09 }, minigun: { rx: -0.01, ry: -0.05, lf: 0.55, ly: -0.07 }, flame: { rx: -0.01, ry: -0.05, lf: 0.45, ly: -0.08 }, raygun: { rx: -0.01, ry: -0.04, lf: 0.55, ly: -0.05 }, crossbow: { rx: -0.01, ry: -0.04, lf: 0.55, ly: -0.05 },
 };
 if (typeof window !== 'undefined') window.__holdTune = GUN_HOLD;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();

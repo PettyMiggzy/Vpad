@@ -4,7 +4,7 @@ import { Unit } from './units.js';
 
 // how much bigger than life each weapon is drawn in the hands, so it fills the view like a real shooter's
 
-const GUN_K = { pistol: 1.0, smg: 0.85, rifle: 0.85, shotgun: 0.85, sniper: 0.75, revolver: 1.0, burst: 0.85, lmg: 0.8, autosg: 0.85, dmr: 0.8, mp: 1.0, pdw: 0.85, br: 0.8, amr: 0.72 };
+const GUN_K = { pistol: 1.0, smg: 0.85, rifle: 0.85, shotgun: 0.85, sniper: 0.75, revolver: 1.0, burst: 0.85, lmg: 0.8, autosg: 0.85, dmr: 0.8, mp: 1.0, pdw: 0.85, br: 0.8, amr: 0.72, thumper: 0.8, rocket: 0.7, minigun: 0.58, flame: 0.58, raygun: 0.68, crossbow: 0.8 };
 
 export class ViewModel {
   constructor(A) {
@@ -143,4 +143,4 @@ const SIGHT_WINDOW = { rifle: [0, 0, 0.1], smg: [0, 0, 0.07], burst: [0, 0, 0.08
 const _h = new THREE.Vector3();
 if (typeof window !== 'undefined') window.__viewTune = () => ({ ADS_POSE, GUN_K });
 // where the rig sits when the sights are up: placed so the top of each gun's sight (measured in the view's own space) is in the middle of the screen
-const ADS_POSE = { pistol: { x: -0.139, y: -0.035, z: 0.03 }, smg: { x: -0.138, y: -0.041, z: 0.04 }, rifle: { x: -0.132, y: -0.076, z: 0.04 }, shotgun: { x: -0.13, y: -0.014, z: 0.04 }, sniper: { x: -0.133, y: -0.024, z: 0.04 }, revolver: { x: -0.136, y: -0.047, z: 0.03 }, burst: { x: -0.136, y: -0.043, z: 0.04 }, lmg: { x: -0.132, y: -0.05, z: 0.05 }, autosg: { x: -0.129, y: -0.025, z: 0.04 }, dmr: { x: -0.133, y: -0.054, z: 0.04 }, mp: { x: -0.139, y: -0.049, z: 0.03 }, pdw: { x: -0.14, y: -0.041, z: 0.04 }, br: { x: -0.132, y: -0.031, z: 0.04 }, amr: { x: -0.143, y: -0.016, z: 0.04 } };
+const ADS_POSE = { pistol: { x: -0.139, y: -0.035, z: 0.03 }, smg: { x: -0.138, y: -0.041, z: 0.04 }, rifle: { x: -0.132, y: -0.076, z: 0.04 }, shotgun: { x: -0.13, y: -0.014, z: 0.04 }, sniper: { x: -0.133, y: -0.024, z: 0.04 }, revolver: { x: -0.136, y: -0.047, z: 0.03 }, burst: { x: -0.136, y: -0.043, z: 0.04 }, lmg: { x: -0.132, y: -0.05, z: 0.05 }, autosg: { x: -0.129, y: -0.025, z: 0.04 }, dmr: { x: -0.133, y: -0.054, z: 0.04 }, mp: { x: -0.139, y: -0.049, z: 0.03 }, pdw: { x: -0.14, y: -0.041, z: 0.04 }, br: { x: -0.132, y: -0.031, z: 0.04 }, amr: { x: -0.143, y: -0.016, z: 0.04 }, thumper: { x: -0.141, y: -0.068, z: 0.04 }, rocket: { x: -0.138, y: -0.07, z: 0.04 }, minigun: { x: -0.138, y: -0.01, z: 0.04 }, flame: { x: -0.144, y: -0.029, z: 0.04 }, raygun: { x: -0.132, y: -0.006, z: 0.04 }, crossbow: { x: -0.138, y: -0.005, z: 0.04 } };

@@ -21,7 +21,7 @@ export const PICK = {
 
 /** spare rounds you start with and the most you may hold, for a gun with this magazine */
 /** what a supply crate may hold: the guns that cost the most */
-export const CRATE_GUNS = ['lmg', 'dmr', 'sniper', 'autosg', 'burst', 'amr', 'br'];
+export const CRATE_GUNS = ['lmg', 'dmr', 'sniper', 'autosg', 'burst', 'amr', 'br', 'rocket', 'minigun', 'raygun', 'thumper'];
 
 export const startReserve = (mag, side) => Math.round(mag * (side ? PICK.sideMags : PICK.startMags));
 export const capReserve = (mag, side) => Math.round(mag * (side ? PICK.sideCap : PICK.capMags));

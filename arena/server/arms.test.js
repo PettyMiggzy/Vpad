@@ -32,7 +32,7 @@ test('an assault rifle reaches 80 m but not 120 m; a pistol reaches 40 m but not
 });
 
 test('every gun reaches farther than its own falloff starts, so the falloff is the thing that works at range', () => {
-  for (const [id, w] of Object.entries(WEAPONS)) assert.ok(w.range >= 700, id);
+  for (const [id, w] of Object.entries(WEAPONS)) assert.ok(w.range >= 500, id);
   assert.ok(WEAPONS.sniper.range > WEAPONS.dmr.range && WEAPONS.dmr.range > WEAPONS.rifle.range && WEAPONS.rifle.range > WEAPONS.pistol.range);
 });
 

@@ -77,7 +77,7 @@ export class NetMatch {
     const zn = s.zn;
     if (zn) { this.zoneP = [zn[4], zn[5]]; this.zoneIn = [!!zn[6], !!zn[7]]; } else { this.zoneP = [0, 0]; this.zoneIn = [false, false]; }
     if (Array.isArray(s.pk)) this.pickups.list = s.pk.map(floorItem);
-    this.nades = (s.g || []).map((n) => ({ id: n[0], x: n[1], y: n[2], z: n[3] }));
+    this.nades = (s.g || []).map((n) => ({ id: n[0], x: n[1], y: n[2], z: n[3], kind: n[4] ?? 0 }));
     const seen = new Set();
     for (const row of s.p) {
       seen.add(row[0]);

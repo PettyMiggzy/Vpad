@@ -487,6 +487,7 @@ export class Match {
     const kick = rcMul * p.recoilMul;
     const aimA = p.aim + p.rc.y * kick, aimP = p.pitch + p.rc.p * kick;
     const sp = spreadFor(p.weapon, w.spread * p.spreadMul, { ads, move: p.moveFrac, air: p.air, bloom: p.rc.bloom * (p.bot ? 0.5 : 1) });
+    if (w.launch) { this.launch(p, w, aimA + rnd(-sp, sp), aimP + rnd(-sp, sp), eye); p.rc.shot(p.weapon, ads, kick); return; }
     for (let i = 0; i < w.pellets; i++) {
       const a = aimA + rnd(-sp, sp), pt = aimP + rnd(-sp, sp) * 0.7;
       const dx = Math.cos(a), dy = Math.sin(a), slope = Math.tan(pt) / M;
@@ -502,7 +503,7 @@ export class Match {
         hitD = d; hit = q; head = hz >= q.z + R.HEAD; zone = head ? 'head' : hz < q.z + R.LEGS ? 'legs' : 'body';
       }
       const ex = p.x + dx * hitD, ey = p.y + dy * hitD, ez = eye + slope * hitD;
-      this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0, ...(p.quiet ? { q: 1 } : {}) });
+      this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex, ey, ez, hit: hit ? 1 : 0, ...(p.quiet || w.quiet ? { q: 1 } : {}), ...(w.fx ? { fx: w.fx } : {}) });
       if (!hit) continue;
       // damage drops with distance, a leg hit is worth less, a head hit more (less behind a helmet)
       const dmg = w.dmg * p.dmgMul * falloff(p.weapon, hitD) * (head ? hit.headMul : zone === 'legs' ? f.leg : 1) * (through ? p.pierce : 1);
@@ -522,21 +523,38 @@ export class Match {
     this.events.push({ type: 'nade', by: p.id, id: n.id, x: n.x, y: n.y, z: n.z });
   }
 
+  /** a launcher fires a shell along the sights: it flies (rockets nearly straight, grenades in an arc) and bursts on the first thing it touches */
+  launch(p, w, a, pt, eye) {
+    const L = w.launch, c = Math.cos(pt), v = L.speed * M;
+    const n = { x: p.x + Math.cos(a) * 24, y: p.y + Math.sin(a) * 24, z: eye - 0.15, vx: Math.cos(a) * v * c, vy: Math.sin(a) * v * c, vz: Math.sin(pt) * L.speed, fuse: L.fuse, owner: p.id, team: p.team, id: this.nextId++, radius: L.radius * p.nadeRadius ** 0.5, dmg: L.dmg * p.dmgMul, impact: true, grav: L.grav, kind: L.kind, weapon: p.weapon };
+    this.nades.push(n);
+    this.events.push({ type: 'shot', by: p.id, x: p.x, y: p.y, z: eye, ex: n.x, ey: n.y, ez: eye, hit: 0 });
+  }
+
   moveNades(dt) {
     const keep = [];
     for (const n of this.nades) {
-      n.fuse -= dt;
-      n.vz -= R.GRAV * dt;
+      n.fuse -= dt; n.age = (n.age ?? 0) + dt;
+      n.vz -= R.GRAV * (n.grav ?? 1) * dt;
       let nx = n.x + n.vx * dt, ny = n.y + n.vy * dt, nz = n.z + n.vz * dt;
       for (const s of this.map.solids) {
         if (nz >= s.top || nz < 0 || !inRect(nx, ny, s)) continue;
         // it ran into the side of something: bounce off the side it came from
+        if (n.impact) { n.fuse = 0; nx = n.x; ny = n.y; break; }
         const px = n.x, py = n.y, hitX = !(px > s.x && px < s.x + s.w), hitY = !(py > s.y && py < s.y + s.h);
         if (hitX || !hitY) { n.vx = -n.vx * 0.45; nx = n.x; } if (hitY) { n.vy = -n.vy * 0.45; ny = n.y; }
         if (!hitX && !hitY) { n.vx = -n.vx * 0.45; n.vy = -n.vy * 0.45; nx = n.x; ny = n.y; }
       }
       nx = clamp(nx, 4, this.map.w - 4); ny = clamp(ny, 4, this.map.h - 4);
       const f = floorAt(this.map, nx, ny);
+      if (n.impact && n.fuse > 0) {
+        // a shell bursts on a soldier it touches, or on the floor
+        for (const q of this.players.values()) {
+          if (!q.alive || q.prot > 0 || (q.team === n.team && q.id !== n.owner) || (q.id === n.owner && n.age < 0.15)) continue;
+          if (Math.hypot(q.x - nx, q.y - ny) < R.RADIUS + 6 && nz > q.z - 0.1 && nz < q.z + R.BODY) { n.fuse = 0; break; }
+        }
+        if (nz <= f + 0.02) n.fuse = 0;
+      }
       if (nz < f) { nz = f; if (Math.abs(n.vz) > 2.5) n.vz = -n.vz * 0.35; else n.vz = 0; n.vx *= 0.6; n.vy *= 0.6; }
       n.x = nx; n.y = ny; n.z = nz;
       if (n.fuse <= 0) this.explode(n); else keep.push(n);
@@ -568,7 +586,7 @@ export class Match {
       const dmg = n.dmg * (1 - dist / n.radius) * (q.id === n.owner ? 0.5 : 1);
       if (dmg < 1) continue;
       q.hp -= dmg; q.hurtT = 0;
-      if (q.hp <= 0) this.kill(owner ?? null, q, { nade: 1 });
+      if (q.hp <= 0) this.kill(owner ?? null, q, n.weapon ? { weapon: n.weapon } : { nade: 1 });
       else this.events.push({ type: 'hit', by: n.owner, victim: q.id, x: q.x, y: q.y, z: q.z + 1, nade: 1 });
     }
   }
@@ -670,7 +688,7 @@ export class Match {
     }
     inp.dx *= 0.9; inp.dy *= 0.9;
     if (see && d < 80 && Math.random() < 0.5) inp.melee = true;
-    if (see && d < reach * 0.85 && Math.random() < DF.fire) inp.fire = true;
+    if (see && d < reach * 0.85 && (!w.launch || d > w.launch.radius * 1.3) && Math.random() < DF.fire) inp.fire = true;
     // a grenade now and then at an enemy that is far but in sight
     if (see && d > 500 && d < 1000 && p.grenades > 0 && Math.random() < 0.0015) inp.nade = true;
   }
@@ -680,7 +698,7 @@ export class Match {
       mode: this.mode, obj: this.objective, uv: this.uav.map((t) => Math.ceil(t)), zn: this.objective === 'zone' && this.map.zone ? [this.map.zone.x, this.map.zone.y, this.map.zone.r, this.map.zone.z ?? 0, +this.zoneP[0].toFixed(3), +this.zoneP[1].toFixed(3), this.zoneIn[0], this.zoneIn[1]] : null, ph: this.phase, ot: this.overtime ? 1 : 0, mn: this.minutes, tm: Math.max(0, Math.ceil(this.timer)), r: this.round, sc: this.score, rw: this.roundWinner, w: this.winner, map: this.map.id,
       al: [this.aliveCount(0), this.aliveCount(1)], n: [this.count(0), this.count(1)],
       p: [...this.players.values()].map((p) => [p.id, p.team, Math.round(p.x), Math.round(p.y), +p.aim.toFixed(2), p.hp, p.alive ? 1 : 0, p.kills, p.bot ? 1 : 0, +p.z.toFixed(2), +p.pitch.toFixed(2), p.grenades, p.ammo, p.rl > 0 ? 1 : 0, p.deaths, p.weapon, p.boostT > 0 ? 1 : 0, p.reserve, p.endless ? 1 : 0, p.hpMax]),
-      g: this.nades.map((n) => [n.id, Math.round(n.x), Math.round(n.y), +n.z.toFixed(2)]),
+      g: this.nades.map((n) => [n.id, Math.round(n.x), Math.round(n.y), +n.z.toFixed(2), n.kind ?? 0]),
       pk: this.pickups.list.map((q) => this.pickups.wire(q)),
       ev: this.events,
     };
