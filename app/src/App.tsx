@@ -68,7 +68,7 @@ export default function App() {
       <TxCheckDialog />
       <footer className="foot">
         <p>WARHEADZ on the VYRE testnet: test USDC, no real money. Trading is risky and launch tokens can go to zero; nothing here is advice.
-          USDC is issued by Circle, which isn’t affiliated with WARHEADZ or VYRE. <a href={href({ page: 'docs' })}>Docs</a> · <a href="/terms/">Terms</a> · <a href="/privacy/">Privacy</a> · <a href={EXPLORER} target="_blank" rel="noopener noreferrer">Explorer</a></p>
+          USDC is issued by Circle, which isn’t affiliated with WARHEADZ or VYRE. <a href={href({ page: 'docs' })}>Docs</a> · <a href="/terms/">Terms</a> · <a href="/privacy/">Privacy</a> · <a href="https://play.google.com/store/apps/details?id=com.vyrebadlands.arena" target="_blank" rel="noopener noreferrer">Android game</a> · <a href={EXPLORER} target="_blank" rel="noopener noreferrer">Explorer</a></p>
       </footer>
       {searching && <SearchPanel initial={route.page === 'explore' ? route.q : ''} onClose={() => setSearching(false)} />}
     </>
